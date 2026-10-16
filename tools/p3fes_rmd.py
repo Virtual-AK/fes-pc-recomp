@@ -240,11 +240,15 @@ def read_geometry(data, geo):
     return info
 
 
-def read_scene(data):
+def read_scene(data, index=0):
+    """Read the index-th clump (model) of the stream; most files have one, field files (.RWS) have several."""
     off, top = find_stream(data)
-    clump = next((c for c in top if c.type == 0x10), None)
-    if not clump:
+    clumps = [c for c in top if c.type == 0x10]
+    if not clumps:
         raise ToolError("no clump (model) in this file")
+    if index >= len(clumps):
+        raise ToolError("the file has only %d clump(s)" % len(clumps))
+    clump = clumps[index]
     st = clump.first(1)
     natoms = struct.unpack_from("<I", data, st.data_start)[0]
     frames = read_frames(data, clump.first(0x0E))
@@ -257,7 +261,7 @@ def read_scene(data):
         atomics.append((fi, gi, fl))
     texdict = next((c for c in top if c.type == 0x16), None)
     return {"offset": off, "top": top, "clump": clump, "frames": frames, "geos": geos,
-            "atomics": atomics, "texdict": texdict, "natoms": natoms}
+            "atomics": atomics, "texdict": texdict, "natoms": natoms, "nclumps": len(clumps)}
 
 
 def texture_summaries(data, texdict):
@@ -298,6 +302,14 @@ def ct32_word(x, y, tbw):
     return page * 2048 + blk * 64 + (y % 8 // 2) * 16 + (x % 8 // 2) * 4 + (y % 2) * 2 + (x % 2)
 
 
+def ct16_half(x, y, dbw):
+    """Halfword position of 16-bit pixel (x, y) in GS memory (PSMCT16: pages of 64x64, blocks of 16x8)."""
+    page = (y // 64) * dbw + (x // 64)
+    blk = BLOCK4[(y % 64) // 8][(x % 64) // 16]
+    word = (y % 8 // 2) * 16 + (x % 8 // 2) * 4 + (y % 2) * 2 + (x % 2)
+    return page * 4096 + blk * 128 + word * 2 + (x % 16) // 8
+
+
 def t8_index(x, y, tbw):
     """Byte position of 8-bit pixel (x, y) in GS memory."""
     page = (y // 64) * max(1, (tbw + 1) // 2) + (x // 128)
@@ -309,9 +321,9 @@ def t8_index(x, y, tbw):
     return page * 8192 + blk * 256 + c * 64 + word * 4 + lane
 
 
-def t4_index(x, y, tbw):
-    """Nibble position of 4-bit pixel (x, y) in GS memory."""
-    page = (y // 128) * max(1, (tbw + 1) // 2) + (x // 128)
+def t4_index(x, y, tbw, ppr=None):
+    """Nibble position of 4-bit pixel (x, y) in GS memory (ppr: pages per row, default from tbw)."""
+    page = (y // 128) * (ppr or max(1, (tbw + 1) // 2)) + (x // 128)
     blk = BLOCK4[(y % 128) // 16][(x % 128) // 32]
     xi, yi = x % 32, y % 16
     c, r = yi // 4, yi % 4
@@ -335,6 +347,24 @@ def parse_packet(blob, off):
     return rrw, rrh, blob[start:start + nq * 16], start + nq * 16
 
 
+def list_packets(blob, start, end):
+    """Every GS upload packet between start and end: (BITBLTBUF, TRXPOS, rrw, rrh, bytes of pixels)."""
+    out = []
+    off = start
+    while off + 32 <= end:
+        nloop = struct.unpack_from("<I", blob, off)[0] & 0x7FFF
+        regs = {}
+        for i in range(nloop):
+            d, a = struct.unpack_from("<QQ", blob, off + 16 + 16 * i)
+            regs[a & 0xFF] = d
+        rrw, rrh, pix, nxt = parse_packet(blob, off)
+        out.append((regs.get(0x50), regs.get(0x51), rrw, rrh, len(pix)))
+        if nxt <= off:
+            break
+        off = nxt
+    return out
+
+
 def replay_upload(stream, rrw):
     """Put the uploaded 32-bit pixels where the GS would put them; returns the memory bytes."""
     n = len(stream) // 4
@@ -345,6 +375,20 @@ def replay_upload(stream, rrw):
     for k in range(n):
         a = ct32_word(k % rrw, k // rrw, tbw_up) * 4
         mem[a:a + 4] = stream[4 * k:4 * k + 4]
+    return mem
+
+
+def replay_upload16(stream, rrw):
+    """Like replay_upload, but the upload is 16-bit pixels (PSMCT16): field textures send their
+    4-bit pictures this way (the packet size is w/2 x h/2 pixels of 16 bits)."""
+    n = len(stream) // 2
+    dbw = max(1, (rrw + 63) // 64)
+    rows = (n + rrw - 1) // rrw
+    size = ((rows + 63) // 64) * dbw * 8192
+    mem = bytearray(max(size, len(stream)))
+    for k in range(n):
+        a = ct16_half(k % rrw, k // rrw, dbw) * 2
+        mem[a:a + 2] = stream[2 * k:2 * k + 2]
     return mem
 
 
@@ -359,11 +403,15 @@ def texture_parts(data, tex):
     w, h, depth, fmt = struct.unpack_from("<4I", blob, 12)
     tex0 = struct.unpack_from("<Q", blob, 28)[0]
     texel_size, pal_size = struct.unpack_from("<2I", blob, 60)
-    if depth not in (4, 8):
+    if depth not in (4, 8, 32):
         raise ToolError("%d-bit textures are not supported yet" % depth)
     rrw, rrh, stream, _ = parse_packet(blob, 88)
     if not rrw:
         raise ToolError("upload packet has no size")
+    if depth == 32:        # true-colour: the upload is the picture, no palette
+        return {"w": w, "h": h, "depth": 32, "tbw": (tex0 >> 14) & 0x3F, "stream": stream, "rrw": rrw, "rrh": rrh,
+                "pal": [], "prrw": 0, "prrh": 0, "texel_size": texel_size, "pal_size": pal_size, "fmt": fmt,
+                "pstream": b"", "packets": list_packets(blob, 88, 88 + texel_size), "tex0": tex0}
     prrw, prrh, pstream, _ = parse_packet(blob, 88 + texel_size)
     # Palette entries are in file order; 8-bit palettes have entries 8-15 and 16-23 swapped in
     # every group of 32 (the GS "CSM1" palette layout). Confirmed on a face and a uniform texture.
@@ -375,7 +423,8 @@ def texture_parts(data, tex):
         pal.append((r, g, b, min(255, a * 2)))
     return {"w": w, "h": h, "depth": depth, "tbw": (tex0 >> 14) & 0x3F, "stream": stream,
             "rrw": rrw, "rrh": rrh, "pal": pal, "prrw": prrw, "prrh": prrh,
-            "texel_size": texel_size, "pal_size": pal_size, "fmt": fmt, "pstream": pstream}
+            "texel_size": texel_size, "pal_size": pal_size, "fmt": fmt, "pstream": pstream,
+            "packets": list_packets(blob, 88, 88 + texel_size), "tex0": tex0}
 
 
 def paint(parts, getter):
@@ -390,12 +439,28 @@ def paint(parts, getter):
 def decode_native_texture(data, tex):
     """tex: a TextureNative chunk. Returns (width, height, RGBA bytes) or raises ToolError."""
     t = texture_parts(data, tex)
+    if t["depth"] == 32:
+        w, h = t["w"], t["h"]
+        mem = replay_upload(t["stream"], t["rrw"])
+        tbw_up = max(1, (t["rrw"] + 63) // 64)
+        rgba = bytearray(w * h * 4)
+        for y in range(h):
+            for x in range(w):
+                a = ct32_word(x, y, tbw_up) * 4
+                r, g, b, al = mem[a:a + 4] if a + 4 <= len(mem) else (0, 0, 0, 0)
+                rgba[4 * (y * w + x):4 * (y * w + x) + 4] = bytes((r, g, b, min(255, al * 2)))
+        return w, h, bytes(rgba)
     mem = replay_upload(t["stream"], t["rrw"])
     tbw = t["tbw"]
     if t["depth"] == 8:
         return t["w"], t["h"], paint(t, lambda x, y: mem[t8_index(x, y, tbw)])
 
-    # 4-bit layout is NOT fully pinned down (see docs/formats.md): this is reading A, unverified.
+    # 4-bit pictures arrive as a 32-bit upload (character models) or, when the packet holds exactly
+    # rrw x rrh 16-bit pixels, as a 16-bit upload (field textures). Both are read back as PSMT4.
+    if t["rrw"] * t["rrh"] * 2 == len(t["stream"]):
+        mem16b = replay_upload16(t["stream"], t["rrw"])
+        return t["w"], t["h"], paint(t, lambda x, y: (mem16b[t4_index(x, y, tbw) >> 1] >> ((t4_index(x, y, tbw) & 1) * 4)) & 15
+                                     if (t4_index(x, y, tbw) >> 1) < len(mem16b) else 0)
     return t["w"], t["h"], variants_4bit(data, tex)[0][1]
 
 
@@ -432,9 +497,9 @@ def variants_4bit(data, tex):
     out = []
     mem = replay_upload(stream, t["rrw"])
 
-    def get4(m):
+    def get4(m, ppr=None):
         def f(x, y):
-            n = t4_index(x, y, tbw)
+            n = t4_index(x, y, tbw, ppr)
             return (m[n >> 1] >> ((n & 1) * 4)) & 15 if (n >> 1) < len(m) else 0
         return f
     out.append(("A: replay with the packet's size, GS 4-bit layout", paint(t, get4(mem))))
@@ -471,6 +536,24 @@ def variants_4bit(data, tex):
         b = mem3[k] if k < len(mem3) else 0
         return (b >> ((1 - (x & 1)) * 4)) & 15
     out.append(("I: read as 8-bit picture (w/2 wide), high nibble first", paint(t, get8split_hi)))
+    out.append(("J: like A but pages per row from the width, not from TBW", paint(t, get4(mem, max(1, (w + 127) // 128)))))
+    ppr256 = max(1, (w + 255) // 256)
+
+    def get4_pages(m):                              # H plus a page term: pages of 256x64 pixels
+        def f(x, y):
+            page = (y // 64) * ppr256 + x // 256
+            xi, yi = x % 32, y % 16
+            c, r = yi // 4, yi % 4
+            word = WORDS[(r + 2 * (c % 2)) % 4][xi % 8]
+            lane = 2 * (xi // 8) + (1 if r >= 2 else 0)
+            blk = BLOCK32[(y % 64) // 16][(x % 256) // 32]
+            n = page * 16384 + blk * 512 + c * 128 + word * 8 + lane
+            return (m[n >> 1] >> ((n & 1) * 4)) & 15 if (n >> 1) < len(m) else 0
+        return f
+    out.append(("K: like H but with pages of 256x64 (page number added)", paint(t, get4_pages(mem16))))
+    out.append(("L: like K but replayed with the packet's own width", paint(t, get4_pages(mem))))
+    mem16b = replay_upload16(stream, t["rrw"])
+    out.append(("M: upload as 16-bit pixels (PSMCT16), then GS 4-bit layout", paint(t, get4(mem16b))))
     return out
 
 
@@ -549,9 +632,14 @@ def export_textures(data, texdict, out_dir, verbose=True, variants=False):
         done.append(name)
         if verbose:
             parts = texture_parts(data, t)
-            print("  texture %s: %dx%d, %d-bit, neighbouring pixels equal %.0f%%; upload %dx%d (%d bytes), palette upload %dx%d" % (
+            print("  texture %s: %dx%d, %d-bit, neighbouring pixels equal %.0f%%; upload %dx%d (%d bytes), palette upload %dx%d, TBW %d" % (
                 name, w, h, parts["depth"], 100 * smoothness(rgba, w, h), parts["rrw"], parts["rrh"],
-                len(parts["stream"]), parts["prrw"], parts["prrh"]))
+                len(parts["stream"]), parts["prrw"], parts["prrh"], parts["tbw"]))
+            if verbose and parts["depth"] == 4:
+                print("    texel_size %d, TEX0 %016X, packets (BITBLTBUF, TRXPOS, size, bytes): %s" % (
+                    parts["texel_size"], parts["tex0"], "; ".join("%s %s %sx%s %d" % (
+                        "%X" % b if b is not None else "-", "%X" % q if q is not None else "-", w_, h_, n_)
+                        for b, q, w_, h_, n_ in parts["packets"])))
         if variants and texture_parts(data, t)["depth"] in (4, 8):
             vs = variants_4bit(data, t) if texture_parts(data, t)["depth"] == 4 else variants_8bit(data, t)
             if verbose:
@@ -625,21 +713,108 @@ def cmd_texhex(a):
         raise ToolError("no texture with that name")
 
 
+def write_linear(data, texdict, out_dir, name):
+    """Plain nibble-by-nibble pictures of one 4-bit texture at many widths (no swizzle at all)."""
+    for t in texdict.find(0x15):
+        strs = t.find(2)
+        if not strs or read_string(data, strs[0]) != name:
+            continue
+        parts = texture_parts(data, t)
+        stream, pal = parts["stream"], parts["pal"]
+        n = len(stream) * 2
+        # Which byte distances make equal bytes line up most often? A picture stored in plain rows
+        # (or in repeating blocks) shows its row length / block size here.
+        m = min(len(stream), 8192)
+        lags = []
+        for L in range(1, min(1025, len(stream) - m + 1) if len(stream) > m else len(stream) // 2):
+            lags.append((sum(1 for i in range(m) if i + L < len(stream) and stream[i] == stream[i + L]) / m, L))
+        lags.sort(reverse=True)
+        print("  byte distances where the data repeats most (share of equal bytes): " +
+              ", ".join("%d:%.0f%%" % (L, 100 * f) for f, L in lags[:14]))
+        for W in (16, 32, 64, 128, 256, 512, 1024):
+            H = n // W
+            for tag, shift in (("lo", 0), ("hi", 4)):
+                rgba = bytearray(W * H * 4)
+                for k in range(W * H):
+                    b = stream[k >> 1]
+                    v = (b >> (shift if k & 1 == 0 else 4 - shift)) & 15
+                    rgba[4 * k:4 * k + 4] = bytes(pal[v % len(pal)])
+                fn = "%s_lin%d_%s.png" % (name, W, tag)
+                write_png(os.path.join(out_dir, fn), W, H, bytes(rgba))
+                print("  wrote %s (%dx%d)" % (fn, W, H))
+        return
+    raise ToolError("no texture with that name")
+
+
+def neighbour_costs(data, texdict, names, out_path, block=512, keep=24):
+    """For every position p inside a block of the 4-bit stream, find the positions q whose values are
+    most like p's in the same blocks. In a smooth picture the pixel next to p is the likeliest q, so
+    this list lets us work out the in-block layout without knowing it. Writes only numbers."""
+    total = {}
+    used = 0
+    for t in texdict.find(0x15):
+        strs = t.find(2)
+        nm = read_string(data, strs[0]) if strs else ""
+        if nm not in names:
+            continue
+        parts = texture_parts(data, t)
+        if parts["depth"] != 4:
+            continue
+        pal = parts["pal"]
+        lum = [(c[0] + c[1] + c[2]) // 3 for c in pal]
+        st = parts["stream"]
+        nib = []
+        for b in st:
+            nib.append(lum[b & 15])
+            nib.append(lum[b >> 4])
+        nb = len(nib) // block
+        cols = [[nib[k * block + p] for k in range(nb)] for p in range(block)]
+        for p in range(block):
+            cp = cols[p]
+            row = total.setdefault(p, [0] * block)
+            for q in range(p + 1, block):
+                c = sum(abs(x - y) for x, y in zip(cp, cols[q])) / nb
+                row[q] += c
+                total.setdefault(q, [0] * block)[p] += c
+        used += 1
+        print("  used %s (%d blocks)" % (nm, nb))
+    if not used:
+        raise ToolError("none of those names is a 4-bit texture in this file")
+    with open(out_path, "w") as fh:
+        fh.write("block %d textures %d\n" % (block, used))
+        for p in range(block):
+            best = sorted((total[p][q] / used, q) for q in range(block) if q != p)[:keep]
+            fh.write("%d %s\n" % (p, " ".join("%d:%.2f" % (q, c) for c, q in best)))
+    print("  wrote %s" % out_path)
+
+
 def cmd_textures(a):
     with open(a.model, "rb") as fh:
         data = fh.read()
     sc = read_scene(data)
     os.makedirs(a.out, exist_ok=True)
+    if a.linear:
+        write_linear(data, sc["texdict"], a.out, a.linear)
+        return
+    if a.cost:
+        neighbour_costs(data, sc["texdict"], set(a.cost.split(",")), os.path.join(a.out, "cost.txt"))
+        return
     done = export_textures(data, sc["texdict"], a.out, variants=a.variants)
     print("Wrote %d texture file(s) to %s" % (len(done), a.out))
 
 
 def cmd_export(a):
-    r = export_model(a.model, a.out, a.mirror_x, not a.no_textures)
-    print("Wrote %s.obj and %s.mtl in %s" % (r["base"], r["base"], a.out))
-    print("Vertices: %d, materials: %d" % (r["vertices"], r["materials"]))
-    for s in r["skipped"]:
-        print("Skipped: " + s)
+    with open(a.model, "rb") as fh:
+        nclumps = read_scene(fh.read())["nclumps"]
+    wanted = range(nclumps) if a.all_clumps else [a.clump]
+    for n, ci in enumerate(wanted):
+        r = export_model(a.model, a.out, a.mirror_x, not a.no_textures and n == 0, clump=ci)
+        print("Wrote %s.obj and %s.mtl in %s" % (r["base"], r["base"], a.out))
+        print("Vertices: %d, materials: %d" % (r["vertices"], r["materials"]))
+        for s in r["skipped"]:
+            print("Skipped: " + s)
+    if nclumps > 1 and not a.all_clumps:
+        print("The file has %d clumps (models); use --all-clumps to write all of them, or --clump N for one." % nclumps)
 
 
 def cmd_gltf(a):
@@ -653,7 +828,7 @@ def cmd_gltf(a):
         print("Skipped: " + s)
 
 
-def export_model(model_path, out_dir, mirror_x=False, textures=True, verbose=True):
+def export_model(model_path, out_dir, mirror_x=False, textures=True, verbose=True, clump=0):
     """Write one model as .obj/.mtl (+ textures). Returns a dict describing what happened."""
     class A:
         pass
@@ -661,9 +836,9 @@ def export_model(model_path, out_dir, mirror_x=False, textures=True, verbose=Tru
     a.model, a.out, a.mirror_x, a.no_textures = model_path, out_dir, mirror_x, not textures
     with open(a.model, "rb") as fh:
         data = fh.read()
-    sc = read_scene(data)
+    sc = read_scene(data, clump)
     os.makedirs(a.out, exist_ok=True)
-    base = os.path.splitext(os.path.basename(a.model))[0]
+    base = os.path.splitext(os.path.basename(a.model))[0] + ("_clump%d" % clump if clump else "")
     world = world_transforms(sc["frames"]) if sc["frames"] else []
     obj_lines = ["# exported by p3fes_rmd.py", "mtllib %s.mtl" % base]
     mtl = {}
@@ -1319,12 +1494,16 @@ def main():
     p.add_argument("model")
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--variants", action="store_true", help="for 4-bit textures also write a sheet of alternative readings")
+    p.add_argument("--cost", metavar="NAMES", help="comma-separated 4-bit texture names: write cost.txt (which stream positions are neighbours), for working out the 4-bit layout")
+    p.add_argument("--linear", metavar="NAME", help="write plain (unswizzled) pictures of one 4-bit texture at many widths")
     p.set_defaults(fn=cmd_textures)
     p = sub.add_parser("export", help="write the geometry as .obj and .mtl")
     p.add_argument("model")
     p.add_argument("-o", "--out", required=True, help="output folder")
     p.add_argument("--no-textures", action="store_true", help="do not write the texture PNG files")
     p.add_argument("--mirror-x", action="store_true", help="mirror the model left-right (for viewers that show it flipped)")
+    p.add_argument("--clump", type=int, default=0, help="which model of the file to write (field .RWS files have several; default 0)")
+    p.add_argument("--all-clumps", action="store_true", help="write every model of the file (one .obj each; textures are written once)")
     p.set_defaults(fn=cmd_export)
     p = sub.add_parser("gltf", help="write mesh, skeleton, skin weights and animations as glTF (opens in Blender)")
     p.add_argument("model")

@@ -10,7 +10,7 @@ A script calls a game function with `COMM n`. The functions are a table of 502 r
 
 **From the first sample call sites:** functions 128 and 129 (no values; 8,781 and 16,262 calls) are compared with pairs such as (7, 7), (20, 4) and (5, 3), and 128 is once compared with 12, which looks like the calendar (month and day); function 138 (no values) is compared with 264, the number of floors in the tower, and stored by floor setup routines; function 118 takes (0, step, event number) with steps 1, 2, 4 and 5 seen; function 121 takes (on or off, object). These are guesses, marked with ? in `tools/script_names.txt`. In listings a function whose result is used once is now written where the result is used, e.g. `if (0 == flag_test(473))`.
 
-**Operand and argument order (inferred, not yet proven).** Scripts seem to push right to left: the value on top of the stack is the first argument of a call and the left operand of an operator. Evidence: with the other order, loops update `x = 1 - x` and tests read `2 >= (a - b)`; with this order they read `x = x - 1` and `(a - b) >= 2`, and calls start with the object or index (`field_121(object, on or off)`, `field_118(event, step, 0)`, the object first in `field_137`). The listing and export commands use this order.
+**Operand and argument order (strongly supported by the data, not yet checked in the engine code).** Scripts seem to push right to left: the value on top of the stack is the first argument of a call and the left operand of an operator. Evidence: with the other order, loops update `x = 1 - x` and tests read `2 >= (a - b)`; with this order they read `x = x - 1` and `(a - b) >= 2`, and calls start with the object or index (`field_121(object, on or off)`, `field_118(event, step, 0)`, the object first in `field_137`). The listing and export commands use this order. Further checks: `date_in_range?` (132) reads (month, day, month, day) with this order, e.g. (4,20,6,11), while the other order would give impossible months such as 20; `message_set_var?(slot, value, kind)` counts slots 0..5 in the first position; `(items - index) >= 2` matches the two-items-per-message report (messages 13 and 14).
 
 **More guesses from sample calls:** a save point runs `fade out, (wait), save menu (399, 400), fade in, (wait)`, so 14 and 13 are fades, 127 waits, and 399/400 are probably the save menu; a movie plays through 426/427 (the executable names 426 `H_SfdPlay`) and the name entry through 447/448 (`M_NameEntry`); 212 turns a party slot (0 to 3) into a character number; every field `init` procedure starts with `if (field_215() == 1)`.
 
@@ -49,3 +49,11 @@ Seen in AEGIS.BF/AMADA.BF `party_end_gather`, and in the member loops of ns004_0
 - 40 `message_choice_set?(6, 1)`: sits between message_show(40) and the choice message_choice?(41).
 - 201/202 `party_state?`/`party_state_set?(member[, value])`: compared against 0..3; meaning unknown.
 - 277, 360: (id, value) pairs, meaning unknown (360 may be a sound call).
+
+## Object and scene functions (all unconfirmed)
+
+- 33 `scene_change?(a, b, c, d)` follows a fade-out and ends the script, e.g. (5,1,0,0) at the counter door, (5,3,0,0) at the Velvet Room door.
+- Object pattern: `h = object_find?(5, id)` (313) or `object_find2?(6, id)` (357), then `o = object_create?(h, n)` (314) or `object_create2?(h, n)` (358), then `object_setup?(o, n)` (312), `object_anim?`, `object_show?(o, 1)`. `object_player?(0)` (311) gives the first object.
+- 371 `party_ready?(i)` and 304/305 `party_count?`/`party_id?`: loops over the party.
+
+Checked on 2,533 calls (all `field_313` and `field_357` calls in the exported scripts): in `field_357(a, n)` the first value is always either the number of the script's own field (1,107 calls) or -1 (1,012 calls), so it is "object n of field a" (-1 = this field). In `field_313(a, b)` the first value is 5 or 2 (kind) and the second an id (206, 157, 306, 33, 34, 201 ...); it is not a field number. Neither value matches the numbers at the end of `.FBN` file names in the same pack (5 of 217 and 24 of 1,012 by chance), so the FBN files are not looked up by these calls.

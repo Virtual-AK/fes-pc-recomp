@@ -45,3 +45,13 @@
 202 party_state_set?       # (member, value)
 277 actor_state?           # (id, value) uncertain
 360 sound_play?            # (type, id) uncertain; before box animation and door entry
+33 scene_change?       # (5,1,0,0) / (5,3,0,0) / (6,1,6,0) after a fade out, then end; goes to another scene
+311 object_player?     # (0) returns an object; hidden with object_show? at scene start
+312 object_setup?      # (object, number) between creating an object and object_anim? / object_show?
+313 object_find?       # (kind 5 or 2, id), e.g. (5,130), (2,25); result goes to 314; the first number is not a field number
+314 object_create?     # (result of 313, 3 or 0) returns an object
+357 field_object?      # (field number or -1 for this field, object number); 1107 calls use the script's own field number and 1012 use -1
+358 object_create2?    # (result of 357, 100/101)
+371 party_ready?       # (index 0..2) == 1 counted in loops over the party
+304 party_count?       # no values; loop limit in FUKA.BF
+305 party_id?          # (index) member number, compared with 2
