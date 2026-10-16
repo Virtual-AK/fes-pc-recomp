@@ -272,4 +272,34 @@ The first +0x80 word of an element is 0 for 4301 elements, below the element's o
 the blob (offset 0 or beyond the end); these are mostly MODEL, R-NOMAL, P-SPIRL and P-SMOKE elements and are not understood.
 
 ## Seen but not decoded
+### .BF scripts (FLW0): sections and instructions read (function numbers not yet named)
+510 files, all in DATA.CVM (three of them empty). Median 45 KB, largest 324 KB.
+Header: u32 0, u32 size, the text `FLW0` at +0x08, u32 0, u32 section count (5 in all files) at +0x10, a u32 at +0x14 that varies
+(1, 3, 13, 117 ...; probably a variable count), then from +0x20 one 16-byte header per section: type, element size, element
+count, start offset. Seen: type 0 elements of 32 bytes (starts at 0x70 = right after the table), type 1 of 32 bytes, then
+larger sections. **Checked on all 507 non-empty files:** the five sections are always types 0 to 4, contiguous in that order, with element sizes
+32, 32, 4, 1, 1. Instructions are 4-byte words (low 16 bits opcode, high 16 bits operand; PUSHI and PUSHF are followed by one
+value word). All 22,469 procedure labels point at an instruction with opcode 7, each one right after an opcode 9, and every
+jump label lands inside the instruction section; no opcode outside 0-34 occurs. So the opcode list below is confirmed in shape
+(opcode names are descriptive guesses): PUSHI 0, PUSHF 1, PUSHIX 2, PUSHIF 3, PUSHREG 4, POPIX 5, POPFX 6, PROC 7, COMM 8
+(call game function number = operand), END 9, JUMP 10, CALL 11, RUN 12, GOTO 13, ADD 14, SUB 15, MUL 16, DIV 17, MINUS 18,
+NOT 19, OR 20, AND 21, EQ 22, NEQ 23, S 24, L 25, SE 26, LE 27, IF 28, PUSHIS 29, PUSHLIX 30, PUSHLFX 31, POPLIX 32,
+POPLFX 33, PUSHSTR 34. Most used: PUSHIS (816k, small constants), COMM (328k), EQ, GOTO, IF. The `COMM` operand is the number of
+a function inside the game's executable: 213 different numbers occur, up to 501 (most used: 0, 7, 2, 8, 129, 1, 9, 121, 128,
+138). Naming those functions needs the executable's function table. **Found in the executable (SLUS_216.21):** the script
+engine runs an instruction through a 35-way jump table at 0x7B90A0 (code at 0x30FDF0, the number is checked against 35), and
+the game functions are a table of 8-byte records (function address, second word) that starts at 0x7B92B0 and holds exactly
+502 records (numbers 0 to 501, the highest the scripts use); some records are empty. The second word is 0 to 8 and may be the
+number of values the function takes: confirmed by running the stack code of all scripts with those counts: of 1,051,225 statements only 3 needed more values than were on the stack, and 38,735 of 38,738 procedures end with an empty stack. The executable's strings name the source files of many of them (message windows, social link commands, field commands, cut-ins); see [script-functions.md](script-functions.md). What each function does is not decoded yet. The type-3 section is a complete
+message file: it starts with the words 7 (file type), its size, then `MSG1`, the same layout as the `.BMD` files, so the
+existing text code reads it (`p3fes_bf.py messages` checks this on all files). The header's size word is the start of the last (type 4, string) section, i.e. everything before it, so
+it moves when the message data changes size (the three empty-looking files are different).
+In 21 scripts (f007, ns007_002, f012, NPCCOMU and others) the message table is not in file order (an entry may point back to an
+earlier position, or two entries share one message), so the text tool reads them as read-only; rebuilding them is not
+supported yet.
+The first words of the section table were read from the survey of all files; the meaning of each type is a
+hypothesis taken from the shape (labels have a name, then numbers) and is tested by `p3fes_bf.py analyse`, which checks that
+procedure labels point at the same kind of instruction and counts every opcode. The English message text is stored inside these
+files (common English words are all over the survey), so text for scripted scenes lives here and not only in the `.BMD` files.
+
 `.BF` scripts, `.BED` effect data (`BED4`, header layout read, blobs not decoded), `.SQ` sequences inside `.SE` banks, `.EPL` effects, `.CIN` cut-in data, `.SPR` sprites (`SPR0`), `.ANM` animations, `.TBL` tables of skill, persona and battle values, `.ENV`, `.CMR`, `.FBN`, `.HBN` field data, and the animation and skeleton data inside `.RMD` models.

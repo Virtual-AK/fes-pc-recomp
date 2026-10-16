@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-p3fes_text.py - get the game's text out of the .BMD message files, and put edited text back.
+p3fes_text.py - get the game's text out of the .BMD message files (and the message data inside .BF scripts), and put edited text back.
 
 EXTRACT  (read-only on your extracted folder):
     py p3fes_text.py extract "C:\\p3fes\\extracted"
   Writes one plain-text file per message file under <input>_text, e.g.
   C:\\p3fes\\extracted_text\\BTL.CVM\\BATTLE\\PANEL\\BP_TUTORIAL.BIN.d\\bp_tutorial1.bmd.txt
+  Scripts (.BF) carry their own message data; it is written to <name>.bf.txt and repacked into the script.
+  (21 scripts list their messages out of order; those are read-only for now.)
   It also checks every file: it rebuilds each one from what it read and compares it with
   the original, byte for byte. The summary tells you how many matched exactly.
   If the text folder already exists, extract stops instead of overwriting your edits; use
@@ -359,24 +361,34 @@ def parse_bmd(data):
         raise ToolError("unexpected header values")
     entries = [struct.unpack_from("<II", data, BASE + 8 * i) for i in range(count)]
     starts = [off + BASE for _, off in entries]
-    if starts != sorted(starts) or starts[-1] >= reloc_off:
+    ordered = starts == sorted(starts)
+    if max(starts) >= reloc_off:
         raise ToolError("message positions are out of order")
+    # Some files (a few scripts) list messages out of order, or point two entries at one message. They are read
+    # with each message ending where the next one in file order begins; such files cannot be rebuilt (read-only).
+    file_order = sorted(set(starts))
     first = BASE + 8 * count + 16
     msgs = []
     for i, (t, off) in enumerate(entries):
         s = starts[i]
-        e = starts[i + 1] if i + 1 < count else reloc_off
+        if ordered:
+            e = starts[i + 1] if i + 1 < count else reloc_off
+        else:
+            k = file_order.index(s)
+            e = file_order[k + 1] if k + 1 < len(file_order) else reloc_off
         m = parse_dialog(data, s, e, t) if t in (0, 1) else None
         if m is None:
             m = {"kind": "raw", "name": data[s:s + NAME_LEN].split(b"\0")[0].decode("ascii", "replace"),
                  "blob": data[s:e]}
         m["type"] = t
         msgs.append(m)
-    return {"ftype": ftype, "word": word, "first": first, "starts": starts, "reloc_off": reloc_off,
+    return {"ordered": ordered, "ftype": ftype, "word": word, "first": first, "starts": starts, "reloc_off": reloc_off,
             "reloc": data[reloc_off:], "msgs": msgs, "gap": data[BASE + 8 * count: BASE + 8 * count + 16]}
 
 
 def build_bmd(f):
+    if f.get("ordered") is False:
+        raise ToolError("the messages of this file are not in file order; it can be read but not rebuilt yet")
     msgs = f["msgs"]
     count = len(msgs)
     pos = BASE + 8 * count + 16
@@ -486,13 +498,59 @@ def parse_textfile(text):
     return src, msgs
 
 
+# ----------------------------------------------------------------- messages inside .BF scripts
+
+def bf_sections(data):
+    """Section table of a .BF script (FLW0): list of [type, element size, count, start], or None."""
+    if len(data) < 0x20 or data[8:12] != b"FLW0":
+        return None
+    n = struct.unpack_from("<I", data, 0x10)[0]
+    if n > 16 or 0x20 + 16 * n > len(data):
+        return None
+    secs = [list(struct.unpack_from("<4I", data, 0x20 + 16 * i)) for i in range(n)]
+    if any(st + es * cnt > len(data) for _, es, cnt, st in secs):
+        return None
+    return secs
+
+
+def message_bytes(rel, data):
+    """The message file for a .BMD, or the message data section inside a .BF script."""
+    if not rel.lower().endswith(".bf"):
+        return data
+    secs = bf_sections(data)
+    sec = next((x for x in secs or [] if x[0] == 3 and x[1] == 1), None)
+    if sec is None or sec[2] < 48:
+        raise ToolError("this script has no message data")
+    return data[sec[3]:sec[3] + sec[2]]
+
+
+def put_message_bytes(rel, data, new):
+    """Return the file with its message data replaced (a .BF script is rebuilt around the new section)."""
+    if not rel.lower().endswith(".bf"):
+        return new
+    secs = bf_sections(data)
+    sec = next(x for x in secs if x[0] == 3)
+    delta = len(new) - sec[2]
+    out = bytearray(data[:sec[3]] + new + data[sec[3] + sec[2]:])
+    for i, (t, es, cnt, st) in enumerate(secs):
+        if t == 3:
+            struct.pack_into("<I", out, 0x20 + 16 * i + 8, len(new))
+        elif st > sec[3]:
+            struct.pack_into("<I", out, 0x20 + 16 * i + 12, st + delta)
+    # the size word at +4 is the start of the last (string) section, i.e. everything before it
+    old_size = struct.unpack_from("<I", data, 4)[0]
+    if old_size > sec[3]:
+        struct.pack_into("<I", out, 4, old_size + delta)
+    return bytes(out)
+
+
 # ----------------------------------------------------------------- commands
 
 def walk_bmds(root, only):
     found = []
     for dp, _, names in os.walk(root):
         for n in names:
-            if n.lower().endswith(".bmd"):
+            if n.lower().endswith((".bmd", ".bf")):
                 rel = os.path.relpath(os.path.join(dp, n), root)
                 if not only or any(o.lower() in rel.lower() for o in only):
                     found.append(rel)
@@ -521,6 +579,7 @@ def cmd_extract(a):
         try:
             with open(os.path.join(root, rel), "rb") as fh:
                 data = fh.read()
+            data = message_bytes(rel, data)
             f = parse_bmd(data)
         except (ToolError, OSError) as e:
             problems.append((rel, str(e)))
@@ -545,8 +604,14 @@ def cmd_extract(a):
                     len(f["reloc"]), f["reloc"][-8:].hex(" "))
             reloc_bad.append((rel, why, f["reloc"].hex(" ")[:600],
                               " ".join(str(b - a) for a, b in zip([BASE] + (pts or [])[:-1], pts or []))[:400]))
-        rebuilt, _ = build_bmd(f)
-        if rebuilt == data:
+        try:
+            rebuilt, _ = build_bmd(f)
+        except ToolError as e:
+            problems.append((rel, str(e) + " (repack disabled for it)"))
+            rebuilt = None
+        if rebuilt is None:
+            pass
+        elif rebuilt == data:
             stats["exact"] += 1
         else:
             k = next((i for i in range(min(len(rebuilt), len(data))) if rebuilt[i] != data[i]), min(len(rebuilt), len(data)))
@@ -609,7 +674,7 @@ def cmd_repack(a):
     written, same, bad = 0, 0, []
     for dp, _, names in os.walk(tdir):
         for n in sorted(names):
-            if not n.lower().endswith(".bmd.txt"):
+            if not n.lower().endswith((".bmd.txt", ".bf.txt")):
                 continue
             tp = os.path.join(dp, n)
             rel = os.path.relpath(tp, tdir)[:-4]
@@ -617,7 +682,8 @@ def cmd_repack(a):
                 with open(tp, "r", encoding="utf-8") as fh:
                     src, tmsgs = parse_textfile(fh.read())
                 with open(os.path.join(orig, rel), "rb") as fh:
-                    data = fh.read()
+                    whole = fh.read()
+                data = message_bytes(rel, whole)
                 f = parse_bmd(data)
                 if len(tmsgs) != len(f["msgs"]):
                     raise ToolError("the number of messages changed (not supported yet)")
@@ -657,7 +723,7 @@ def cmd_repack(a):
                 dest = os.path.join(out, rel)
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 with open(dest, "wb") as fh:
-                    fh.write(new)
+                    fh.write(put_message_bytes(rel, whole, new))
                 written += 1
             except (ToolError, OSError, KeyError, ValueError) as e:
                 bad.append((rel, str(e)))

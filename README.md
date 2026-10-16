@@ -13,7 +13,7 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 | Game text | Extract, edit, repack, patch into a disc copy that plays. |
 | 3D models | All 3,766 models export to glTF with skeletons, skin weights and animations (checked in Blender on a character, an NPC, a Persona, a boss, a weapon, a facility piece, a field object and an effect model). |
 | Effect data (`.BED`) | Structure and parameter-block headers read; the parameter fields are not decoded. |
-| Scripts (`.BF`) | Not decoded yet. |
+| Scripts (`.BF`) | Layout, instruction set and the table of the 213 game functions the scripts call are known ([docs/script-functions.md](docs/script-functions.md)); what each function does is not decoded yet. The dialogue inside scripts extracts and repacks like other text. |
 
 The next phases need developers; see [How to help](#how-to-help).
 
@@ -43,7 +43,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 **Text (editing works)**
 | Tool | What it does |
 | --- | --- |
-| `p3fes_text.py` | `extract` writes the game's message (`.BMD`) text to editable text files; `repack` builds modified `.BMD` files from your edits. |
+| `p3fes_text.py` | `extract` writes the game's message text (the `.BMD` files and the dialogue inside `.BF` scripts) to editable text files; `repack` builds modified files from your edits. |
 | `p3fes_textfind.py` | Searches the extracted text for a word or phrase and shows the file, message and line of each match. |
 | `p3fes_textcodes.py` | Counts the control codes (the `{F1 05}` style tokens) in the extracted text, with examples. |
 | `p3fes_patch.py` | Writes changed files (from a folder laid out like the extracted one) into a COPY of the disc image, then verifies the copy. In-place only: files must fit their existing space. Use `--dry-run` first. |
@@ -61,6 +61,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_models.py` | Surveys the `.RMD` files: header patterns, chunk lists, strings. `--tree` and `--hex` look inside one file. |
 | `p3fes_bmd.py` | Shows the structure (and optional hex dump) of one `.BMD` message file. |
 | `p3fes_fx.py` | Surveys the `.BED` effect files: `survey`, `nodes` (element types and examples), `fields` (every parameter word per type), `show` and `dump` for one file. |
+| `p3fes_bf.py` | The `.BF` scripts: `survey`, `analyse`, `messages`, `listing` (one script as readable statements), `msgcheck`, `balance`, `export` (every script as readable text), `context` (sample call sites of one function), `disasm` (raw instructions), `hex`; and for the boot executable: `functions`, `peek`, `code` (MIPS), `limit`, `lui`, `switch`, `ref`, `comm` (the script function table). |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
 
 ## Quick start (Windows)
@@ -93,6 +94,7 @@ Every tool prints what it did and writes a short report or a `problems.txt`. If 
 - [docs/findings.md](docs/findings.md): the disc layout and what the executable is built from.
 - [docs/formats.md](docs/formats.md): how the file formats are put together.
 - [docs/text-codes.md](docs/text-codes.md): what the control codes inside message text mean.
+- [docs/script-functions.md](docs/script-functions.md): the script functions (`COMM` numbers) and where they live in the executable.
 - [docs/roadmap.md](docs/roadmap.md): the phases and the open questions.
 
 In short: the game is one code image with no overlays, built on Sony's PS2 SDK and CRI middleware from early 2005. It reads all its data through CRI's file-system calls from three archives on the disc, and nearly all of that data is in simple, readable container formats.

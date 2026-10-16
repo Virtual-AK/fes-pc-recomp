@@ -1,0 +1,47 @@
+# Names for script functions (COMM numbers). One per line: number name   # note
+# The listing and export commands use these in place of group_number names. Add what you learn;
+# a ? at the end of a name means it is a guess.
+0 message_show         # takes a message number of the script's own text (checked on 36,314 calls)
+1 message_open?        # no values; comes before message_show
+2 message_close?       # no values; comes after message_show
+3 message_choice?      # takes a message number of the script's own text (all 4,625 calls inside the range)
+7 flag_test?           # (flag number); the result is read from reg0; used as test, then set or clear
+8 flag_set?            # (flag number); flag numbers are sums such as 1024 + 16
+9 flag_clear?          # (flag number)
+12 wait_frames         # (frames): 1 inside wait loops, 30 between two messages
+28 message_set_var?    # (a, value, slot): fills a placeholder of the next message
+308 status_show?       # named H_FRStatusDisp in the executable; (member)
+309 status_show_all?   # same group as 308
+118 event_ctrl?        # (0, step, event number): steps 1, 2, 4, 5 seen, e.g. (0, 1, 400) at the start and (0, 5, 900) at the end
+121 object_show?       # (on or off, object): used on literal ids such as 10343 and on ids made by other functions
+128 date_month?        # no values; compared with 12, 7, 4, 3 next to 129
+129 date_day?          # no values; pairs such as (7, 7) and (20, 4) with 128 look like day and month
+138 tartarus_floor?    # no values; compared with 264, the number of floors; stored by 'floor_init' routines
+13 screen_fade_in?     # (a value); comes after a movie or a save screen
+14 screen_fade_out?    # two values; comes before a save screen or name entry
+127 screen_wait?       # no values; follows the fade calls (wait until done?)
+212 party_member?      # (slot): loops over slots 0 to 3 and gets a character number (g_data.c)
+215 scene_init_check?  # no values; every field 'init' procedure begins with: if (field_215() == 1)
+426 movie_play?        # (movie number); the executable names it H_SfdPlay (SFD is the movie format)
+427 movie_end?         # no values; follows 426
+447 name_entry?        # the executable names it M_NameEntry
+448 name_entry_end?    # follows 447
+399 save_menu?         # no values; between two fades at a save point
+400 save_menu_end?     # follows 399
+334 loot_count?        # (member) how many items that party member picked up; loops 0..count-1
+338 loot_item?         # (member, index) first message value, kind 17; 3 values per entry
+335 loot_kind?         # (member, index) second message value, kind 17
+336 loot_amount?       # (member, index) third message value, kind 0 (a number)
+324 loot_give?         # (member) after the report; also called alone with 1
+325 loot_give_end?     # no values; follows 324
+337 loot_clear?        # (member) follows 325 in the member reports
+484 event_begin?       # no values; first call of event procs (dungeon_upstair, party_end_gather)
+40 message_choice_set?     # (6, 1) seen between message_show(40) and message_choice?(41)
+132 date_in_range?         # (month, day, month, day) true inside the range; (4,20,6,11), (5,23,6,7) fit calendar spans
+137 object_anim?           # (object, animation, 0, 0, 1) then wait_frames / object_show
+182 cutin_open?            # 7 values; after message_open?, shows a speaker cut-in
+183 cutin_close?           # 1 value (0); before message_close?
+201 party_state?           # (member) compared with 0..3, set by 202
+202 party_state_set?       # (member, value)
+277 actor_state?           # (id, value) uncertain
+360 sound_play?            # (type, id) uncertain; before box animation and door entry

@@ -21,7 +21,7 @@
 Done and checked on a real NTSC-U disc: reading the disc and CVM archives, extracting and splitting containers, textures (.TMX) to PNG, audio to WAV, game text extract, edit, repack and patch (an edited tutorial plays in game), and 3D models with skeletons and animations (all 3,766 models export to glTF; animations confirmed moving in Blender), and sound effects (`.SE` banks decode to WAV, sequences render; checked by ear).
 
 Remaining format work that would help later phases, roughly in order of usefulness:
-1. **Scripts (`.BF`)**: not started; likely the hardest format. Also the field data files.
+1. **Scripts (`.BF`)**: layout (`FLW0`), instruction set, embedded message text and the table of the 213 game functions the scripts call are known; next: decode what each function does (start with the most used: message window, flags, field commands) by reading their code and checking arguments against the data. Also the field data files.
 2. **Effect data (`.BED`)**: the element trees and parameter-block headers are read; the fields inside the blocks (timings, sizes, colour curves) need comparison with how effects look in game.
 3. Text: the exact meaning of each control code, and making room for text that is longer than the original (the patch tool currently needs edited files to fit their existing space).
 4. Sound: exact sequence timing, pitch, envelopes and pan; control events 0x0E/0x0F.
