@@ -2,7 +2,20 @@
 
 A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC-U, serial SLUS-21621) natively on PC and in the browser, with no emulator. The goals are higher resolutions, higher frame rates and easy mod support.
 
-**Status: research and tooling.** Nothing here runs the game yet. The tools read, unpack, convert and (for text) edit and repack the game's data from your own disc, and the file formats are documented. Working so far: disc and archive reading, textures, audio, game text (extract, edit, repack, patch back into a disc copy that plays), and 3D models (geometry and textures). Not decoded yet: model skeletons and animation, scripts, sound sequences. The next phases need developers; see [How to help](#how-to-help).
+**Status: research and tooling.** Nothing here runs the game yet. The tools read, unpack, convert and (for text) edit and repack the game's data from your own disc, and the file formats are documented.
+
+| Area | State |
+| --- | --- |
+| Disc, archives, containers | Read and unpacked. |
+| Textures | Converted to PNG. |
+| Voice audio (`.ADX`, `.AFS`) | Converted to WAV. |
+| Sound effects (`.SE` banks) | Samples decode to WAV; the sequences (`.sq`) render to audio (timing, pitch, envelopes and pan not exact yet). |
+| Game text | Extract, edit, repack, patch into a disc copy that plays. |
+| 3D models | All 3,766 models export to glTF with skeletons, skin weights and animations (checked in Blender on a character, an NPC, a Persona, a boss, a weapon, a facility piece, a field object and an effect model). |
+| Effect data (`.BED`) | Structure and parameter-block headers read; the parameter fields are not decoded. |
+| Scripts (`.BF`) | Not decoded yet. |
+
+The next phases need developers; see [How to help](#how-to-help).
 
 ## Ground rules
 - **Bring your own disc.** Everyone uses their own legally owned dump. This repository contains no game code, assets, BIOS files, disc images or extracted files, and never will. Please do not attach any of those to issues or pull requests.
@@ -25,6 +38,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | --- | --- |
 | `p3fes_tmx.py` | Converts the `.TMX` textures from the extracted folder to `.PNG`, with an optional browsable gallery page. |
 | `p3fes_audio.py` | Splits the `.AFS` voice archives and converts `.ADX` audio to `.WAV`. |
+| `p3fes_bed.py` | Sound effects: `banks` decodes the `.SE` banks to `.WAV`; `seq` renders their sequences to `.WAV` (flat `seq_wav` folder); other commands write survey reports. |
 
 **Text (editing works)**
 | Tool | What it does |
@@ -37,7 +51,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 **3D models**
 | Tool | What it does |
 | --- | --- |
-| `p3fes_rmd.py` | `export` writes one model (`.RMD`) as `.obj` and `.mtl` with its textures as PNG; `batch` does a whole folder and writes a report of what failed and why; `info` lists what is inside; `textures` writes only the textures. Characters export as a static T-pose (no skeleton yet). |
+| `p3fes_rmd.py` | `export` writes one model (`.RMD`) as `.obj` and `.mtl` with its textures as PNG; `batch` does a whole folder and writes a report of what failed and why; `info` lists what is inside; `textures` writes only the textures; `skeleton` shows the bones, skin weights and animation headers (a diagnostic). `gltf` writes mesh, skeleton, skin weights and the animations for Blender `batch --gltf` does a whole folder. `export` writes a static T-pose. |
 
 **Research tools** (for people working on formats; most users never need these)
 | Tool | What it does |
@@ -46,11 +60,12 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_formats.py` | Surveys how the main file types are built: containers, AFS, ADX, SFD, and header samples for every other type. |
 | `p3fes_models.py` | Surveys the `.RMD` files: header patterns, chunk lists, strings. `--tree` and `--hex` look inside one file. |
 | `p3fes_bmd.py` | Shows the structure (and optional hex dump) of one `.BMD` message file. |
+| `p3fes_fx.py` | Surveys the `.BED` effect files: `survey`, `nodes` (element types and examples), `fields` (every parameter word per type), `show` and `dump` for one file. |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
 
 ## Quick start (Windows)
 1. Install Python from python.org (tick "Add python.exe to PATH"). In a Command Prompt, use `py` instead of `python`.
-2. Download this repository (green **Code** button, then **Download ZIP**) and unzip it. Open a Command Prompt in the `tools` folder (type `cmd` in the folder's address bar).
+2. Download this repository (green **Code** button, then **Download ZIP**) and unzip it. Open a Command Prompt in the `tools` folder (type `cmd` in the folder's address bar). If you copy the tools elsewhere, run them from that folder.
 3. Check your dump: `py p3fes_inspect.py "C:\path\to\game.iso"`
 4. Extract it (about 4-8 GB): `py p3fes_unpack.py "C:\path\to\game.iso" -o "C:\p3fes\extracted" --containers --skip-video`
 5. Look at the pictures: `py p3fes_tmx.py "C:\p3fes\extracted" --limit 100 --gallery`, then open `index.html` in the new `extracted_png` folder.
@@ -69,6 +84,11 @@ Every tool prints what it did and writes a short report or a `problems.txt`. If 
 - One model: `py p3fes_rmd.py export "C:\p3fes\extracted\BTL.CVM\MODEL\NPC\N00001A.RMD" -o "C:\p3fes\model_test"`
 - All models, geometry only (a few minutes): `py p3fes_rmd.py batch "C:\p3fes\extracted\BTL.CVM\MODEL" -o "C:\p3fes\model_batch" --no-textures`. Leave `--no-textures` off to include textures (needs much more disk space). The report is `batch_report.txt` in the output folder.
 
+**Pose and animate a character in Blender** (File, Import, glTF 2.0)
+- One model: `py p3fes_rmd.py gltf "C:\p3fes\extracted\BTL.CVM\MODEL\NPC\N00001A.RMD" -o "C:\p3fes\model_gltf"`
+- A whole folder: `py p3fes_rmd.py batch "C:\p3fes\extracted\BTL.CVM\MODEL\NPC" -o "C:\p3fes\gltf_batch" --gltf` (add `--match C0` to pick files by name, `--limit 20` for a quick trial).
+- In Blender: select the armature, open the Animation workspace, set the lower panel to Action Editor, and pick an animation from the dropdown. Select all bones (A) to see its keys; Space plays.
+
 ## What we know
 - [docs/findings.md](docs/findings.md): the disc layout and what the executable is built from.
 - [docs/formats.md](docs/formats.md): how the file formats are put together.
@@ -80,7 +100,7 @@ In short: the game is one code image with no overlays, built on Sony's PS2 SDK a
 ## How to help
 - **Developers:** experience with C or C++, MIPS, Ghidra, PS2 hardware or recompilation projects is what we need most. The open questions are in [docs/roadmap.md](docs/roadmap.md).
 - **Testers:** run the tools on your own dump (especially other regions and dumps) and report what you see. The [QA guide](docs/qa-guide.md) explains how.
-- **Format researchers:** model skeletons and animation (inside `.RMD`), scripts (`.BF`) and sound sequences (`.BED`) are not decoded yet. The model chunks whose meaning is unknown are listed in [docs/formats.md](docs/formats.md#not-understood-yet).
+- **Format researchers:** scripts (`.BF`) are not decoded yet; the `.BED` effect parameter fields and the sound sequence details (timing, pitch, envelopes, pan, control events) are only partly known. The model chunks whose meaning is unknown are listed in [docs/formats.md](docs/formats.md#not-understood-yet).
 - Open an issue before starting large work so we do not duplicate effort.
 
 ## Related work

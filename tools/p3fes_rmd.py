@@ -642,6 +642,17 @@ def cmd_export(a):
         print("Skipped: " + s)
 
 
+def cmd_gltf(a):
+    import p3fes_gltf
+    res = p3fes_gltf.export_gltf(a.model, a.out, a.mirror_x, not a.no_textures)
+    print("Wrote %s.gltf and %s.bin in %s" % (res["base"], res["base"], a.out))
+    print("Meshes: %d, skins: %d, bones: %d, animations: %d" % (res["meshes"], res["skins"], res["bones"], res["animations"]))
+    for line in res["diagnostics"] + res["notes"]:
+        print(line)
+    for s in res["skipped"]:
+        print("Skipped: " + s)
+
+
 def export_model(model_path, out_dir, mirror_x=False, textures=True, verbose=True):
     """Write one model as .obj/.mtl (+ textures). Returns a dict describing what happened."""
     class A:
@@ -764,16 +775,439 @@ def cmd_chunks(a):
         print("find_stream: " + str(e))
 
 
+# ----------------------------------------------------------------- skeleton, skin, animation
+
+HANIM, SKIN, NODE_NAME, ANIM = 0x11E, 0x116, 0x253F2FE, 0x1B
+
+
+def read_hanim(data, ch):
+    """RenderWare HAnim plugin chunk: bone id, and for the root the list of bones in depth-first order."""
+    p = ch.data_start
+    ver, node_id, n = struct.unpack_from("<3I", data, p)
+    info = {"version": ver, "node_id": node_id, "count": n, "flags": 0, "keyframe_size": 0, "nodes": []}
+    if n > 0:
+        info["flags"], info["keyframe_size"] = struct.unpack_from("<2I", data, p + 12)
+        for i in range(n):
+            nid, idx, fl = struct.unpack_from("<3I", data, p + 20 + 12 * i)
+            info["nodes"].append((nid, idx, fl))
+    return info
+
+
+def matrix_sane(m):
+    """A 4x4 bone matrix whose three rotation rows are about unit length and whose position is finite.
+    The fourth number of each row is padding and is ignored."""
+    for r in (0, 4, 8):
+        ln = (m[r] ** 2 + m[r + 1] ** 2 + m[r + 2] ** 2) ** 0.5
+        if not (0.9 < ln < 1.1):
+            return False
+    return all(abs(m[i]) < 1e5 for i in (12, 13, 14))
+
+
+def find_matrix_block(data, start, end, nb):
+    """Search the bytes from start to end for nb consecutive bone matrices; returns the best
+    (offset, stride, number of sane matrices) found."""
+    best = (0, 64, 0)
+    for stride in (64, 68, 72):
+        for off in range(0, max(0, end - start - nb * stride) + 1):
+            c = 0
+            for b in range(nb):
+                q = start + off + b * stride
+                if q + 64 > end:
+                    break
+                if matrix_sane(struct.unpack_from("<16f", data, q)):
+                    c += 1
+            if c > best[2]:
+                best = (off, stride, c)
+    return best
+
+
+def read_skin(data, ch, nvert):
+    """RenderWare skin plugin chunk for ordinary (non-native) geometry: per-vertex bone indices and
+    weights, and one inverse bone matrix per bone. The layout of the tail varies between versions, so
+    the possible layouts are tried and the one that fits the chunk size exactly is used."""
+    p = ch.data_start
+    end = ch.end
+    nb, nused, maxw, _pad = struct.unpack_from("<4B", data, p)
+    p += 4
+    used = list(data[p:p + nused])
+    p += nused
+    need = nvert * 4 + nvert * 16
+    if p + need > end:
+        raise ToolError("skin data is smaller than its vertex count says")
+    idx = [tuple(data[p + 4 * i:p + 4 * i + 4]) for i in range(nvert)]
+    p += nvert * 4
+    wts = [struct.unpack_from("<4f", data, p + 16 * i) for i in range(nvert)]
+    p += nvert * 16
+    rest = end - p
+
+    def matrices(prefix):
+        out = []
+        for b in range(nb):
+            q = p + b * (64 + prefix) + prefix
+            if q + 64 > end:
+                break
+            out.append(struct.unpack_from("<16f", data, q))
+        return out
+
+    def sane_count(ms):
+        return sum(1 for m in ms if matrix_sane(m))
+    # Layout found on a real character: nb matrices of 64 bytes, then "split skin" data:
+    # u32 boneLimit, u32 numMeshes, u32 numRLE, nb bytes (bone remap, 0xFF = unused), numRLE pairs of bytes.
+    split = None
+    q = p + nb * 64
+    if rest >= nb * 64 + 12 + nb and sane_count(matrices(0)) == nb:
+        h1, h2, h3 = struct.unpack_from("<3I", data, q)
+        pairs = rest - nb * 64 - 12 - nb          # bytes after the remap table
+        split = {"header": (h1, h2, h3), "bone_limit": h1, "meshes": h2, "rle_count": pairs // 2,
+                 "remap": list(data[q + 12:q + 12 + nb]),
+                 "rle": [tuple(data[q + 12 + nb + 2 * i:q + 14 + nb + 2 * i]) for i in range(pairs // 2)]}
+    if split:
+        layout = (0, rest - nb * 64)
+        fits = [layout]
+    else:
+        # older layouts that fit the chunk size exactly; sizes alone can be ambiguous, so prefer the layout
+        # whose matrices look like real matrices, and on a tie the simplest layout
+        fits = [(prefix, extra) for prefix, extra in ((0, 0), (0, 12), (4, 0), (4, 12)) if rest == nb * (64 + prefix) + extra]
+        layout = max(fits, key=lambda le: (sane_count(matrices(le[0])), -fits.index(le))) if fits else None
+    exact = layout is not None
+    prefix = layout[0] if layout else 0
+    mats = matrices(prefix)
+    sane = sane_count(mats)
+    return {"split": split, "tail_start": p, "end": end, "bones": nb, "used": used, "max_weights": maxw, "indices": idx, "weights": wts, "matrices": mats,
+            "layout_exact": exact, "layout": layout, "rest_bytes": rest, "sane_matrices": sane}
+
+
+def read_anim(data, ch):
+    """Header of a RenderWare animation chunk (0x1B) and a size check for its keyframes."""
+    p = ch.data_start
+    ver, itype, nframes, flags, dur = struct.unpack_from("<4If", data, p)
+    body = ch.size - 20
+    expect = {1: 36 * nframes, 2: 22 * nframes + 24}
+    return {"version": ver, "type": itype, "frames": nframes, "flags": flags, "duration": dur,
+            "body_bytes": body, "expected_bytes": expect.get(itype), "size": ch.size}
+
+
+def frame_extensions(data, flist):
+    """Per frame: (name, hanim) read from the extension chunks that follow the frame-list struct."""
+    exts = flist.find(3)
+    out = []
+    for e in exts:
+        name = None
+        hanim = None
+        # plugin chunks inside an extension are leaves, so walk them directly
+        q = e.data_start
+        while q + 12 <= e.end:
+            t, sz, ver = struct.unpack_from("<III", data, q)
+            if sz > e.end - q - 12:
+                break
+            if t == NODE_NAME:
+                name = data[q + 12:q + 12 + sz].split(b"\0")[0].decode("latin-1")
+            elif t == HANIM and sz >= 12:
+                fake = Chunk(t, sz, ver, q)
+                hanim = read_hanim(data, fake)
+            q += 12 + sz
+        out.append((name, hanim))
+    return out
+
+
+def geometry_skin(data, geo, nvert):
+    ext = geo.first(3)
+    if not ext:
+        return None
+    q = ext.data_start
+    while q + 12 <= ext.end:
+        t, sz, ver = struct.unpack_from("<III", data, q)
+        if sz > ext.end - q - 12:
+            break
+        if t == SKIN:
+            return read_skin(data, Chunk(t, sz, ver, q), nvert)
+        q += 12 + sz
+    return None
+
+
+def hexline(b):
+    return " ".join("%02x" % x for x in b)
+
+
+def skin_detail(data, sk):
+    t, e = sk["tail_start"], sk["end"]
+    print("    --- bytes after the weights: %d ---" % (e - t))
+    for o in range(0, min(112, e - t), 16):
+        print("      +%4d: %s" % (o, hexline(data[t + o:t + o + 16])))
+    print("      ... last 48 bytes:")
+    for o in range(max(0, e - t - 48), e - t, 16):
+        print("      +%4d: %s" % (o, hexline(data[t + o:min(t + o + 16, e)])))
+    off, stride, cnt = find_matrix_block(data, t, e, sk["bones"])
+    print("    best place for %d consecutive bone matrices: offset +%d, stride %d bytes, %d of %d look like matrices" % (
+        sk["bones"], off, stride, cnt, sk["bones"]))
+    print("    (so there are %d bytes before them and %d bytes after them)" % (off, e - t - off - sk["bones"] * stride))
+    if cnt:
+        m = struct.unpack_from("<16f", data, t + off)
+        print("    first matrix: " + " ".join("%.3f" % x for x in m))
+
+
+def anim_detail(data, ch, limit):
+    p = ch.data_start
+    ver, itype, n, flags, dur = struct.unpack_from("<4If", data, p)
+    body = p + 20
+    print("      raw first %d keyframes (22 bytes each):" % limit)
+    for i in range(min(limit, n)):
+        print("        %3d: %s" % (i, hexline(data[body + 22 * i:body + 22 * i + 22])))
+    tail = body + 22 * n
+    if tail + 24 <= ch.end:
+        print("      block after the keyframes: %s" % hexline(data[tail:tail + 24]))
+        print("        as 6 floats: " + " ".join("%.5g" % x for x in struct.unpack_from("<6f", data, tail)))
+    print("      last 3 keyframes:")
+    for i in range(max(0, n - 3), n):
+        print("        %3d: %s" % (i, hexline(data[body + 22 * i:body + 22 * i + 22])))
+
+
+def half(h):
+    return struct.unpack("<e", struct.pack("<H", h))[0]
+
+
+def unpack16(h):
+    """Decode the 16-bit animation value: sign bit, 5-bit exponent, 10-bit mantissa, except that the low bit of
+    the exponent counts as an extra top mantissa bit (so each doubling of the value takes two exponent steps).
+    0x7800 is 1.0, 0x7400 is 0.75, 0x7000 is 0.5. Verified against the translation rest poses of N00001A."""
+    mag = h & 0x7FFF
+    if mag == 0:
+        return 0.0
+    e = mag >> 10
+    m = ((e & 1) << 10) | (mag & 0x3FF)
+    v = 2.0 ** ((e >> 1) - 15) * (1 + m / 2048.0)
+    return -v if h & 0x8000 else v
+
+
+def quat_from_matrix(m):
+    """Unit quaternion (x, y, z, w) from a 3x3 rotation matrix given as rows."""
+    t = m[0][0] + m[1][1] + m[2][2]
+    if t > 0:
+        r = (1 + t) ** 0.5
+        w = r / 2
+        x, y, z = (m[2][1] - m[1][2]) / (2 * r), (m[0][2] - m[2][0]) / (2 * r), (m[1][0] - m[0][1]) / (2 * r)
+    elif m[0][0] >= m[1][1] and m[0][0] >= m[2][2]:
+        r = (1 + m[0][0] - m[1][1] - m[2][2]) ** 0.5
+        x = r / 2
+        y, z, w = (m[0][1] + m[1][0]) / (2 * r), (m[0][2] + m[2][0]) / (2 * r), (m[2][1] - m[1][2]) / (2 * r)
+    elif m[1][1] >= m[2][2]:
+        r = (1 + m[1][1] - m[0][0] - m[2][2]) ** 0.5
+        y = r / 2
+        x, z, w = (m[0][1] + m[1][0]) / (2 * r), (m[1][2] + m[2][1]) / (2 * r), (m[0][2] - m[2][0]) / (2 * r)
+    else:
+        r = (1 + m[2][2] - m[0][0] - m[1][1]) ** 0.5
+        z = r / 2
+        x, y, w = (m[0][2] + m[2][0]) / (2 * r), (m[1][2] + m[2][1]) / (2 * r), (m[1][0] - m[0][1]) / (2 * r)
+    return (x, y, z, w)
+
+
+def normalise(q):
+    n = sum(c * c for c in q) ** 0.5
+    return tuple(c / n for c in q) if n else (0, 0, 0, 1)
+
+
+def linfit(xs, ys):
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    syy = sum((y - my) ** 2 for y in ys)
+    if sxx == 0 or syy == 0:
+        return 0, my, 0
+    sl = sxy / sxx
+    return sl, my - sl * mx, (sxy * sxy) / (sxx * syy)
+
+
+def anim_fit(data, ch, frames, bone_frames):
+    """Compare the first keyframe of each bone with the bone's rest pose from the frame list, to work out
+    how rotation and translation are stored."""
+    p = ch.data_start
+    n = struct.unpack_from("<I", data, p + 8)[0]
+    body = p + 20
+    nb = len(bone_frames)
+    if n < nb:
+        print("      too few keyframes for a fit")
+        return
+    kfs = []
+    for i in range(nb):
+        o = body + 22 * i
+        t = struct.unpack_from("<f", data, o)[0]
+        rot = struct.unpack_from("<4H", data, o + 4)
+        tr = struct.unpack_from("<3H", data, o + 12)
+        kfs.append((t, rot, tr))
+    print("      fit of the first %d keyframes against the rest pose (frame list):" % nb)
+    print("        keyframes with time 0: %d of %d" % (sum(1 for k in kfs if abs(k[0]) < 1e-6), nb))
+    # rotation
+    best = None
+    for conv in ("rows", "columns"):
+        rest_q = []
+        for fi in bone_frames:
+            R = frames[fi]["rot"]
+            if conv == "columns":
+                R = [[R[j][i] for j in range(3)] for i in range(3)]
+            rest_q.append(quat_from_matrix(R))
+        for name, dec in (("folded 16-bit", unpack16), ("half floats", lambda h: half(h)), ("int16 / 32768", lambda h: (h - 65536 if h > 32767 else h) / 32768)):
+            for order in ("xyzw", "wxyz"):
+                tot = 0
+                for (t, rot, tr), rq in zip(kfs, rest_q):
+                    v = [dec(h) for h in rot]
+                    q = normalise(tuple(v) if order == "xyzw" else (v[1], v[2], v[3], v[0]))
+                    tot += abs(sum(a * b for a, b in zip(q, rq)))
+                score = tot / nb
+                if best is None or score > best[0]:
+                    best = (score, conv, name, order)
+                print("        rotation, rest matrix as %s, %-13s, order %s: mean |dot| with rest pose %.3f" % (conv, name, order, score))
+    print("        best rotation reading: %s, %s, %s (%.3f)" % (best[1], best[2], best[3], best[0]))
+    # translation
+    for name, dec in (("int16", lambda h: h - 65536 if h > 32767 else h), ("half floats", half)):
+        parts = []
+        for ax in range(3):
+            xs = [dec(k[2][ax]) for k in kfs]
+            ys = [frames[fi]["pos"][ax] for fi in bone_frames]
+            parts.append((ax, linfit(xs, ys)))
+        print("        translation as %-11s: %s" % (name, "; ".join(
+            "%s = %.6g * raw + %.6g (r2 %.3f)" % ("xyz"[ax], sl, ic, r2) for ax, (sl, ic, r2) in parts)))
+    tail = body + 22 * n
+    if tail + 24 <= ch.end:
+        blk = struct.unpack_from("<6f", data, tail)
+        print("        the 24-byte block as 6 floats: " + " ".join("%.6g" % x for x in blk))
+        # test the block as offset (first three) and scalar (last three) under several ways of scaling the raw value
+        s16 = lambda h: h - 65536 if h > 32767 else h
+        hyps = [("offset + scalar * folded 16-bit", unpack16),
+                ("offset + scalar * half / 32768", lambda h: half(h) / 32768),
+                ("offset + scalar * half", lambda h: half(h)),
+                ("offset + scalar * int16 / 32768", lambda h: s16(h) / 32768),
+                ("offset + scalar * uint16 / 65535", lambda h: h / 65535),
+                ("offset + scalar * half / 16384", lambda h: half(h) / 16384),
+                ("offset + scalar * half / 65536", lambda h: half(h) / 65536)]
+        print("        translation from the block, median absolute error against the rest pose (x, y, z):")
+        for name, dec in hyps:
+            errs = []
+            for ax in range(3):
+                e = sorted(abs(blk[ax] + blk[3 + ax] * dec(k[2][ax]) - frames[fi]["pos"][ax]) for k, fi in zip(kfs, bone_frames))
+                errs.append(e[len(e) // 2])
+            print("          %-34s %9.4g %9.4g %9.4g" % (name, errs[0], errs[1], errs[2]))
+    print("        per bone: first keyframe raw (rotation 4, translation 3 as hex) and the rest pose (position x y z):")
+    for i, (k, fi) in enumerate(zip(kfs, bone_frames)):
+        pos = frames[fi]["pos"]
+        print("          bone %3d: %s | %s | %9.4f %9.4f %9.4f" % (
+            i, " ".join("%04x" % h for h in k[1]), " ".join("%04x" % h for h in k[2]), pos[0], pos[1], pos[2]))
+
+
+def cmd_skeleton(a):
+    with open(a.model, "rb") as fh:
+        data = fh.read()
+    sc = read_scene(data)
+    flist = sc["clump"].first(0x0E)
+    frames = sc["frames"]
+    exts = frame_extensions(data, flist) if flist else []
+    print("%s" % a.model)
+    print("Frames: %d (extension chunks found: %d)" % (len(frames), len(exts)))
+    named = sum(1 for n, _ in exts if n)
+    hanims = [(i, h) for i, (n, h) in enumerate(exts) if h]
+    print("Frames with a name: %d; frames with bone (HAnim) data: %d" % (named, len(hanims)))
+    roots = [(i, h) for i, h in hanims if h["count"] > 0]
+    for i, h in roots:
+        print("  skeleton root: frame %d, bone id %d, %d bones, flags %d, keyframe size %d" % (
+            i, h["node_id"], h["count"], h["flags"], h["keyframe_size"]))
+        by_id = {hh["node_id"]: ii for ii, hh in hanims}
+        for k, (nid, idx, fl) in enumerate(h["nodes"][:a.max_bones]):
+            fi = by_id.get(nid)
+            par = frames[fi]["parent"] if fi is not None and fi < len(frames) else None
+            nm = exts[fi][0] if fi is not None and fi < len(exts) else None
+            print("    bone %3d: id %4d, frame %s, parent frame %s, flags %d%s" % (
+                idx, nid, fi, par, fl, ("  name " + nm) if nm else ""))
+        if len(h["nodes"]) > a.max_bones:
+            print("    ... %d more bones (use --max-bones to show more)" % (len(h["nodes"]) - a.max_bones))
+    if not hanims:
+        print("  no skeleton data in this model")
+    print()
+    for gi, geo in enumerate(sc["geos"]):
+        try:
+            info = read_geometry(data, geo)
+            nvert = info["nvert"]
+        except (ToolError, struct.error):
+            continue
+        try:
+            sk = geometry_skin(data, geo, nvert)
+        except (ToolError, struct.error) as e:
+            print("geometry %d: skin data could not be read (%s)" % (gi, e))
+            continue
+        if not sk:
+            print("geometry %d: %d vertices, no skin data" % (gi, nvert))
+            continue
+        wsum = sum(1 for w in sk["weights"] if abs(sum(w) - 1.0) < 0.02)
+        used = sum(1 for ix, w in zip(sk["indices"], sk["weights"]) for i, x in zip(ix, w) if x > 0 and i >= sk["bones"])
+        print("geometry %d: %d vertices, skin: %d bones (%d used), up to %d weights per vertex" % (
+            gi, nvert, sk["bones"], len(sk["used"]), sk["max_weights"]))
+        print("    weights sum to 1 on %d of %d vertices; bone indices out of range: %d" % (wsum, nvert, used))
+        print("    inverse matrices: layout %s, %d bytes left after the weights, %d of %d matrices look sane" % (
+            ("exact (matrices, then %d trailing bytes)" % sk["layout"][1]) if sk["layout_exact"] else "NOT recognised",
+            sk["rest_bytes"], sk["sane_matrices"], len(sk["matrices"])))
+        if sk["split"]:
+            sp = sk["split"]
+            print("    split-skin data: header numbers %s, %d range pairs, %d of %d bones used by the remap table" % (
+                sp["header"], sp["rle_count"], sum(1 for x in sp["remap"] if x != 0xFF), sk["bones"]))
+        if a.detail:
+            skin_detail(data, sk)
+    print()
+    anims = [c for c in sc["top"] if c.type == ANIM]
+    print("Animation chunks (0x1B) at the top level: %d" % len(anims))
+    types = {}
+    for c in anims:
+        try:
+            an = read_anim(data, c)
+        except struct.error:
+            continue
+        types.setdefault(an["type"], []).append(an)
+    for t, lst in sorted(types.items()):
+        ok = sum(1 for x in lst if x["expected_bytes"] is not None and x["body_bytes"] == x["expected_bytes"])
+        print("  type %d: %d animations; keyframe counts %s; sizes consistent with %s bytes per keyframe: %d of %d" % (
+            t, len(lst), sorted({x["frames"] for x in lst})[:8], {1: "36", 2: "22 (+24 once)"}.get(t, "?"), ok, len(lst)))
+        for x in lst[:a.max_anims]:
+            print("      version 0x%X, %d keyframes, duration %.3f s, flags %d, body %d bytes (expected %s)" % (
+                x["version"], x["frames"], x["duration"], x["flags"], x["body_bytes"], x["expected_bytes"]))
+        if a.detail and t not in (1, 2):
+            c = next(c for c in anims if read_anim(data, c)["type"] == t)
+            an = read_anim(data, c)
+            print("      unknown type 0x%08X: header bytes %s" % (t, hexline(data[c.data_start:c.data_start + 20])))
+            if an["frames"] and an["body_bytes"] % an["frames"] == 0:
+                size = an["body_bytes"] // an["frames"]
+                print("      body is %d bytes per keyframe; first 6 and last 3 keyframes:" % size)
+                body = c.data_start + 20
+                for i in list(range(min(6, an["frames"]))) + list(range(max(6, an["frames"] - 3), an["frames"])):
+                    print("        %3d: %s" % (i, hexline(data[body + size * i:body + size * i + size])))
+                print("      bytes after the keyframes: %s" % hexline(data[body + size * an["frames"]:c.end][:48]))
+            else:
+                print("      body (%d bytes) does not divide evenly by %d keyframes; first 96 bytes: %s" % (
+                    an["body_bytes"], an["frames"], hexline(data[c.data_start + 20:c.data_start + 116])))
+        if a.detail and t == 2:
+            first = next(c for c in anims if read_anim(data, c)["type"] == 2)
+            anim_detail(data, first, 8)
+            if roots:
+                by_id = {hh["node_id"]: ii for ii, hh in hanims}
+                bone_frames = [by_id[nid] for nid, idx, fl in sorted(roots[0][1]["nodes"], key=lambda n: n[1]) if nid in by_id]
+                if len(bone_frames) == len(roots[0][1]["nodes"]):
+                    anim_fit(data, first, frames, bone_frames)
+
+
 def _batch_one(job):
-    path, out_dir, mirror, textures = job
+    path, out_dir, mirror, textures, as_gltf = job
     import io
     import contextlib
     rec = {"file": path}
     try:
         with contextlib.redirect_stdout(io.StringIO()):
-            r = export_model(path, out_dir, mirror, textures, verbose=False)
+            if as_gltf:
+                import p3fes_gltf
+                r = p3fes_gltf.export_gltf(path, out_dir, mirror, textures, verbose=False)
+                r["vertices"] = r["meshes"]
+            else:
+                r = export_model(path, out_dir, mirror, textures, verbose=False)
         rec.update(status="ok" if r["vertices"] else "empty", vertices=r["vertices"], skipped=r["skipped"],
                    textures=len(r["textures"]))
+        if as_gltf:
+            rec.update(bones=r["bones"], animations=r["animations"], notes=r["notes"])
         if r["skipped"]:
             rec["status"] = "partial" if r["vertices"] else "empty"
     except BaseException as e:             # one bad file must never stop the batch
@@ -804,7 +1238,7 @@ def cmd_batch(a):
     for f in files:
         rel = os.path.relpath(os.path.dirname(f), a.folder)
         base = os.path.splitext(os.path.basename(f))[0]
-        jobs.append((f, os.path.join(a.out, rel, base), a.mirror_x, not a.no_textures))
+        jobs.append((f, os.path.join(a.out, rel, base), a.mirror_x, not a.no_textures, a.gltf))
     print("Exporting %d models to %s using %d worker(s). This can take a while; progress is shown every 100 files." % (len(jobs), a.out, a.jobs))
     results = []
     if a.jobs > 1:
@@ -830,6 +1264,11 @@ def cmd_batch(a):
             for sk in r["skipped"] or ["no geometry written"]:
                 key = "skipped: " + sk.split(":", 1)[-1].strip()
                 reasons.setdefault(key, []).append(r)
+    import re
+    for r in results:                      # warnings from the glTF exporter, grouped with the numbers blanked out
+        for note in r.get("notes") or []:
+            key = "note: " + re.sub(r"\d+", "N", note)
+            reasons.setdefault(key, []).append(r)
     with open(os.path.join(a.out, "batch_report.json"), "w") as fh:
         json.dump(results, fh, indent=1)
     lines = ["Models: %d" % len(results)]
@@ -841,8 +1280,13 @@ def cmd_batch(a):
         for r in v[:3]:
             lines.append("           %s%s" % (os.path.relpath(r["file"], a.folder), ("   starts: " + r["head"]) if r.get("head") else ""))
     lines.append("")
-    lines.append("Totals: %d vertices exported, %d textures written." % (
-        sum(r.get("vertices", 0) for r in results), sum(r.get("textures", 0) for r in results)))
+    if a.gltf:
+        lines.append("Totals: %d meshes exported, %d textures written; %d models have a skeleton, %d animations written." % (
+            sum(r.get("vertices", 0) for r in results), sum(r.get("textures", 0) for r in results),
+            sum(1 for r in results if r.get("bones")), sum(r.get("animations", 0) for r in results)))
+    else:
+        lines.append("Totals: %d vertices exported, %d textures written." % (
+            sum(r.get("vertices", 0) for r in results), sum(r.get("textures", 0) for r in results)))
     text = "\n".join(lines)
     with open(os.path.join(a.out, "batch_report.txt"), "w") as fh:
         fh.write(text + "\n")
@@ -857,6 +1301,12 @@ def main():
     p = sub.add_parser("info", help="show what is inside a model")
     p.add_argument("model")
     p.set_defaults(fn=cmd_info)
+    p = sub.add_parser("skeleton", help="show the bones, skin weights and animation headers in a model")
+    p.add_argument("model")
+    p.add_argument("--max-bones", type=int, default=40)
+    p.add_argument("--max-anims", type=int, default=6)
+    p.add_argument("--detail", action="store_true", help="also dump raw bytes of the skin tail and the first animation (for format work)")
+    p.set_defaults(fn=cmd_skeleton)
     p = sub.add_parser("chunks", help="debug: show the game's own chunks and where RenderWare data might start")
     p.add_argument("model")
     p.set_defaults(fn=cmd_chunks)
@@ -876,11 +1326,18 @@ def main():
     p.add_argument("--no-textures", action="store_true", help="do not write the texture PNG files")
     p.add_argument("--mirror-x", action="store_true", help="mirror the model left-right (for viewers that show it flipped)")
     p.set_defaults(fn=cmd_export)
+    p = sub.add_parser("gltf", help="write mesh, skeleton, skin weights and animations as glTF (opens in Blender)")
+    p.add_argument("model")
+    p.add_argument("-o", "--out", required=True, help="output folder")
+    p.add_argument("--no-textures", action="store_true")
+    p.add_argument("--mirror-x", action="store_true", help="mirror the model left-right")
+    p.set_defaults(fn=cmd_gltf)
     p = sub.add_parser("batch", help="export every .RMD in a folder (one subfolder per model) and write a report")
     p.add_argument("folder", help="folder to search, including subfolders (e.g. the MODEL folder)")
     p.add_argument("-o", "--out", required=True, help="output folder")
     p.add_argument("--no-textures", action="store_true", help="geometry only (much faster, far less disk space)")
     p.add_argument("--mirror-x", action="store_true")
+    p.add_argument("--gltf", action="store_true", help="write glTF (skeleton, skin, animations) instead of .obj")
     p.add_argument("--match", help="only files whose name contains this text (e.g. N000)")
     p.add_argument("--limit", type=int, help="stop after this many files (for a quick trial)")
     p.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1), help="parallel workers")

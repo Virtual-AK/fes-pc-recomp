@@ -73,6 +73,12 @@ Geometry, materials and textures are decoded and checked in Blender (all 2,934 f
 holds no geometry). Skeletons and animation are present in the files but not decoded yet. Other
 folders with `.RMD` files (for example in `DATA.CVM`) have not been run through the batch tool.
 
+### Where the models are (NTSC-U, 3,766 .RMD files, all readable)
+BTL.CVM\MODEL\NPC 1071 (characters; N00001A is the player), PACK 530 (enemies, e.g. EM11D = Nyx Avatar, inside
+*.PAC.d folders), WEAPON 769, PERSONA 256, FACILITYP 256, SYMBOL 31, FIELD 21; DATA.CVM\FIELD\RMD 813 and
+GRMD 15 (field objects such as grass), plus 4 more in DATA.CVM. Every model has a skeleton; 3 have no
+geometry (KARA, M007_809, M032_022).
+
 ### File layout
 Every number is little-endian. A chunk is a 12-byte header (type, size, version) followed by `size` bytes.
 
@@ -138,11 +144,132 @@ picture flat. Not yet checked on a 4-bit texture that fills its whole area. `p3f
 --variants` writes alternative readings for such textures. (A "smoothness" score is misleading here:
 a reading that leaves most of the picture blank scores high, so judge by eye.)
 
+### Skeleton, skin and animation (partly checked on N00001A.RMD)
+`p3fes_rmd.py skeleton FILE` reads these and prints what it found:
+- **Bones:** each frame's extension chunk may hold a node name (0x253F2FE) and an HAnim chunk (0x11E:
+  version, bone id, bone count; the root also has flags, keyframe size and a list of bones as id, index,
+  flags). Bone hierarchy comes from the frame parents.
+- **Skin (0x116, in the geometry extension), verified on N00001A.RMD:** bone count, used-bone count,
+  max weights per vertex, the used-bone list, 4 bone indices per vertex (bytes), 4 weights per vertex
+  (floats; they sum to 1 on every vertex of all three skinned meshes). Then one 4x4 inverse bone matrix
+  per bone (64 bytes each, all 123 are proper matrices), then extra "split skin" style data: three
+  u32 numbers, one byte per bone (a remap table; 0xFF means the bone is unused by this mesh) and
+  pairs of bytes (probably start and count of bone ranges). The sizes are 12 + 123 + 16 = 151 and
+  12 + 123 + 100 = 235 bytes. What the three numbers mean is not known (the first reading, as boneLimit,
+  numMeshes and a pair count, did not fit); none of it is needed for posing.
+- **Bones (verified):** in N00001A.RMD there are 124 frames and 123 bones with ids 1000-1097 and
+  5001-5014, no node names, push/pop flags (2 = push, 1 = pop) in depth-first order, and parents agree
+  with the frame list.
+- **Animation (0x1B, top level after the clump):** u32 version (0x100), u32 type, u32 keyframe count,
+  u32 flags, float duration, then keyframes. All 22 animations in N00001A.RMD are type 2 (compressed):
+  each body is exactly 22 bytes per keyframe plus one 24-byte block. A keyframe is: float time (4 bytes),
+  four 16-bit values for the rotation, three 16-bit values for the translation, and a u32 that points back
+  to the previous keyframe of the same bone (in units of 24 bytes, the in-memory keyframe size; the first
+  keyframe of each bone holds a constant instead). The first 123 keyframes (one per bone, in bone order)
+  all have time 0; later ones are sorted by time and chained per bone through the back pointer.
+- **The 16-bit number format (VERIFIED):** sign bit, 5-bit exponent, 10-bit mantissa, except that the low
+  exponent bit counts as an extra top mantissa bit: with e = exponent >> 1 and M = (exponent & 1) << 10 |
+  mantissa, the value is +-2^(e-15) * (1 + M/2048). So 0x7800 = 1.0, 0x7400 = 0.75, 0x7000 = 0.5, 0x0000 = 0.
+  Rotation: four such values in the order x, y, z, w; they are already a unit quaternion (all 123 first
+  keyframes have length 0.9998-1.0001). It is the quaternion of the transpose of the rotation rows in the
+  frame list (that reading scores 0.99 against the rest pose; the transposed one 0.82).
+  Translation: position = offset + scale * value per axis, with offset and scale being the six floats of the
+  24-byte block after the keyframes (offset x y z, then scale x y z). Checked on all 123 bones: median error
+  0.0007, 0.002 and 1e-6 units on x, y, z (the quantisation step), and 0x7800 gives offset + scale exactly.
+  The block is stored once per animation.
+- **Mirrored frames:** 61 of the 2,934 models (all in PERSONA) have frames whose 3x3 matrix has a negative
+  determinant (a left-right mirror). The glTF export splits each frame matrix into rotation and scale, with a
+  negative x scale for the mirrored ones. Checked in Blender on PS000.RMD (the creature looks right and plays its
+  animation). In that file two mirrored bones score 0.000 on the first-pose check, which is not understood yet.
+- `p3fes_rmd.py gltf FILE -o FOLDER` writes mesh, skeleton, skin weights and all type 2 animations as glTF
+  (one node per frame; verified in Blender 5.2 on N00001A: the textured character follows its animations; the inverse bind matrices are computed from the frame list because the ones stored in the file differ from it by the first bone's offset (85, 139, 145 units in the three meshes) and Blender made no armature from them; bind pose check and first-pose check are printed). Type 1 animations (36 bytes per
+  keyframe: float time, 4 floats quaternion x y z w, 3 floats position, u32 back pointer, assumed to be the
+  previous keyframe's index times 36) are read the same way; N00853.RMD is the only model seen with one (unchecked in Blender yet).
+
+### A third animation layout (effect models)
+Ten models in DATA.CVM\FIELD\RMD (for example M001_002.RMD: 5 flat 4-vertex quads, 6 bones, 446 keyframes,
+6.667 s) hold an animation whose type field reads 0x44A07195 (odd for a type id; maybe a hash) and whose
+HAnim root says keyframe size 52. Body = 52 bytes x keyframes exactly. A keyframe is 13 words: float time,
+quaternion x y z w (all NaN, with junk in one word, when the bone has no rotation channel), position x y z,
+four floats not understood (1 1 1 0 on the root's first keyframe; 1.5, ~0, 1, 1 later: scale, size, colour or
+alpha), and a u32 back pointer = previous keyframe index x 52 (first keyframes hold junk, like the other
+types). These look like particle or sprite effects. The glTF export reads time, rotation (where present) and
+position, gives bones with NaN rotation a translation channel only, and ignores the four unknown floats. Checked in Blender on M001_002: six bones, each active in its own staggered time window, and the quads move.
+
 ### Not understood yet
 Payload of `F0F000F0` (2 bytes); contents of `F0F000E0`; the trailing game-specific chunks and the
-anim animation chunks (0x1B, type 2 compressed); skin weights; what the 88 files with trailing bytes
+meaning of the split-skin header numbers; what the 88 files with trailing bytes
 hold; whether any model shares textures with another (a model whose materials name a texture that is not
 in its own dictionary exports without that texture).
 
+## Sound effects (.SE) and the .BED effect data
+
+### .SE: containers of Sony sound banks (decoded)
+790 files (BTL.CVM\SKILL, BTL.CVM\MODEL\PACK em*.SE, SND_BENC, BATTLE\EFFECT, DATA.CVM\SOUND\SPU\BSE.SE). Each is the
+usual 256-byte-header container (name, size, data) with exactly three entries: `.hd`, `.bd`, `.sq`.
+- `.hd` and `.sq` use Sony's "SCEI" chunk format: an 8-byte chunk name written as two little-endian words, so
+  `IECSsreV` is SCEIVers, `IECSdaeH` SCEIHead, `IECSigaV` SCEIVagi, `IECSbteS` and `IECSuqeS`, `IECSqseS` further chunks.
+  Each chunk: name, u32 size, then its fields. SCEIHead holds the total size, the `.bd` size and offsets of the other chunks.
+- **SCEIVagi** (the sample table): u32 size, u32 highest index, then one u32 offset per sample (from the chunk start);
+  each entry is u32 start offset into the `.bd`, u16 sample rate, 2 more bytes (second is 0xFF).
+- `.bd`: PlayStation 2 ADPCM, 16-byte blocks (shift/filter byte, flag byte, 14 data bytes); the first block is silence.
+  A sample runs from its start to the block with flag 1 (end). Flag 2 = loops, 4 = loop start (6 samples in all use loops).
+  Decoder filters (60,0) (115,-52) (98,-55) (122,-60). Verified by ear: the decoded samples sound like clean effects.
+- 2,190 samples in 790 banks (1 to 53 per bank); rates 44100 Hz (1,956), 32000, 22050, 33075, 22056; 0.1 to 3.8 s.
+- Not decoded: the `.hd` chunks other than Vagi (which sample plays for which note: key ranges, envelopes, volume, pan)
+  and the `.sq` sequences that trigger them.
+`p3fes_bed.py split` splits `.SE` files, `p3fes_bed.py banks` writes the WAV files.
+
+### .sq sequences and .hd tones (all 790 banks parse; by ear the rendered sequences sound right)
+`.sq` = SCEIVers, SCEISequ, SCEISesq. In SCEISesq (offsets from the chunk start c, `none` = 0xFFFFFFFF): c+0x0C highest group
+number, c+0x10 a u32 X so that the group table is at c+0x10+X; each group = u32 highest block number, u32 Y, u8 volume, u8 pan,
+u16 resolution (1000), u32 none, then a block table at group+4+Y (most entries none). A block = u32 offset of its events (0x10),
+u8 volume, u8 pan, u16 resolution, u32 event byte count, u32 0, then the events. Events are MIDI-like: a delay (7 bits per
+byte, high bit means another byte follows), then a status byte: 0x90 note on (3 bytes: 0, key, velocity), 0xA0 note off (0, key, 0),
+0xFF end. The smallest bank is one block: key 0 at velocity 127, then key 1 at velocity 30 after 200 ticks (an echo).
+`.hd` SCEISetb (chunk start s): s+0x10 holds the offset (0x14) of a directory: u32 highest set number, then one u32 offset (from s)
+per set. A set: u32 (8), u16 record size 0x32, u8 highest tone, u8 0xFF, then 50-byte tone records: u16 sample number
+(index into SCEIVagi), byte 3 volume, byte 4 pan (0x40 = middle); the rest (pitch, envelope, key range 0x3C..0x3C) not decoded.
+Small banks have one set of 2 to 8 tones; the big bank (DATA.CVM\SOUND\SPU\BSE.SE) has 7 sets of 128 tones (set size
+4+4+128*50 = 6408 bytes, checked against the directory offsets). A note event carries a set number (the byte after 0x90, 0 in
+every small bank) and a key; the key is the tone number inside that set. The block number looks like the sound's id.
+Control events: status 0xB0 + 3 bytes (set, key, control number) + a variable-length number + a little-endian u16. Checked on all
+28 blocks that use it (enemy banks em049, em04A..., a few skill banks, and BSE.SE): control 0x0E with values 600, 1000, 1200, 3000
+and 0x0F with 400, 1000, 1200; the variable-length number is a time in ticks (600 to 1600). Probably a gradual change (pitch or
+volume, 1000 = unchanged) of the note with that key; what it changes exactly is not known and the renderer ignores them.
+All 1,969 blocks of the 790 banks parse and end with 0xFF.
+Not known: how many ticks a second (the render guesses 2000), whether velocity and tone volume multiply, pitch handling,
+and banks whose tone table is larger than one record array (the biggest bank's SCEISetb is 42 KB).
+
+### .BED (BED4): effect element trees (structure and block headers read, parameter fields not decoded)
+704 files: 512 in BTL.CVM\SKILL (one per skill id 000-1FF; the .SE banks there use the same numbering up to 1CF), 103 in
+SND_BENC\BOSS, 69 in BATTLE\EFFECT, 20 in SND_BENC\BTLEFF.BIN.d. Magic `BED4`, then the bytes `00` (version?).
+File layout: a 6-word header at 0x04, 32 rows of 24 bytes from 0x1C, a 5-word header at 0x31C, 32 more rows from 0x330, and data
+from 0x630 (702 of 704 files; the other two start elsewhere). A row = u32 type (0xFE empty, 7 used), u32 offset of a blob,
+u32 flags (0x80400 most common, then 0x100, 0x8040C, 0x80100, 0x400 ...), three more words (mostly 0). Files hold 1 to 6 blobs.
+The headers hold a repeated number (0x28, 0x32, 0x96, 0xB4, 0x64 ...) of unknown meaning.
+**Blob = an effect element tree.** A 0x90-byte root record, then N records of 0xC0 bytes, then the parameter blocks.
+- Root: the row at +0x60 reads (1.0, 0xFFFFFFFF, 0x80, 0) and the row at +0x80 reads (N, 0, 0x90, 0), so N elements follow.
+- Element (0xC0 bytes): sixteen-byte rows of floats: +0x00 and +0x10 (0 0 0 1) (rotation, or two), +0x20 (1 1 1 1) (scale or
+  colour), +0x30 zeros, +0x40 (x y z 1) a position (for example 0 5 0 1), +0x50 (0 0 0 1), +0x60 (1.0, 0xFFFFFFFF, 0x80, 0),
+  +0x70 four floats (0 1 0 0 or similar), +0x80 (a, b, c, 0) with b = 1 and c = 8, 0xF8, 0xC00 ..., then +0x90 the offset of this
+  element's parameter block from the blob start, two zero words, and from +0x9C a zero-ended name.
+- The first parameter block starts right after the element table (offset 0x90 + 0xC0 * N); the blocks follow each other in
+  element order (for D-POINT and B-MULTI the blocks are 0xD0 = 208 bytes apart).
+- Names are effect primitives, written as a one-letter group, a hyphen, and a word (e.g. R-CRCLE, D-POINT, B-MULTI, N-SPIRL,
+  S-SPK_T, O-MCHAR, O-MOT; P-SMOKE and R-CRCLE also appear in model files). Checked on AEGIS (1 element, name O-MOT, block at
+  0x150), DOWN (4 elements) and 0DE (15 elements).
+**Parameter block header** (checked on about 11,800 elements): word 0 is 0xD2 or 0xC8 (kind), word 1 a count that is fixed per
+element type (R-NOMAL and R-CRCLE 12, B-MULTI 4, S-CYLND and S-RNG_T 10, F-FULL 5, E-QUAKE 0x15, P-SPARK and P-SMOKE 1), word 2
+zero, word 3 a small group number fixed per type (R-NOMAL 1, B-MULTI 2, R-CRCLE 3), word 4 = 0x2C (header size), word 5 the
+body size fixed per type (R-NOMAL 0x6C, R-CRCLE 0x68, B-MULTI 0xEC, S-CYLND 0x9C, F-FULL 0xD8, P-SPARK 0xE0, E-QUAKE 0x10),
+word 6 zero, word 7 a mode (mostly 4, sometimes 1 or 2), word 8 the total block size when another block follows (otherwise 0).
+Where the type has colours, +0x30 and +0x34 hold two ARGB colours (FFFFFFFF = white, e.g. FFFFB9B9 FFFF9BA5). Later words mix
+frame counts, floats (fractions such as 0.33 / 0.63, sizes such as 5.0), packed colour bytes and small integers. Their meaning
+is not decoded; `p3fes_fx.py fields` lists every word position per element type with its common values.
+The first +0x80 word of an element is 0 for 4301 elements, below the element's own number for 4194, and equal to it for the rest
+(AEGIS_M: 1, 2, 3 ...), so it looks like a link to another element, not strictly a parent. About 540 elements point outside
+the blob (offset 0 or beyond the end); these are mostly MODEL, R-NOMAL, P-SPIRL and P-SMOKE elements and are not understood.
+
 ## Seen but not decoded
-`.BF` scripts, `.BED` and `.SE` sound sequence data (`BED4`), `.EPL` effects, `.CIN` cut-in data, `.SPR` sprites (`SPR0`), `.ANM` animations, `.TBL` tables of skill, persona and battle values, `.ENV`, `.CMR`, `.FBN`, `.HBN` field data, and the animation and skeleton data inside `.RMD` models.
+`.BF` scripts, `.BED` effect data (`BED4`, header layout read, blobs not decoded), `.SQ` sequences inside `.SE` banks, `.EPL` effects, `.CIN` cut-in data, `.SPR` sprites (`SPR0`), `.ANM` animations, `.TBL` tables of skill, persona and battle values, `.ENV`, `.CMR`, `.FBN`, `.HBN` field data, and the animation and skeleton data inside `.RMD` models.

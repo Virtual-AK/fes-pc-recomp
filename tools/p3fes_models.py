@@ -188,6 +188,7 @@ def survey(root, exts, out_dir):
     no_stream = []
     examples = {}
     empty = 0
+    groups = collections.defaultdict(lambda: [0, 0, 0])      # folder -> [files, with RenderWare data, bytes]
     for i, path in enumerate(files, 1):
         if i % 500 == 0:
             print("  ... %d of %d" % (i, len(files)), flush=True)
@@ -197,6 +198,9 @@ def survey(root, exts, out_dir):
             empty += 1
             continue
         sizes.append(len(data))
+        grp = "\\".join(os.path.relpath(path, root).split(os.sep)[:-1][:3]) or "."
+        groups[grp][0] += 1
+        groups[grp][2] += len(data)
         h = data[:16].hex(" ")
         headers[h] += 1
         examples.setdefault(h, os.path.relpath(path, root))
@@ -207,6 +211,7 @@ def survey(root, exts, out_dir):
             no_stream.append((os.path.relpath(path, root), len(data), data[:48].hex(" ")))
         if r:
             rw_found += 1
+            groups[grp][1] += 1
             off, n, st, top, end = r
             rw_offsets[off] += 1
             layouts[" ".join("%02X" % t if t < 0x100 else "%X" % t for t in top[:8]) + (" ..." if len(top) > 8 else "")] += 1
@@ -234,6 +239,7 @@ def survey(root, exts, out_dir):
         "no_stream_examples": no_stream,
         "top_level_layouts": layouts.most_common(15),
         "bytes_after_stream": dict(tails), "bytes_after_stream_examples": tail_example,
+        "folders": {k: {"files": v[0], "with_renderware_data": v[1], "bytes": v[2]} for k, v in sorted(groups.items())},
         "common_strings": str_counts.most_common(40),
         "first_words": {str(k): [("%08X" % v, c) for v, c in cnt.most_common(6)] + [("distinct", len(cnt))]
                         for k, cnt in sorted(first_words.items())},
@@ -256,6 +262,9 @@ def survey(root, exts, out_dir):
         for k, ex in tail_example.items():
             if k != "none":
                 lines.append("      e.g. %s: %s" % (k, ex))
+    lines.append("Files per folder (files / with RenderWare data / MB):")
+    for k, v in sorted(groups.items()):
+        lines.append("   %-40s %5d / %5d / %7.1f" % (k, v[0], v[1], v[2] / 1048576))
     for rel, sz, hx in no_stream[:4]:
         lines.append("   no chunk list: %s (%d bytes) starts %s" % (rel, sz, hx))
     lines.append("Words at the start of each file (32-bit, little endian), most common values:")

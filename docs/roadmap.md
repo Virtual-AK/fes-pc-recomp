@@ -2,7 +2,7 @@
 
 | Phase | Goal |
 | --- | --- |
-| 0 | Research and tooling (nearly done): map the disc and executable, unpack the data, convert textures, audio, text and models. |
+| 0 | Research and tooling (nearly done): map the disc and executable, unpack the data, convert textures, audio, sound effects, text, models and animation. |
 | 1 | Pick the approach: static recompilation of the executable to C++ with a runtime that replaces the PS2 hardware, versus a gradual decompilation. Prototype on a small piece. |
 | 2 | Runtime layer: file system (CVFS/ROFS replacement with mod folders), audio (ADX decode), video (SFD decode), input, saves. |
 | 3 | Graphics: translate PS2 graphics synthesizer and vector unit work to a modern API, with resolution and frame-rate scaling. |
@@ -18,10 +18,11 @@
 - Other regions: the tools read any region, but only NTSC-U is a target.
 
 ## Phase 0 results
-Done and checked on a real NTSC-U disc: reading the disc and CVM archives, extracting and splitting containers, textures (.TMX) to PNG, audio to WAV, game text extract, edit, repack and patch (an edited tutorial plays in game), and 3D models (geometry, materials and textures; all 2,934 models in `BTL.CVM/MODEL` export).
+Done and checked on a real NTSC-U disc: reading the disc and CVM archives, extracting and splitting containers, textures (.TMX) to PNG, audio to WAV, game text extract, edit, repack and patch (an edited tutorial plays in game), and 3D models with skeletons and animations (all 3,766 models export to glTF; animations confirmed moving in Blender), and sound effects (`.SE` banks decode to WAV, sequences render; checked by ear).
 
 Remaining format work that would help later phases, roughly in order of usefulness:
-1. **Model skeletons and animation:** the HAnim skeleton and the animation chunks inside `.RMD`; skin weights (needed to pose characters).
-2. **Scripts (`.BF`)** and **sound sequences (`.BED`)**, and the field data files.
+1. **Scripts (`.BF`)**: not started; likely the hardest format. Also the field data files.
+2. **Effect data (`.BED`)**: the element trees and parameter-block headers are read; the fields inside the blocks (timings, sizes, colour curves) need comparison with how effects look in game.
 3. Text: the exact meaning of each control code, and making room for text that is longer than the original (the patch tool currently needs edited files to fit their existing space).
-4. Models: what the game-specific chunks (`F0F000E0` and the trailing `F0F000xx` chunks) hold; confirming 4-bit textures on a texture that fills its whole area; the models in other folders.
+4. Sound: exact sequence timing, pitch, envelopes and pan; control events 0x0E/0x0F.
+5. Models: what the game-specific chunks (`F0F000E0` and the trailing `F0F000xx` chunks) hold; confirming 4-bit textures on a texture that fills its whole area; the 4 unknown floats in the effect-model animation keys; trailing bytes in 88 model files.

@@ -38,6 +38,13 @@ You do not need to read code. Run a tool, look at the result, and report what yo
 - `py p3fes_rmd.py batch <MODEL folder> -o <output> --no-textures` should end with almost every model "ok". Send the summary it prints (it lists the reasons for any failures, with file names).
 - Export a few models with textures and open them in Blender (File, Import, Wavefront .obj). Do shapes look right? Are the colours natural, or camouflage-like noise? Do any look stretched, inside out or mirrored? Report by file name, without attaching the pictures or models.
 
+**p3fes_bed.py** (sound effects)
+- `banks` writes WAV files per bank and `seq` writes rendered sequences into a `seq_wav` folder. Listen to a few: do they sound like sound effects (explosions, voices, impacts), or like noise? Note bank names that sound wrong.
+- The report files (`bank_report.txt`, `seq_report.txt`) contain no game content; attach them to issues.
+
+**p3fes_fx.py** (effect data)
+- `nodes` and `fields` write reports (`fx_nodes.txt`, `fx_fields.txt`) with no game content. Attach them if asked.
+
 **p3fes_formats.py**
 - Do most container files parse (the `parsed_as_pak` counts)? Large drops compared with the NTSC-U disc point to a different layout on your disc.
 

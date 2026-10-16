@@ -43,7 +43,15 @@ with tempfile.TemporaryDirectory() as d:
     rep = json.load(open(os.path.join(out, 'batch_report.json'))) if ok else []
     st = {os.path.basename(x['file']): x['status'] for x in rep}
     ok = ok and st.get('GOOD.RMD') == 'ok' and st.get('LONGHDR.RMD') == 'ok' and st.get('TWOCHUNKS.RMD') == 'ok' and st.get('BAD.RMD') == 'failed' and st.get('JUNK.RMD') == 'failed'
+    # same files as glTF
+    out2 = os.path.join(d, 'out2')
+    r2 = subprocess.run([sys.executable, TOOL, 'batch', os.path.join(d, 'MODEL'), '-o', out2, '--jobs', '2', '--gltf'],
+                        capture_output=True, text=True)
+    ok = ok and r2.returncode == 0 and os.path.exists(os.path.join(out2, 'SUB', 'GOOD', 'GOOD.gltf'))
+    if ok:
+        st2 = {os.path.basename(x['file']): x['status'] for x in json.load(open(os.path.join(out2, 'batch_report.json')))}
+        ok = ok and st2.get('GOOD.RMD') == 'ok' and st2.get('LONGHDR.RMD') == 'ok' and st2.get('BAD.RMD') == 'failed'
     if not ok:
-        print(r.stdout, r.stderr, st)
+        print(r.stdout, r.stderr, st, r2.stdout, r2.stderr)
     print('ok   batch export handles good, truncated and junk files' if ok else 'FAIL batch export')
     sys.exit(0 if ok else 1)
