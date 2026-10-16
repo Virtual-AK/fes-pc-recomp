@@ -978,7 +978,7 @@ def hbnmap(root, out_dir, match=None, limit=40, size=700, models=None):
             continue
         seen.add((os.path.basename(pth).lower(), d))
         if not sec:
-            continue
+            lines.append("%s | skipped: no sections found (not a valid .hbn?)" % os.path.basename(pth)); continue
         items = []
         for k, (c, sz, st) in enumerate(sec):
             for r in range(c):
@@ -986,8 +986,8 @@ def hbnmap(root, out_dir, match=None, limit=40, size=700, models=None):
                 f = [struct.unpack("<f", struct.pack("<I", x))[0] for x in w]
                 if len(f) >= 5 and all(math.isfinite(v) and abs(v) < 1e5 for v in f[1:5]):
                     items.append((k, sz, f))
-        if len(items) < 3:
-            continue
+        if len(items) < 1:
+            lines.append("%s | skipped: no usable points (sections: %s)" % (os.path.basename(pth), ",".join(str(c) for c, _, _ in sec))); continue
         pts = []
         for k, sz, f in items:
             pts.append((f[2], f[4]) if sz == 0x20 else (f[1], f[3]))
@@ -1522,6 +1522,43 @@ def fbnobj(field_root, out_dir, scene, variants, size=30.0):
         print("wrote %s (%d slots)" % (path, len(files[no])))
 
 
+def hbnobj(field_root, out_dir, scene, sections=(1,), size=30.0):
+    """Writes the points of an .hbn of a scene as marker .obj files for Blender: one pyramid per point, group name
+    s<section>_<n> (n = record number, and the low byte of the id in brackets), plus a line from the point towards its angle
+    (angle read as degrees, direction (sin, cos) in x/z as hbnmap draws it; unverified). Same axes as the model exports."""
+    fnum, snum = [int(x) for x in scene.split(":")]
+    path = None
+    for dp, _, fns in os.walk(field_root):
+        for fn in fns:
+            if fn.lower() == "f%03d_%03d.hbn" % (fnum, snum):
+                path = os.path.join(dp, fn)
+    if not path:
+        raise SystemExit("no f%03d_%03d.HBN under %s" % (fnum, snum, field_root))
+    d = open(path, "rb").read(); sec = hbn_sections(d)
+    if not sec:
+        raise SystemExit("%s is not a valid .hbn" % path)
+    os.makedirs(out_dir, exist_ok=True)
+    lines = ["# .hbn points of f%03d_%03d, sections %s" % (fnum, snum, ",".join(str(k) for k in sections))]; vi = 0; n_pts = 0
+    for k in sections:
+        c, sz, st = sec[k]
+        for r in range(c):
+            w = struct.unpack_from("<%dI" % (sz // 4), d, st + r * sz)
+            f = [struct.unpack("<f", struct.pack("<I", x))[0] for x in w]
+            if sz == 0x20 or len(f) < 5 or not all(math.isfinite(v) and abs(v) < 1e5 for v in f[1:5]):
+                continue
+            x, y, z, ang = f[1], f[2], f[3], math.radians(f[4])
+            lines.append("o s%d_%d_id%02X" % (k, r, w[0] & 0xFF))
+            for dx, dy, dz in ((-size, 0, -size), (size, 0, -size), (size, 0, size), (-size, 0, size), (0, size * 3, 0)):
+                lines.append("v %.3f %.3f %.3f" % (x + dx, y + dy, z + dz))
+            b = vi
+            lines += ["f %d %d %d %d" % (b + 1, b + 2, b + 3, b + 4)] + ["f %d %d %d" % (b + j, b + j % 4 + 1, b + 5) for j in (1, 2, 3, 4)]
+            lines += ["v %.3f %.3f %.3f" % (x + 6 * size * math.sin(ang), y + size, z + 6 * size * math.cos(ang)), "l %d %d" % (b + 5, b + 6)]
+            vi += 6; n_pts += 1
+    out = os.path.join(out_dir, "f%03d_%03d_hbn.obj" % (fnum, snum))
+    open(out, "w").write("\n".join(lines) + "\n")
+    print("wrote %s (%d points)" % (out, n_pts))
+
+
 def callprocs(scripts_root, out, names, limit=400):
     """Every call of the named script functions with its arguments and the proc it sits in (listing lines 'proc <name>:').
     Identical script files (the same script in many scene folders) are read once. Grouped by function and first argument,
@@ -1821,6 +1858,103 @@ def fbnchars(field_root, out, field=6, variants=(110, 111, 112, 113, 114, 115, 1
     text = "\n".join(lines)
     open(out, "w").write(text + "\n")
     print("\n".join(l for l in lines if l.startswith("==")))
+
+
+def hbinprocs(scripts_root, field_root, out, limit=400):
+    """Do the records of the h*.bin files point at procs of the field's script? For each record the running number in the low
+    half of word 2 (and the high half of word 1) is looked up as an index in the list of procs of the field script (both 0-based
+    and 1-based), with the proc name. Door records (id of 10241 and up) are shown with their destination for comparison.
+    Summary: how many numbers fall inside the proc list, and how often the proc at the index has a name of the same kind
+    (door, comu, room) in the neighbourhood, against a shifted control index."""
+    procs = {}
+    for dp, _, fns in sorted(os.walk(scripts_root)):
+        m = re.match(r"F(\d{3})_\d{3}\.PAC\.D$", os.path.basename(dp).upper())
+        if not m or int(m.group(1)) in procs:
+            continue
+        for fn in fns:
+            if re.match(r"f\d{3}\.bf\.script\.txt$", fn, re.I):
+                names = []
+                for ln in open(os.path.join(dp, fn), errors="replace"):
+                    pm = re.match(r"\s*proc (\S+):", ln)
+                    if pm:
+                        names.append(pm.group(1))
+                procs[int(m.group(1))] = names
+    lines = []; inside = total = 0; cmp_ = collections.Counter()
+    for dp, _, fns in sorted(os.walk(field_root)):
+        for fn in sorted(fns):
+            m = re.match(r"h(\d{3})_(\d{3})\.bin$", fn, re.I)
+            if not m or int(m.group(1)) not in procs:
+                continue
+            f = int(m.group(1)); names = procs[f]
+            rs = hbin_records(open(os.path.join(dp, fn), "rb").read())
+            if not rs:
+                continue
+            lines.append("%s (field %d script has %d procs)" % (fn, f, len(names)))
+            for off, w in rs:
+                n = w[2] & 0xFFFF
+                kind = "door %d -> scene %d entry %d" % (w[4], w[3] & 0xFFFF, w[3] >> 16) if w[4] else "plain"
+                a = names[n] if 0 <= n < len(names) else "-"
+                b = names[n - 1] if 1 <= n <= len(names) else "-"
+                lines.append("   0x%03X %-34s w1 %04X/%04X w2 %04X/%04X w6 %d  proc[%d]=%s  proc[%d]=%s" % (off, kind, w[1] >> 16, w[1] & 0xFFFF, w[2] >> 16, n, w[6], n, a, n - 1, b))
+                if w[4] == 0 and n != 0xFFFF:
+                    total += 1; inside += n < len(names)
+    head = ["h*.bin records of the plain kind with a running number: %d, of which the number is below the proc count of the field script: %d" % (total, inside), "", "Records (proc[n] = proc at index n of the field script, 0-based; proc[n-1] = 1-based reading):"]
+    text = "\n".join(head + lines[:limit] + (["... (%d lines more in total)" % (len(lines) - limit)] if len(lines) > limit else []))
+    open(out, "w").write("\n".join(head + lines) + "\n")
+    print("\n".join(head))
+
+
+def entrycount(scripts_root, field_root, out, show=60):
+    """Where are the entry spots of a scene? Entry numbers used for a destination scene come from field_33(field, scene, k, 0)
+    calls and from the door records of h*.bin (word 3: entry high half, destination scene low half). For every scene with an
+    .HBN file the set of entries is compared with each HBN section: does the section have as many records as there are entries
+    (or as the highest entry + 1), and do its ids end in the entry numbers. A control uses the entries of another scene."""
+    ent = collections.defaultdict(set)
+    call = re.compile(r"field_33\((\d+), (\d+), (\d+), (\d+)\)"); seen = set()
+    for dp, _, fns in os.walk(scripts_root):
+        m = re.match(r"F(\d{3})_\d{3}\.PAC\.D$", os.path.basename(dp).upper())
+        if m:
+            for fn in sorted(fns):
+                if fn.lower().endswith(".txt") and (m.group(1), fn) not in seen:
+                    seen.add((m.group(1), fn))
+                    for c in call.finditer(open(os.path.join(dp, fn), errors="replace").read()):
+                        ent[(int(c.group(1)), int(c.group(2)))].add(int(c.group(3)))
+    hb = collections.defaultdict(list)
+    for dp, _, fns in os.walk(field_root):
+        for fn in sorted(fns):
+            m = re.match(r"([fh])(\d{3})_(\d{3})", fn, re.I)
+            e = os.path.splitext(fn)[1].lower()
+            if not m:
+                continue
+            d = open(os.path.join(dp, fn), "rb").read()
+            if e == ".bin" and m.group(1).lower() == "h":
+                for off, w in hbin_records(d):
+                    if w[4] and (w[3] & 0xFFFF) != 0xFFFF:
+                        ent[(int(m.group(2)), w[3] & 0xFFFF)].add(w[3] >> 16)
+            elif e == ".hbn" and m.group(1).lower() == "f":
+                sec = hbn_sections(d)
+                if sec:
+                    hb[(int(m.group(2)), int(m.group(3)))].append((fn, d, sec))
+    scenes = sorted(sc for sc in hb if ent.get(sc))
+    if len(scenes) < 4:
+        raise SystemExit("too few scenes with entries and .hbn files")
+    own = collections.Counter(); own_max = collections.Counter(); ctl = collections.Counter(); ctl_max = collections.Counter(); n = 0; lines = []
+    for i, sc in enumerate(scenes):
+        E = ent[sc]; other = ent[scenes[(i + len(scenes) // 2) % len(scenes)]]
+        fn, d, sec = hb[sc][0]; n += 1
+        desc = []
+        for k, (c, sz, st) in enumerate(sec):
+            if c:
+                own[k] += c == len(E); own_max[k] += c == max(E) + 1; ctl[k] += c == len(other); ctl_max[k] += c == max(other) + 1
+                ids = [struct.unpack_from("<I", d, st + r * sz)[0] & 0xFFFF for r in range(min(c, 6))]
+                desc.append("s%d:%d[%s]" % (k, c, " ".join("%X" % x for x in ids)))
+        if len(lines) < show:
+            lines.append("  field %d scene %d: entries %s | %s" % (sc[0], sc[1], sorted(E), " ".join(desc)))
+    head = ["Scenes with entries and an .hbn: %d" % n, "Section k has as many records as entries (own / control):  " + "  ".join("s%d %d/%d" % (k, own[k], ctl[k]) for k in range(8)),
+            "Section k has max entry + 1 records (own / control):     " + "  ".join("s%d %d/%d" % (k, own_max[k], ctl_max[k]) for k in range(8)), "", "Scenes (entries | sections as s<k>:<count>[first ids, low 16 bits in hex]):"]
+    text = "\n".join(head + lines)
+    open(out, "w").write(text + "\n")
+    print("\n".join(head[:3]))
 
 
 def nbin(root, out):
@@ -2182,6 +2316,9 @@ def main():
     fo = sp.add_parser("fbnobj", help="write a scene's .FBN slots as marker .obj files")
     fo.add_argument("fields"); fo.add_argument("scene", help="field:scene, e.g. 6:3"); fo.add_argument("variants", nargs="*", type=int)
     fo.add_argument("-o", "--out", default="fbnobj")
+    ho = sp.add_parser("hbnobj", help="write a scene's .hbn points as marker .obj files")
+    ho.add_argument("fields"); ho.add_argument("scene", help="field:scene, e.g. 6:2"); ho.add_argument("sections", nargs="*", type=int, default=[1])
+    ho.add_argument("-o", "--out", default="hbnobj")
     cp = sp.add_parser("callprocs", help="calls of named functions with their arguments and the proc they sit in")
     cp.add_argument("scripts"); cp.add_argument("names", nargs="+"); cp.add_argument("-o", "--out", default="callprocs.txt")
     dw = sp.add_parser("doorwhere", help="where a function's big first-argument ids appear in the small field files")
@@ -2195,6 +2332,10 @@ def main():
     fd.add_argument("fields"); fd.add_argument("scene"); fd.add_argument("variants", nargs="+", type=int); fd.add_argument("-o", "--out", default="fbndump.txt")
     fcp = sp.add_parser("fbnchars", help="character ids (+4 high half) of .FBN records per variant")
     fcp.add_argument("fields"); fcp.add_argument("-f", "--field", type=int, default=6); fcp.add_argument("-o", "--out", default="fbnchars.txt")
+    hp = sp.add_parser("hbinprocs", help="do h*.bin record numbers point at procs of the field script?")
+    hp.add_argument("scripts"); hp.add_argument("fields"); hp.add_argument("-o", "--out", default="hbinprocs.txt")
+    ec = sp.add_parser("entrycount", help="compare the entry numbers of a scene with the sections of its .hbn")
+    ec.add_argument("scripts"); ec.add_argument("fields"); ec.add_argument("-o", "--out", default="entrycount.txt")
     dm = sp.add_parser("dump")
     dm.add_argument("file")
     w = sp.add_parser("words")
@@ -2256,6 +2397,8 @@ def main():
         fbnmap(a.fields, a.out, a.scene, a.variants)
     elif a.cmd == "fbnobj":
         fbnobj(a.fields, a.out, a.scene, a.variants)
+    elif a.cmd == "hbnobj":
+        hbnobj(a.fields, a.out, a.scene, a.sections or [1])
     elif a.cmd == "callprocs":
         callprocs(a.scripts, a.out, a.names)
     elif a.cmd == "doorwhere":
@@ -2268,6 +2411,10 @@ def main():
         fbndump(a.fields, a.out, a.scene, a.variants)
     elif a.cmd == "fbnchars":
         fbnchars(a.fields, a.out, a.field)
+    elif a.cmd == "hbinprocs":
+        hbinprocs(a.scripts, a.fields, a.out)
+    elif a.cmd == "entrycount":
+        entrycount(a.scripts, a.fields, a.out)
     elif a.cmd == "dump":
         dump(a.file)
     elif a.cmd == "names":
