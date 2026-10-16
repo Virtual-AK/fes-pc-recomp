@@ -12,7 +12,7 @@
 28 message_set_var?    # (a, value, slot): fills a placeholder of the next message
 308 status_show?       # named H_FRStatusDisp in the executable; (member)
 309 status_show_all?   # same group as 308
-118 event_ctrl?        # (0, step, event number): steps 1, 2, 4, 5 seen, e.g. (0, 1, 400) at the start and (0, 5, 900) at the end
+118 event_ctrl?        # (event number, step, sub-step or 0): e.g. (302, 3, 0), (700, 3, 7), (540, 112, 0); in the school field (6) and a few others the step is often an .FBN variant number of the field (110-115, 150; 14 of 24 distinct values of 50 and up against 1 for a control), 199 ends the event and returns to the field (field_122) - the step seems to select the placements of that scene state
 121 object_show?       # (on or off, object): used on literal ids such as 10343 and on ids made by other functions
 128 date_month?        # no values; compared with 12, 7, 4, 3 next to 129
 129 date_day?          # no values; pairs such as (7, 7) and (20, 4) with 128 look like day and month
@@ -45,13 +45,13 @@
 202 party_state_set?       # (member, value)
 277 actor_state?           # (id, value) uncertain
 360 sound_play?            # (type, id) uncertain; before box animation and door entry
-33 scene_change?       # (5,1,0,0) / (5,3,0,0) / (6,1,6,0) after a fade out, then end; goes to another scene
-311 object_player?     # (0) returns an object; hidden with object_show? at scene start
-312 object_setup?      # (object, number) between creating an object and object_anim? / object_show?
+33 scene_change?       # (field, scene, entry, 0) after a fade out, then end. entry = which way in: proc homeroom_l -> (6,3,0,0), homeroom_r -> (6,3,1,0) (left/right door of the homeroom)
+311 object_player?     # (n) returns the object of party member n (0 = the player; f014 bathhouse_hide uses 0..3); also hidden with object_show? at scene start
+312 object_setup?      # (object, n) puts the object at spot n: spot n is the .FBN record with id 0xC00 + n (slot n) of the field's .FBN files (numbers of 12 and up: 184 of 212 found among the field's slots against 51 for a control field); party members take consecutive spots (base + member index) after a fade-out; then fn_486() and object_show?
 313 object_find?       # (kind 5 or 2, id), e.g. (5,130), (2,25); result goes to 314; the first number is not a field number
 314 object_create?     # (result of 313, 3 or 0) returns an object
-357 field_object?      # (field number or -1 for this field, object number); 1107 calls use the script's own field number and 1012 use -1
-358 object_create2?    # (result of 357, 100/101)
+357 field_group? # (field number or -1 for this field, object number) returns a handle for 358; the scripts use different numbers per season (401-403 in 4/6-4/26, 410/22/23 in 4/27-9/22, 420-422 in 9/23-12/3, 430-434 in 12/4-1/31); the link to calendar groups is NOT confirmed
+358 field_group_spawn? # (result of 357, slot 100/101/...) then object_show?
 371 party_ready?       # (index 0..2) == 1 counted in loops over the party
 304 party_count?       # no values; loop limit in FUKA.BF
 305 party_id?          # (index) member number, compared with 2
