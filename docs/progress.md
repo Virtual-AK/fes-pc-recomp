@@ -12,5 +12,5 @@
 | 4. Playable desktop build, QA | `░░░░░░░░░░░░░░░░░░░░` | 0% |
 | 5. Browser build and mod tooling | `░░░░░░░░░░░░░░░░░░░░` | 0% |
 
-Phase 0 is about 85%%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
 <!-- progress:end -->

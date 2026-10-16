@@ -18,7 +18,7 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 | 4. Playable desktop build, QA | `░░░░░░░░░░░░░░░░░░░░` | 0% |
 | 5. Browser build and mod tooling | `░░░░░░░░░░░░░░░░░░░░` | 0% |
 
-Phase 0 is about 85%%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
 <!-- progress:end -->
 
 | Area | State |
@@ -79,7 +79,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_models.py` | Surveys the `.RMD` files: header patterns, chunk lists, strings. `--tree` and `--hex` look inside one file. |
 | `p3fes_bmd.py` | Shows the structure (and optional hex dump) of one `.BMD` message file. |
 | `p3fes_fx.py` | Surveys the `.BED` effect files: `survey`, `nodes` (element types and examples), `fields` (every parameter word per type), `show` and `dump` for one file. |
-| `p3fes_field.py` | Surveys the field (map) data: `survey` (file types, sizes, first numbers), `names` (entry names in the field packs), `words` (every word position of the small field files), `check` (size rules of `.FBN`/`.HBN`), `fbn` (all `.FBN` records), `dump` (one small file as words) `split` (splits the `.FPC` containers into folders; needs `p3fes_unpack.py` beside it) `rws` (lists and decodes the textures in the `.RWS` files; needs `p3fes_rmd.py` beside it) `nbin` and `ncal` (the calendar tables), and `ncodes`, `fbnlink`, `objids`, `objdata`, `objwhere`, `calcalls`, `datecheck`, `hbn`, `hbnlink`, `hbnmap`, `hbnprops`, `slotcalls`, `calls312`, `warpcalls`, `variantargs`, `variantcalls`, `fbnvariants`, `fbnmap`, `fbnobj`, `callprocs`, `doorwhere`, `hbinrecs`, `eventvariants`, `fbndump`, `fbnchars`, `hbinprocs`, `entrycount` and `hbnobj` (check script object ids against model file names, the calendar and the small field files) and `fields` (writes every field's models as `.obj` and its textures as `.png`, with a report of anything odd; needs the `split` folders and `p3fes_rmd.py`). |
+| `p3fes_field.py` | Surveys the field (map) data: `survey` (file types, sizes, first numbers), `names` (entry names in the field packs), `words` (every word position of the small field files), `check` (size rules of `.FBN`/`.HBN`), `fbn` (all `.FBN` records), `dump` (one small file as words) `split` (splits the `.FPC` containers into folders; needs `p3fes_unpack.py` beside it) `rws` (lists and decodes the textures in the `.RWS` files; needs `p3fes_rmd.py` beside it) `nbin` and `ncal` (the calendar tables), and `ncodes`, `fbnlink`, `objids`, `objdata`, `objwhere`, `calcalls`, `datecheck`, `hbn`, `hbnlink`, `hbnmap`, `hbnprops`, `slotcalls`, `calls312`, `warpcalls`, `variantargs`, `variantcalls`, `fbnvariants`, `fbnmap`, `fbnobj`, `callprocs`, `doorwhere`, `hbinrecs`, `eventvariants`, `fbndump`, `fbnchars`, `hbinprocs`, `entrycount`, `hbnobj`, `entrywhere`, `doornorec`, `hbinw5`, `emptyfiles`, `pakscan` and `treediff` (check script object ids against model file names, the calendar and the small field files) and `fields` (writes every field's models as `.obj` and its textures as `.png`, with a report of anything odd; needs the `split` folders and `p3fes_rmd.py`). |
 | `p3fes_bf.py` | The `.BF` scripts: `survey`, `analyse`, `messages`, `listing` (one script as readable statements), `msgcheck`, `balance`, `export` (every script as readable text), `context` (sample call sites of one function), `disasm` (raw instructions), `hex`; and for the boot executable: `functions`, `peek`, `code` (MIPS), `limit`, `lui`, `switch`, `ref`, `comm` (the script function table). |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
 
@@ -108,6 +108,10 @@ Every tool prints what it did and writes a short report or a `problems.txt`. If 
 - One model: `py p3fes_rmd.py gltf "C:\p3fes\extracted\BTL.CVM\MODEL\NPC\N00001A.RMD" -o "C:\p3fes\model_gltf"`
 - A whole folder: `py p3fes_rmd.py batch "C:\p3fes\extracted\BTL.CVM\MODEL\NPC" -o "C:\p3fes\gltf_batch" --gltf` (add `--match C0` to pick files by name, `--limit 20` for a quick trial).
 - In Blender: select the armature, open the Animation workspace, set the lower panel to Action Editor, and pick an animation from the dropdown. Select all bones (A) to see its keys; Space plays.
+
+**Batch files for a full re-run (Windows)**
+- `tools/rerun_checks.bat` and `tools/rerun_script_checks.bat` rerun the field checks on an extraction (`extracted3`); results go to the folder `rerun3`.
+- `tools/redo_exports.bat` and `tools/redo_sound_banks.bat` redo the model, text, texture, audio and sound exports from `extracted3` into new folders. Copy them next to the `p3fes_*.py` tools and run them from there. They never touch your game files.
 
 ## What we know
 - [docs/findings.md](docs/findings.md): the disc layout and what the executable is built from.

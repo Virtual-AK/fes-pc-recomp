@@ -170,6 +170,24 @@ def entry_header(hdr, room):
     return name.decode("ascii"), length
 
 
+def _stray_empty(view, eh, cand, size):
+    """True when a size-0 header at `cand` is really a 16-byte filler (for example 'npc_00') in front of the next entry: another
+    valid header starts 16 to 240 bytes later (inside this one's name field) and nothing valid follows at cand + 256. Found in the
+    field containers, where such fillers made the unpacker skip the real entry that follows (its .HBN, .CMR or .ENV file)."""
+    if eh[1] != 0 or cand + 256 >= size:
+        return False
+    after = view.read_at(cand + 256, 256)
+    if len(after) == 256 and entry_header(after, size - cand - 512) is not None:
+        return False
+    for k in range(1, 16):
+        q = cand + 16 * k
+        if q + 256 > size:
+            break
+        if entry_header(view.read_at(q, 256), size - q - 256) is not None:
+            return True
+    return False
+
+
 def analyse_pak(view):
     """Walk a file as repeated [252-byte name][u32 size][data] entries.
 
@@ -221,6 +239,8 @@ def analyse_pak(view):
                     break
                 continue
             if entry_header(h, size - cand - 256) is not None:
+                if _stray_empty(view, entry_header(h, size - cand - 256), cand, size):
+                    continue
                 nxt = cand
                 break
         if nxt == "end":

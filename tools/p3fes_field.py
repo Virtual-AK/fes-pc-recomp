@@ -18,6 +18,51 @@ import argparse, collections, math, os, re, struct, sys
 EXTRA = {".env", ".cmr", ".fbn", ".hbn"}
 
 
+_FN_NAMES = {}
+
+
+def _load_fn_names():
+    """Function names of script_names.txt (next to this tool): {number: name}. The script listings print a function under its name
+    when the file names it and as field_<number> when not, so every search for a call has to accept both."""
+    if not _FN_NAMES:
+        try:
+            for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "script_names.txt"), encoding="utf-8"):
+                t = line.split("#")[0].split()
+                if len(t) >= 2 and t[0].isdigit():
+                    _FN_NAMES[int(t[0])] = t[1]
+        except OSError:
+            pass
+        _FN_NAMES.setdefault(-1, "")
+    return _FN_NAMES
+
+
+def fnre(n):
+    """Regex fragment that matches function number n in a script listing under either of its names."""
+    names = ["field_%d" % n]
+    nm = _load_fn_names().get(n)
+    if nm:
+        names.append(nm)
+    return "(?:%s)" % "|".join(re.escape(x) for x in names)
+
+
+def fn_aliases(name):
+    """All names a listing may use for the function the user typed as `name` (field_<number> or a name from script_names.txt)."""
+    names = _load_fn_names(); num = None
+    m = re.fullmatch(r"field_(\d+)", name)
+    if m:
+        num = int(m.group(1))
+    else:
+        for k, v in names.items():
+            if v == name:
+                num = k
+    out = {name}
+    if num is not None:
+        out.add("field_%d" % num)
+        if names.get(num):
+            out.add(names[num])
+    return out
+
+
 def ext_of(name):
     return os.path.splitext(name)[1].lower() or "(none)"
 
@@ -734,7 +779,7 @@ def datecheck(scripts_root, field_root, out, window=60):
                     fdates[base][group].add((month, day))
                     alld[int(mm.group(1))].add((month, day))
     rng = re.compile(r"(?:date_in_range\?|field_132)\((\d+), (\d+), (\d+), (\d+)\)")  # exported listings may use the number name
-    call = re.compile(r"field_357\((-?\d+), (\d+)\)")
+    call = re.compile(fnre(357) + r"\((-?\d+), (\d+)\)")
     def inside(md, a):
         x, lo, hi = md[0] * 100 + md[1], a[0] * 100 + a[1], a[2] * 100 + a[3]
         return lo <= x <= hi if lo <= hi else (x >= lo or x <= hi)
@@ -1564,7 +1609,11 @@ def callprocs(scripts_root, out, names, limit=400):
     Identical script files (the same script in many scene folders) are read once. Grouped by function and first argument,
     with the procs that use each value: shows what an id such as field_137(10241, ...) belongs to."""
     import hashlib
-    want = set(names); seen = set(); rows = collections.defaultdict(lambda: collections.defaultdict(set))
+    canon = {}
+    for nm in names:
+        for al in fn_aliases(nm):
+            canon.setdefault(al, nm)
+    want = set(canon); seen = set(); rows = collections.defaultdict(lambda: collections.defaultdict(set))
     call = re.compile(r"([A-Za-z_][A-Za-z_0-9]*\??)\(([^()]*)\)")
     for dp, _, fns in os.walk(scripts_root):
         for fn in sorted(fns):
@@ -1582,7 +1631,7 @@ def callprocs(scripts_root, out, names, limit=400):
                 for c in call.finditer(ln):
                     if c.group(1) in want:
                         args = [a.strip() for a in c.group(2).split(",")]
-                        rows[c.group(1)][args[0]].add("%s:%s(%s)" % (fn.replace(".bf.script.txt", ""), proc, ", ".join(args[1:])))
+                        rows[canon[c.group(1)]][args[0]].add("%s:%s(%s)" % (fn.replace(".bf.script.txt", ""), proc, ", ".join(args[1:])))
     lines = []
     for name in names:
         lines.append("%s: %d distinct first arguments" % (name, len(rows[name])))
@@ -1598,7 +1647,7 @@ def doorwhere(scripts_root, field_root, out, function="field_137", minid=10000):
     """Where do the ids a script function takes as first argument (default field_137, door ids like 10241) appear in the field's
     small files? Per file type: own-field hits against a control field, for the id as a 32-bit word and as a 16-bit word, plus
     the offset of hits inside their record and a few examples (words around the hit)."""
-    call = re.compile(re.escape(function) + r"\((\d+)[,)]")
+    call = re.compile("(?:%s)" % "|".join(re.escape(a) for a in sorted(fn_aliases(function))) + r"\((\d+)[,)]")
     ids = collections.defaultdict(set)
     for dp, _, fns in os.walk(scripts_root):
         m = re.match(r"F(\d{3})_\d{3}\.PAC\.D$", os.path.basename(dp).upper())
@@ -1698,7 +1747,7 @@ def hbinrecs(scripts_root, field_root, out, limit=60):
                 lines.append("%s: %d records, first at 0x%X, header words: %s" % (fn, len(rs), rs[0][0], " ".join("%08X" % x for x in struct.unpack_from("<%dI" % min(rs[0][0] // 4, 6), d, 0))))
                 for off, w in rs[:6]:
                     lines.append("   0x%03X  id %d  w1 %08X  w2 %04X/%04X  w3 %04X/%04X  w5 %08X  w6 %08X  rest %s" % (off, w[4], w[1], w[2] >> 16, w[2] & 0xFFFF, w[3] >> 16, w[3] & 0xFFFF, w[5], w[6], "zero" if not any(w[7:]) else " ".join("%X" % x for x in w[7:])))
-    call137 = re.compile(r"field_137\((\d+),"); call33 = re.compile(r"field_33\((\d+), (\d+), (\d+), (\d+)\)")
+    call137 = re.compile(fnre(137) + r"\((\d+),"); call33 = re.compile(fnre(33) + r"\((\d+), (\d+), (\d+), (\d+)\)")
     seen = set(); pairs = []
     for dp, _, fns in os.walk(scripts_root):
         m = re.match(r"F(\d{3})_\d{3}\.PAC\.D$", os.path.basename(dp).upper())
@@ -1758,7 +1807,7 @@ def eventvariants(scripts_root, field_root, out):
             m = re.match(r"f(\d{3})_(\d{3})_(\d{3})\.fbn$", fn, re.I)
             if m:
                 var[int(m.group(1))][int(m.group(2))].add(int(m.group(3)))
-    ev = re.compile(r"event_ctrl\?\((\d+), (\d+), (\d+)\)"); wa = re.compile(r"field_33\((\d+), (\d+), (\d+), (\d+)\)")
+    ev = re.compile(r"event_ctrl\?\((\d+), (\d+), (\d+)\)"); wa = re.compile(fnre(33) + r"\((\d+), (\d+), (\d+), (\d+)\)")
     seen = set(); rows = []
     for dp, _, fns in os.walk(scripts_root):
         m = re.match(r"F(\d{3})_\d{3}\.PAC\.D$", os.path.basename(dp).upper())
@@ -1910,7 +1959,7 @@ def entrycount(scripts_root, field_root, out, show=60):
     .HBN file the set of entries is compared with each HBN section: does the section have as many records as there are entries
     (or as the highest entry + 1), and do its ids end in the entry numbers. A control uses the entries of another scene."""
     ent = collections.defaultdict(set)
-    call = re.compile(r"field_33\((\d+), (\d+), (\d+), (\d+)\)"); seen = set()
+    call = re.compile(fnre(33) + r"\((\d+), (\d+), (\d+), (\d+)\)"); seen = set()
     for dp, _, fns in os.walk(scripts_root):
         m = re.match(r"F(\d{3})_\d{3}\.PAC\.D$", os.path.basename(dp).upper())
         if m:
@@ -1955,6 +2004,270 @@ def entrycount(scripts_root, field_root, out, show=60):
     text = "\n".join(head + lines)
     open(out, "w").write(text + "\n")
     print("\n".join(head[:3]))
+
+
+def entrywhere(scripts_root, field_root, out, scene):
+    """For one destination scene: every section 1 record of its .hbn (position, angle) and, per entry number k, the places that
+    send the player there: field_33(field, scene, k, 0) calls with the scene folder, script file and proc they sit in, and the
+    h*.bin door records whose word 3 names this scene and entry (label number, door id)."""
+    fnum, snum = [int(x) for x in scene.split(":")]
+    calls = collections.defaultdict(set); pat = re.compile(fnre(33) + r"\(%d, %d, (\d+), (\d+)\)" % (fnum, snum))
+    for dp, _, fns in os.walk(scripts_root):
+        m = re.match(r"F(\d{3})_(\d{3})\.PAC\.D$", os.path.basename(dp).upper())
+        if not m:
+            continue
+        for fn in sorted(fns):
+            if not fn.lower().endswith(".txt"):
+                continue
+            proc = "?"
+            for ln in open(os.path.join(dp, fn), errors="replace").read().split("\n"):
+                pm = re.match(r"\s*proc (\S+):", ln)
+                if pm:
+                    proc = pm.group(1); continue
+                for c in pat.finditer(ln):
+                    calls[int(c.group(1))].add("field %d scene %d, %s, proc %s" % (int(m.group(1)), int(m.group(2)), fn.replace(".bf.script.txt", ""), proc))
+    doors = collections.defaultdict(set); hbn = None
+    for dp, _, fns in os.walk(field_root):
+        for fn in sorted(fns):
+            m = re.match(r"([fh])(\d{3})_(\d{3})", fn, re.I); e = os.path.splitext(fn)[1].lower()
+            if not m:
+                continue
+            if e == ".bin" and m.group(1).lower() == "h" and int(m.group(2)) == fnum:
+                for off, w in hbin_records(open(os.path.join(dp, fn), "rb").read()):
+                    if w[4] and (w[3] & 0xFFFF) == snum:
+                        doors[w[3] >> 16].add("%s record at %#x: label %#x, door id %d" % (fn, off, w[1] >> 16, w[4]))
+            elif e == ".hbn" and fn.lower() == "f%03d_%03d.hbn" % (fnum, snum):
+                hbn = open(os.path.join(dp, fn), "rb").read()
+    lines = ["destination: field %d scene %d" % (fnum, snum)]
+    recs = {}
+    sec = hbn_sections(hbn) if hbn else None
+    if sec and sec[1][0]:
+        c, sz, st = sec[1]
+        for r in range(c):
+            w = struct.unpack_from("<%dI" % (sz // 4), hbn, st + r * sz)
+            f = [struct.unpack("<f", struct.pack("<I", x))[0] for x in w]
+            recs[r] = "id %#x, x %.1f y %.1f z %.1f angle %.1f" % (w[0], f[1], f[2], f[3], f[4])
+    else:
+        lines.append("no section 1 records (no f%03d_%03d.HBN or it is empty)" % (fnum, snum))
+    for k in sorted(set(recs) | set(calls) | set(doors)):
+        lines.append("entry %d: section 1 record: %s" % (k, recs.get(k, "none")))
+        for c in sorted(calls.get(k, ())):
+            lines.append("    called from %s" % c)
+        for c in sorted(doors.get(k, ())):
+            lines.append("    door record: %s" % c)
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+
+
+def doornorec(scripts_root, field_root, out):
+    """Every proc that calls field_137(id, ...) and then field_33(field, scene, entry, 0), one line per (field, proc, id,
+    destination) with the scene folders collapsed. Says whether the field's h*.bin files hold a door record with that id (word 4),
+    whether the destination is the same field, and for the records found the label number and word 5."""
+    f137 = re.compile(fnre(137) + r"\((\d+)[,)]"); f33 = re.compile(fnre(33) + r"\((\d+), (\d+), (\d+), (\d+)\)")
+    doors = {}
+    for dp, _, fns in os.walk(scripts_root):
+        m = re.match(r"F(\d{3})_(\d{3})\.PAC\.D$", os.path.basename(dp).upper())
+        if not m:
+            continue
+        for fn in sorted(fns):
+            if not fn.lower().endswith(".txt"):
+                continue
+            proc, did = "?", None
+            for ln in open(os.path.join(dp, fn), errors="replace").read().split("\n"):
+                pm = re.match(r"\s*proc (\S+):", ln)
+                if pm:
+                    proc, did = pm.group(1), None; continue
+                a = f137.search(ln)
+                if a and int(a.group(1)) >= 10000:
+                    did = int(a.group(1))
+                b = f33.search(ln)
+                if b and did is not None:
+                    key = (int(m.group(1)), proc, did, int(b.group(1)), int(b.group(2)), int(b.group(3)))
+                    doors.setdefault(key, set()).add(int(m.group(2)))
+    recs = collections.defaultdict(lambda: collections.defaultdict(list)); hfiles = collections.Counter()
+    for dp, _, fns in os.walk(field_root):
+        for fn in sorted(fns):
+            m = re.match(r"h(\d{3})_(\d{3})\.bin$", fn, re.I)
+            if m:
+                hfiles[int(m.group(1))] += 1
+                for off, w in hbin_records(open(os.path.join(dp, fn), "rb").read()):
+                    if w[4]:
+                        recs[int(m.group(1))][w[4]].append((w[1] >> 16, w[5], fn))
+    rows = []; have = leave = leave_have = 0
+    for (f, proc, did, df, ds, k), scn in sorted(doors.items()):
+        rl = recs[f].get(did); r = rl[0] if rl else None
+        have += bool(r); leave += df != f; leave_have += bool(r) and df != f
+        rows.append("field %2d %-28s id %5d -> field %d scene %d entry %d  scenes %s | %s | h*.bin files in the field: %d" % (
+            f, proc, did, df, ds, k, ",".join(str(x) for x in sorted(scn)[:6]) + ("..." if len(scn) > 6 else ""),
+            ("%d record(s) with this id in the field (the id is reused by many doors; first: %s label %#x word5 %#x)" % (len(rl), r[2], r[0], r[1])) if r else "NO record", hfiles[f]))
+    head = ["%d distinct door procs (field, proc, id, destination); with a record in their field's h*.bin: %d; leaving their field: %d, of which with a record: %d" % (len(rows), have, leave, leave_have), ""]
+    text = "\n".join(head + rows)
+    open(out, "w").write(text + "\n")
+    print("\n".join(head))
+
+
+def hbinw5(field_root, out):
+    """Word 5 of every door record (id in word 4) of the h*.bin files against the field of the file: how often it equals the own
+    field, how often it is -1, and every other value with the record around it (word 2 to 6, id, label), to test whether word 5
+    is the destination field."""
+    rows = []; cnt = collections.Counter()
+    for dp, _, fns in os.walk(field_root):
+        for fn in sorted(fns):
+            m = re.match(r"h(\d{3})_(\d{3})\.bin$", fn, re.I)
+            if not m:
+                continue
+            f, sc = int(m.group(1)), int(m.group(2))
+            for off, w in hbin_records(open(os.path.join(dp, fn), "rb").read()):
+                if not w[4]:
+                    continue
+                kind = "own field" if w[5] == f else "-1" if w[5] == 0xFFFFFFFF else "other"
+                cnt[kind] += 1
+                if kind == "other":
+                    rows.append("field %d scene %d %s +%#x: label %#x id %d entry %d scene-word %d word5 %d word6 %d" % (f, sc, fn, off, w[1] >> 16, w[4], w[3] >> 16, w[3] & 0xFFFF, w[5], w[6]))
+    head = ["door records: %d; word 5 equals the field of the file: %d, is 0xFFFFFFFF: %d, other: %d" % (sum(cnt.values()), cnt["own field"], cnt["-1"], cnt["other"]), ""]
+    text = "\n".join(head + ["records with another value in word 5:"] + rows)
+    open(out, "w").write(text + "\n")
+    print("\n".join(head))
+
+
+def emptyfiles(root, out):
+    """Are the empty files real or an extraction gap? Every .PAC/.FPC container that has a <name>.d folder is read again with the
+    unpacker's own parser; for each entry the size in the entry header is compared with the extracted file. Lists the entries whose
+    header size is 0 (real empties: with the raw name field, in case something follows the name), the entries whose extracted file
+    has another size or is missing (a gap), and the empty files on disk that no entry explains."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from p3fes_unpack import analyse_pak, Window, safe_parts
+    except ImportError:
+        raise SystemExit("p3fes_unpack.py must be in the same folder as this tool")
+    entries_n = 0; real_empty = []; gap = []; explained = set(); unparsed = []; by_ext = collections.Counter(); containers = 0
+    for dp, _, fns in os.walk(root):
+        for fn in sorted(fns):
+            if not fn.lower().endswith((".pac", ".fpc")):
+                continue
+            path = os.path.join(dp, fn); cdir = path + ".d"
+            if not os.path.isdir(cdir) or os.path.getsize(path) < 256:
+                continue
+            with open(path, "rb") as f:
+                view = Window(f, 0, os.path.getsize(path)); r = analyse_pak(view)
+                if not (r["ok"] and r["entries"]):
+                    unparsed.append(os.path.relpath(path, root)); continue
+                containers += 1; used = set()
+                for (name, elen), st in zip(r["entries"], r["starts"]):
+                    dest = os.path.join(cdir, *safe_parts(name)); n = 1
+                    base, ext = os.path.splitext(dest)
+                    while dest.lower() in used:
+                        n += 1; dest = "%s__%d%s" % (base, n, ext)
+                    used.add(dest.lower()); entries_n += 1
+                    have = os.path.getsize(dest) if os.path.exists(dest) else None
+                    if elen == 0:
+                        raw = view.read_at(st, 252); end = raw.find(b"\0")
+                        tail = raw[end:].strip(b"\0") if end >= 0 else b""
+                        real_empty.append("%s : %s (header size 0, file on disk %s%s)" % (os.path.relpath(path, root), name, "missing" if have is None else "%d bytes" % have, ", extra bytes after the name: %r" % tail[:40] if tail else ""))
+                        by_ext[ext_of(name)] += 1; explained.add(os.path.normcase(dest))
+                    if have != elen:
+                        gap.append("%s : %s (header size %d, file on disk %s)" % (os.path.relpath(path, root), name, elen, have))
+    stray = []
+    for dp, _, fns in os.walk(root):
+        for fn in fns:
+            pth = os.path.join(dp, fn)
+            if os.path.getsize(pth) == 0 and os.path.normcase(pth) not in explained:
+                stray.append(os.path.relpath(pth, root))
+    head = ["containers read: %d (could not parse: %d); entries: %d" % (containers, len(unparsed), entries_n),
+            "entries with header size 0: %d (by type: %s)" % (len(real_empty), ", ".join("%s %d" % kv for kv in by_ext.most_common())),
+            "entries whose file on disk differs from the header size or is missing: %d" % len(gap),
+            "empty files on disk that no entry explains: %d" % len(stray)]
+    text = "\n".join(head + ["", "Empty entries:"] + real_empty + ["", "Size gaps:"] + gap[:200] + ["", "Empty files no entry explains:"] + stray[:200] + ["", "Containers not parsed:"] + unparsed[:50])
+    open(out, "w").write(text + "\n")
+    print("\n".join(head))
+
+
+def pakscan(path, out):
+    """Looks inside one .PAC/.FPC container for headers the unpacker may have skipped. For every entry with header size 0 prints the
+    raw 252-byte name field as hex and text, and tests every 16-aligned position inside and just after that header for another
+    valid entry header (name, size that fits); a hit there means a real entry starts inside the name field of the size-0 one."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from p3fes_unpack import analyse_pak, entry_header, Window
+    except ImportError:
+        raise SystemExit("p3fes_unpack.py must be in the same folder as this tool")
+    size = os.path.getsize(path); lines = []
+    with open(path, "rb") as f:
+        view = Window(f, 0, size); r = analyse_pak(view)
+        if not (r["ok"] and r["entries"]):
+            raise SystemExit("could not parse %s" % path)
+        lines.append("%s: %d bytes, %d entries" % (os.path.basename(path), size, len(r["entries"])))
+        hits = 0; zero = 0
+        for i, ((name, elen), st) in enumerate(zip(r["entries"], r["starts"])):
+            nxt = r["starts"][i + 1] if i + 1 < len(r["starts"]) else size
+            gap = nxt - (st + 256 + elen)
+            lines.append("  #%d at %#x: %s size %d, next entry at %#x, bytes between end of data and next entry: %d" % (i, st, name, elen, nxt, gap))
+            if elen:
+                continue
+            zero += 1
+            raw = view.read_at(st, 256)
+            lines.append("     raw name field (offset: hex | text):")
+            for o in range(0, 256, 16):
+                row = raw[o:o + 16]
+                if any(row):
+                    lines.append("       +%03x: %s | %s" % (o, row.hex(" "), "".join(chr(c) if 32 <= c < 127 else "." for c in row)))
+            for q in range(16, 256 + 16, 16):
+                eh = entry_header(view.read_at(st + q, 256), size - st - q - 256)
+                if eh:
+                    hits += 1
+                    lines.append("     VALID HEADER at +%#x (%#x): %s size %d" % (q, st + q, eh[0], eh[1]))
+    lines.insert(1, "size-0 entries: %d, of which another valid header starts 16 to 256 bytes into them: %d" % (zero, hits))
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print("\n".join(lines[:2]))
+
+
+def treediff(old_root, new_root, out, sample=25):
+    """Compares two extraction folders by relative path (case-insensitive). Per file type: files in both, only in the new one, only in
+    the old one (and how many of those are empty), and files whose size differs. Also per top folder. Samples of each group are listed
+    by name only. Used after fixing the unpacker, to see what the old extraction missed."""
+    def scan(root):
+        res = {}
+        for dp, _, fns in os.walk(root):
+            for fn in fns:
+                if fn.lower() == "manifest.csv":
+                    continue
+                pth = os.path.join(dp, fn)
+                res[os.path.relpath(pth, root).replace("\\", "/").lower()] = (os.path.getsize(pth), os.path.relpath(pth, root))
+        return res
+    a, b = scan(old_root), scan(new_root)
+    both = [k for k in a if k in b]; only_new = sorted(k for k in b if k not in a); only_old = sorted(k for k in a if k not in b)
+    changed = [k for k in both if a[k][0] != b[k][0]]
+    def ext(k):
+        return os.path.splitext(k)[1] or "(none)"
+    rows = collections.defaultdict(lambda: collections.Counter())
+    for k in both:
+        rows[ext(k)]["both"] += 1
+    for k in only_new:
+        rows[ext(k)]["only new"] += 1; rows[ext(k)]["only new bytes"] += b[k][0]
+    for k in only_old:
+        rows[ext(k)]["only old"] += 1; rows[ext(k)]["only old empty"] += a[k][0] == 0
+    for k in changed:
+        rows[ext(k)]["size differs"] += 1
+    top = collections.defaultdict(lambda: collections.Counter())
+    for k in only_new:
+        top["/".join(k.split("/")[:2])]["only new"] += 1
+    for k in only_old:
+        top["/".join(k.split("/")[:2])]["only old"] += 1
+    head = ["old: %d files, new: %d files; in both: %d, only new: %d (%d bytes), only old: %d (of which empty: %d), size differs: %d" % (
+        len(a), len(b), len(both), len(only_new), sum(b[k][0] for k in only_new), len(only_old), sum(a[k][0] == 0 for k in only_old), len(changed)), ""]
+    lines = ["per file type: both / only new / only new bytes / only old / only old empty / size differs"]
+    for e, c in sorted(rows.items(), key=lambda kv: -(kv[1]["only new"] + kv[1]["only old"] + kv[1]["size differs"])):
+        lines.append("  %-10s %6d %6d %12d %6d %6d %6d" % (e, c["both"], c["only new"], c["only new bytes"], c["only old"], c["only old empty"], c["size differs"]))
+    lines += ["", "per folder (first two levels): only new / only old"]
+    for t, c in sorted(top.items(), key=lambda kv: -(kv[1]["only new"] + kv[1]["only old"]))[:60]:
+        lines.append("  %-60s %6d %6d" % (t, c["only new"], c["only old"]))
+    for title, ks, src in (("Only in the new folder (sample):", only_new, b), ("Only in the old folder (sample):", only_old, a), ("Size differs (sample):", changed, b)):
+        lines += ["", title] + ["  " + src[k][1] for k in ks[:sample]]
+    text = "\n".join(head + lines)
+    open(out, "w").write(text + "\n")
+    print("\n".join(head))
 
 
 def nbin(root, out):
@@ -2319,6 +2632,19 @@ def main():
     ho = sp.add_parser("hbnobj", help="write a scene's .hbn points as marker .obj files")
     ho.add_argument("fields"); ho.add_argument("scene", help="field:scene, e.g. 6:2"); ho.add_argument("sections", nargs="*", type=int, default=[1])
     ho.add_argument("-o", "--out", default="hbnobj")
+    ew = sp.add_parser("entrywhere", help="for one scene: its .hbn section 1 records and who sends the player to each entry")
+    ew.add_argument("scripts"); ew.add_argument("fields"); ew.add_argument("scene", help="field:scene, e.g. 6:2")
+    ew.add_argument("-o", "--out", default="entrywhere.txt")
+    dn = sp.add_parser("doornorec", help="every door proc (field_137 then field_33), with or without an h*.bin record")
+    dn.add_argument("scripts"); dn.add_argument("fields"); dn.add_argument("-o", "--out", default="doornorec.txt")
+    h5 = sp.add_parser("hbinw5", help="word 5 of the h*.bin door records against the field of the file")
+    h5.add_argument("fields"); h5.add_argument("-o", "--out", default="hbinw5.txt")
+    ef = sp.add_parser("emptyfiles", help="are the empty extracted files real (header size 0) or an extraction gap?")
+    ef.add_argument("root"); ef.add_argument("-o", "--out", default="emptyfiles.txt")
+    pk = sp.add_parser("pakscan", help="look inside one .PAC/.FPC container for headers hidden in size-0 entries")
+    pk.add_argument("file"); pk.add_argument("-o", "--out", default="pakscan.txt")
+    td = sp.add_parser("treediff", help="compare two extraction folders: what the new one has that the old one lacks")
+    td.add_argument("old"); td.add_argument("new"); td.add_argument("-o", "--out", default="treediff.txt")
     cp = sp.add_parser("callprocs", help="calls of named functions with their arguments and the proc they sit in")
     cp.add_argument("scripts"); cp.add_argument("names", nargs="+"); cp.add_argument("-o", "--out", default="callprocs.txt")
     dw = sp.add_parser("doorwhere", help="where a function's big first-argument ids appear in the small field files")
@@ -2399,6 +2725,18 @@ def main():
         fbnobj(a.fields, a.out, a.scene, a.variants)
     elif a.cmd == "hbnobj":
         hbnobj(a.fields, a.out, a.scene, a.sections or [1])
+    elif a.cmd == "entrywhere":
+        entrywhere(a.scripts, a.fields, a.out, a.scene)
+    elif a.cmd == "doornorec":
+        doornorec(a.scripts, a.fields, a.out)
+    elif a.cmd == "hbinw5":
+        hbinw5(a.fields, a.out)
+    elif a.cmd == "emptyfiles":
+        emptyfiles(a.root, a.out)
+    elif a.cmd == "pakscan":
+        pakscan(a.file, a.out)
+    elif a.cmd == "treediff":
+        treediff(a.old, a.new, a.out)
     elif a.cmd == "callprocs":
         callprocs(a.scripts, a.out, a.names)
     elif a.cmd == "doorwhere":

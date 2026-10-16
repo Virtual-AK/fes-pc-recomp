@@ -45,7 +45,7 @@
 202 party_state_set?       # (member, value)
 277 actor_state?           # (id, value) uncertain
 360 sound_play?            # (type, id) uncertain; before box animation and door entry
-33 scene_change?       # (field, scene, entry, 0) after a fade out, then end. entry = which way in: proc homeroom_l -> (6,3,0,0), homeroom_r -> (6,3,1,0) (left/right door of the homeroom)
+33 scene_change?       # (field, scene, entry, 0) after a fade out, then end. entry = which way in: record <entry> of section 1 of the destination scene's .HBN (spawn x, y, z and angle in degrees). Procs entrance_door_l/_c/_r -> (6,2,2/3/4,0): left, centre and right main doors of the school entrance; homeroom_l -> (6,3,0,0), homeroom_r -> (6,3,1,0)
 311 object_player?     # (n) returns the object of party member n (0 = the player; f014 bathhouse_hide uses 0..3); also hidden with object_show? at scene start
 312 object_setup?      # (object, n) puts the object at spot n: spot n is the .FBN record with id 0xC00 + n (slot n) of the field's .FBN files (numbers of 12 and up: 184 of 212 found among the field's slots against 51 for a control field); party members take consecutive spots (base + member index) after a fade-out; then fn_486() and object_show?
 313 object_find?       # (kind 5 or 2, id), e.g. (5,130), (2,25); result goes to 314; the first number is not a field number
