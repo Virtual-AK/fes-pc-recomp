@@ -470,6 +470,490 @@ def fields(root, out, match=None, limit=0, jobs=1, textures=True):
     print("\nReport: " + os.path.join(out, "fields_report.txt"))
 
 
+def objids(scripts_root, model_root, out):
+    """Which model files do the object numbers in the scripts' field_313 / field_357 calls point at?
+    Counts every literal id, then checks it against the numbers in the model file names (N00206.RMD -> N, 206)."""
+    call = re.compile(r"field_(313|357)\((-?\d+), (-?\d+)\)")
+    ids = collections.defaultdict(collections.Counter)         # (func, first arg) -> id -> calls
+    nscripts = 0
+    for dp, _, fns in os.walk(scripts_root):
+        for fn in fns:
+            if not fn.lower().endswith(".txt"):
+                continue
+            nscripts += 1
+            with open(os.path.join(dp, fn), errors="replace") as fh:
+                for m in call.finditer(fh.read()):
+                    ids[(m.group(1), int(m.group(2)))][int(m.group(3))] += 1
+    fam = collections.defaultdict(set)                          # (folder, prefix) -> numbers in file names
+    nfiles = 0
+    for dp, _, fns in os.walk(model_root):
+        folder = os.path.basename(dp).upper()
+        if folder.endswith(".PAC.D"):
+            folder = "(pack folders)"
+        for fn in fns:
+            m = re.match(r"([A-Za-z_]*?)(\d+)([A-Za-z]?)\.rmd$", fn, re.I)
+            if m:
+                fam[(folder, m.group(1).upper())].add(int(m.group(2)))
+                nfiles += 1
+    lines = ["Scripts read: %d text files; model files with a number in the name: %d" % (nscripts, nfiles), "",
+             "Model name families (folder, letters before the number): count, smallest..largest number"]
+    for k, v in sorted(fam.items()):
+        lines.append("  %-12s %-6s %5d files  %d..%d" % (k[0], k[1], len(v), min(v), max(v)))
+    for k, v in sorted(fam.items()):
+        if len(v) >= 50:
+            lines.append("  numbers of %s %s up to 1000: %s" % (k[0], k[1], " ".join(str(n) for n in sorted(v) if n <= 1000)))
+    lines += ["", "Literal ids in the scripts, and how many of them appear as a number in each model family:"]
+    for (f, a), c in sorted(ids.items()):
+        lines.append("")
+        lines.append("field_%s(%d, id): %d distinct ids, %d calls; ids %d..%d" % (f, a, len(c), sum(c.values()), min(c), max(c)))
+        top = max(c)
+        for k, v in sorted(fam.items()):
+            hit = [i for i in c if i in v]
+            if hit:
+                base = sum(1 for n in v if n <= top) / (top + 1)
+                lines.append("    %-14s %-6s: %d of %d ids exist as a model number (a random id would match %.0f%% of the time)" % (
+                    k[0], k[1], len(hit), len(c), 100 * base))
+                if len(hit) >= len(c) * 0.6 and len(hit) < len(c):
+                    lines.append("        not found: " + ", ".join(str(i) for i in sorted(c) if i not in v))
+        lines.append("    most used: " + ", ".join("%d x%d" % (i, n) for i, n in c.most_common(12)))
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+    print("\nwritten to " + out)
+
+
+def objdata(scripts_root, field_root, out, minid=20):
+    """Do the object ids a field's scripts use appear as numbers inside that field's own small data files?
+    Compares each field with the ids of a different field (control) to see whether any match is more than chance."""
+    call = re.compile(r"field_(313|357)\((-?\d+), (-?\d+)\)")
+    ids = collections.defaultdict(set)
+    for dp, _, fns in os.walk(scripts_root):
+        base = os.path.basename(dp)
+        if not base.upper().endswith(".PAC.D"):
+            continue
+        for fn in fns:
+            if fn.lower().endswith(".txt"):
+                with open(os.path.join(dp, fn), errors="replace") as fh:
+                    for m in call.finditer(fh.read()):
+                        v = int(m.group(3))
+                        if v >= minid:
+                            ids[base.upper()].add(v)
+    files = collections.defaultdict(list)
+    for dp, _, fns in os.walk(field_root):
+        base = os.path.basename(dp).upper()
+        if base in ids:
+            for fn in sorted(fns):
+                if os.path.splitext(fn)[1].lower() in (".hbn", ".fbn", ".bin", ".env", ".cmr", ".epl"):
+                    files[base].append(os.path.join(dp, fn))
+    names = sorted(n for n in ids if files.get(n))
+    if len(names) < 2:
+        raise SystemExit("need scripts and data for at least 2 fields (found %d)" % len(names))
+    own = collections.Counter()
+    ctl = collections.Counter()
+    examples = []
+    for i, n in enumerate(names):
+        other = names[(i + len(names) // 2) % len(names)]
+        for path in files[n]:
+            d = open(path, "rb").read()
+            ext = os.path.splitext(path)[1].lower()
+            for width, fmt in ((2, "<H"), (4, "<I")):
+                vals = {}
+                for off in range(0, len(d) - width + 1, width):
+                    vals.setdefault(struct.unpack_from(fmt, d, off)[0], []).append(off)
+                for v in ids[n]:
+                    if v in vals:
+                        own[(ext, width)] += 1
+                        if len(examples) < 60:
+                            examples.append("%s id %d in %s as %d-byte value at offset 0x%X" % (n, v, os.path.basename(path), width, vals[v][0]))
+                for v in ids[other]:
+                    if v in vals:
+                        ctl[(ext, width)] += 1
+    lines = ["Fields with scripts and data: %d. Ids below %d ignored." % (len(names), minid), "",
+             "Hits (an id of the field's own scripts found as a number in its own files) versus a control (the ids of another field):"]
+    for k in sorted(set(own) | set(ctl)):
+        lines.append("  %-5s %d-byte values: own %5d, control %5d" % (k[0], k[1], own[k], ctl[k]))
+    lines += ["", "First examples:"] + ["  " + e for e in examples]
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+
+
+def objwhere(scripts_root, field_root, out, minid=20):
+    """Per script function (field_313 kind 5, kind 2, field_357): how often its ids are found as 32-bit values in the
+    field's own .hbn/.fbn/.bin files versus a control field, and for .hbn hits the surrounding words (to see the record)."""
+    call = re.compile(r"field_(313|357)\((-?\d+), (-?\d+)\)")
+    ids = collections.defaultdict(lambda: collections.defaultdict(set))
+    for dp, _, fns in os.walk(scripts_root):
+        base = os.path.basename(dp).upper()
+        if not base.endswith(".PAC.D"):
+            continue
+        for fn in fns:
+            if fn.lower().endswith(".txt"):
+                with open(os.path.join(dp, fn), errors="replace") as fh:
+                    for m in call.finditer(fh.read()):
+                        v = int(m.group(3))
+                        if v >= minid:
+                            key = "313 kind %s" % m.group(2) if m.group(1) == "313" else "357"
+                            ids[base][key].add(v)
+    files = collections.defaultdict(list)
+    for dp, _, fns in os.walk(field_root):
+        base = os.path.basename(dp).upper()
+        if base in ids:
+            for fn in sorted(fns):
+                if os.path.splitext(fn)[1].lower() in (".hbn", ".fbn", ".bin"):
+                    files[base].append(os.path.join(dp, fn))
+    names = sorted(n for n in ids if files.get(n))
+    if len(names) < 2:
+        raise SystemExit("need scripts and data for at least 2 fields")
+    own = collections.Counter(); ctl = collections.Counter(); tested = collections.Counter()
+    offs = collections.defaultdict(collections.Counter)
+    examples = []
+    for i, n in enumerate(names):
+        other = names[(i + len(names) // 2) % len(names)]
+        for path in files[n]:
+            d = open(path, "rb").read()
+            ext = os.path.splitext(path)[1].lower()
+            vals = {}
+            for off in range(0, len(d) - 3, 4):
+                vals.setdefault(struct.unpack_from("<I", d, off)[0], []).append(off)
+            for key in ids[n]:
+                for v in ids[n][key]:
+                    tested[(key, ext)] += 1
+                    if v in vals:
+                        own[(key, ext)] += 1
+                        offs[(key, ext)][vals[v][0] % 0x70 if ext == ".fbn" else vals[v][0] % 0x40] += 1
+                        if ext == ".hbn" and len(examples) < 40:
+                            o = vals[v][0]
+                            ws = " ".join("%08X" % struct.unpack_from("<I", d, q)[0] for q in range(max(0, o - 16), min(len(d) - 3, o + 20), 4))
+                            examples.append("%s %s id %d in %s at 0x%X: %s" % (n, key, v, os.path.basename(path), o, ws))
+                for v in ids[other].get(key, ()):
+                    if v in vals:
+                        ctl[(key, ext)] += 1
+    lines = ["Fields with scripts and data: %d. Ids below %d ignored." % (len(names), minid), "",
+             "function / file type: own hits, control hits (ids tested)"]
+    for k in sorted(tested):
+        lines.append("  %-12s %-5s own %5d  control %5d  (of %d)" % (k[0], k[1], own[k], ctl[k], tested[k]))
+    lines += ["", "Offset of own hits inside the record (.hbn: offset mod 0x40, .fbn: mod 0x70, .bin: mod 0x40), most common:"]
+    for k, c in sorted(offs.items()):
+        lines.append("  %-12s %-5s %s" % (k[0], k[1], ", ".join("0x%X:%d" % kv for kv in c.most_common(6))))
+    lines += ["", "HBN examples (words around the hit; hit is the 5th word):"] + ["  " + e for e in examples]
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+
+
+def calcalls(scripts_root, field_root, out):
+    """Test of the objwhere lead: field_357(F, id) -> id is a date-group number in field F's calendar (n*.bin, word 3);
+    field_313(5, id) -> id is a calendar entry code (word 1, low 16 bits) of the script's own field."""
+    cal = {}
+    for dp, _, fns in os.walk(field_root):
+        base = os.path.basename(dp).upper()
+        for fn in fns:
+            if re.match(r"n\d+_\d+\.bin$", fn, re.I) and base.endswith(".PAC.D"):
+                try:
+                    r = parse_ncal(open(os.path.join(dp, fn), "rb").read())
+                except Exception:
+                    continue
+                cal[base] = ({x[4] for x in r["dates"]}, {w[1] & 0xFFFF for g in r["groups"] for w in g})
+    bynum = collections.defaultdict(lambda: (set(), set()))
+    for b, (g, c) in cal.items():
+        m = re.match(r"F(\d+)_", b)
+        if m:
+            bynum[int(m.group(1))][0].update(g); bynum[int(m.group(1))][1].update(c)
+    nums = sorted(bynum)
+    call = re.compile(r"field_(313|357)\((-?\d+), (-?\d+)\)")
+    res = collections.Counter(); misses = collections.Counter(); hitsx = collections.Counter(); hundreds = collections.Counter()
+    for dp, _, fns in os.walk(scripts_root):
+        base = os.path.basename(dp).upper()
+        mm = re.match(r"F(\d+)_", base)
+        if not mm or not base.endswith(".PAC.D"):
+            continue
+        for fn in fns:
+            if not fn.lower().endswith(".txt"):
+                continue
+            for m in call.finditer(open(os.path.join(dp, fn), errors="replace").read()):
+                fnc, a, v = m.group(1), int(m.group(2)), int(m.group(3))
+                if v < 20:
+                    continue
+                if fnc == "357":
+                    f = a if a >= 0 else int(mm.group(1))
+                    if f not in bynum or len(nums) < 2:
+                        res["357 field has no calendar"] += 1
+                        continue
+                    ctl = nums[(nums.index(f) + len(nums) // 2) % len(nums)]
+                    res["357 tested"] += 1
+                    if v in bynum[f][0]:
+                        res["357 id is a group of field F"] += 1; hitsx[(f, v)] += 1
+                    else:
+                        misses[(a, v)] += 1
+                        if v >= 100:
+                            res["357 other ids >= 100 tested"] += 1
+                            if v % 100 in bynum[f][0]:
+                                res["  ... of which id mod 100 is a group of field F"] += 1
+                            if v % 100 in bynum[ctl][0]:
+                                res["  ... of which id mod 100 is a group of control field"] += 1
+                            hundreds[v // 100] += 1
+                    if v in bynum[ctl][0]:
+                        res["357 id is a group of control field"] += 1
+                elif a == 5 and base in cal:
+                    ctl = nums[(nums.index(int(mm.group(1))) + len(nums) // 2) % len(nums)] if int(mm.group(1)) in nums else nums[0]
+                    res["313 kind 5 tested"] += 1
+                    if v in cal[base][1]:
+                        res["313 kind 5 id is an entry code of own field"] += 1
+                    if v in bynum[ctl][1]:
+                        res["313 kind 5 id is an entry code of control field"] += 1
+    lines = ["Calendars read: %d (fields: %d)" % (len(cal), len(nums)), ""] + ["  %-48s %d" % kv for kv in sorted(res.items())]
+    lines += ["", "Hundreds digit of the other 357 ids: " + ", ".join("%d00s:%d" % kv for kv in sorted(hundreds.items()))]
+    lines += ["", "Matching 357 (field, id) pairs, most used:"] + ["  field_357(%d, %d) x%d" % (f, v, c) for (f, v), c in hitsx.most_common(25)]
+    lines += ["", "Non-matching 357 (arg, id), most used:"] + ["  field_357(%d, %d) x%d" % (a, v, c) for (a, v), c in misses.most_common(25)]
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+
+
+def nbin(root, out):
+    """Statistics of the n###_###.bin tables, read as 0x20-byte records (8 words)."""
+    files = []
+    for dp, _, fns in os.walk(root):
+        for fn in sorted(fns):
+            if re.match(r"n\d+_\d+\.bin$", fn, re.I):
+                files.append(os.path.join(dp, fn))
+    if not files:
+        raise SystemExit("no n###_###.bin files found under " + root)
+    sizes = collections.Counter(os.path.getsize(f) for f in files)
+    lines = ["%d n*.bin files; sizes (bytes: files): %s" % (len(files), ", ".join("%d:%d" % kv for kv in sorted(sizes.items())[:40])),
+             "files whose size is a multiple of 0x20: %d" % sum(1 for f in files if os.path.getsize(f) % 32 == 0), ""]
+    cols = [collections.Counter() for _ in range(8)]
+    nrec = 0
+    for f in files:
+        d = open(f, "rb").read()
+        for r in range(0, len(d) - 31, 32):
+            nrec += 1
+            for k in range(8):
+                cols[k][struct.unpack_from("<I", d, r + 4 * k)[0]] += 1
+    lines.append("Records: %d. Word position in the record: distinct values, most common (value x count)" % nrec)
+    for k in range(8):
+        lines.append("  +0x%02X: %6d distinct; %s" % (4 * k, len(cols[k]), ", ".join("0x%X x%d" % kv for kv in cols[k].most_common(8))))
+    big = sorted(files, key=os.path.getsize, reverse=True)[:3]
+    for f in big:
+        d = open(f, "rb").read()
+        lines += ["", "%s (%d bytes), records with a value other than 0 / 0xFFFFFFFF:" % (os.path.basename(f), len(d))]
+        shown = 0
+        for r in range(0, len(d) - 31, 32):
+            w = struct.unpack_from("<8I", d, r)
+            if any(x not in (0, 0xFFFFFFFF) for x in w) and shown < 70:
+                lines.append("  %04X  %s" % (r, " ".join("%08X" % x for x in w)))
+                shown += 1
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text[:3000])
+    print("\nwritten to " + out)
+
+
+def parse_ncal(d):
+    """n###_###.bin as a calendar: header (count), `count` date records, then groups of entries.
+    Date record (0x20 bytes): month (low half of word 0), day (high half), time-of-day word, 0xFFFFFFFF, group number.
+    Group section: entries (word 0 = 0x0005_kkkk slot, word 1 code, word 2 parameter) ended by a 0x0000FFFF record."""
+    n = len(d) // 32
+    if n == 0:
+        return None
+    count = struct.unpack_from("<I", d, 0)[0]
+    dates = []
+    for i in range(1, min(n, count + 1)):
+        w = struct.unpack_from("<8I", d, 32 * i)
+        dates.append(((w[0] & 0xFFFF), (w[0] >> 16), w[1], w[2], w[3], w[4:]))
+    groups = [[]]
+    for i in range(count + 1, n):
+        w = struct.unpack_from("<8I", d, 32 * i)
+        if w[0] == 0xFFFF:
+            groups.append([])
+        else:
+            groups[-1].append(w)
+    return {"count": count, "records": n, "dates": dates, "groups": groups}
+
+
+def ncal(root, out):
+    files = []
+    for dp, _, fns in os.walk(root):
+        for fn in sorted(fns):
+            if re.match(r"n\d+_\d+\.bin$", fn, re.I):
+                files.append(os.path.join(dp, fn))
+    if not files:
+        raise SystemExit("no n###_###.bin files found under " + root)
+    lines = []
+    valid = bad = 0
+    codes = collections.Counter()
+    slots = collections.Counter()
+    types = collections.Counter()
+    fits_count = 0
+    for f in files:
+        d = open(f, "rb").read()
+        r = parse_ncal(d)
+        if not r:
+            continue
+        fits_count += r["count"] + 1 <= r["records"]
+        ok = [x for x in r["dates"] if 1 <= x[0] <= 12 and 1 <= x[1] <= 31]
+        valid += len(ok)
+        bad += len(r["dates"]) - len(ok)
+        for x in r["dates"]:
+            types[x[2]] += 1
+        for g in r["groups"]:
+            for w in g:
+                codes[w[1]] += 1
+                slots[w[0]] += 1
+        lines.append("%s: %d bytes, header count %d, %d date records (%d valid month/day), %d groups" % (
+            os.path.basename(f), len(d), r["count"], len(r["dates"]), len(ok), len(r["groups"])))
+    head = ["%d files; date records with a valid month 1-12 and day 1-31: %d, invalid: %d" % (len(files), valid, bad),
+            "files where the header count fits inside the file: %d" % fits_count,
+            "time-of-day word values (value x count): " + ", ".join("0x%X x%d" % kv for kv in types.most_common(12)),
+            "entry word 0 values (slot): " + ", ".join("0x%X x%d" % kv for kv in slots.most_common(12)),
+            "entry codes (word 1), most common: " + ", ".join("%d x%d" % kv for kv in codes.most_common(25)), ""]
+    text = "\n".join(head + lines)
+    # one readable example: the file with the most date records
+    best = max(files, key=os.path.getsize)
+    r = parse_ncal(open(best, "rb").read())
+    ex = ["", "Example (%s): dates as month/day -> time word, group number" % os.path.basename(best)]
+    ex.append("  " + "  ".join("%d/%d:%X->g%d" % (m, dd, t, g) for m, dd, t, _, g, _ in r["dates"][:80]))
+    ex.append("First groups (slot code parameter flags):")
+    for gi, g in enumerate(r["groups"][:12]):
+        ex.append("  group %d: " % gi + "; ".join("%d %d %d 0x%X" % (w[0] & 0xFFFF, w[1], w[2] if w[2] != 0xFFFFFFFF else -1, w[4]) for w in g))
+    text += "\n" + "\n".join(ex)
+    open(out, "w").write(text + "\n")
+    print(text[:3500])
+    print("\nwritten to " + out)
+
+
+def ncodes(scripts_root, field_root, out, minid=20):
+    """Which numbers derived from the calendar entries (n*.bin) show up as object ids in the same field's scripts?
+    Each entry code is tried as itself, as high/low 16 bits, and as (code-1)/50; the parameter word is tried too.
+    A control (another field's scripts) shows what chance would give."""
+    call = re.compile(r"field_(313|357)\((-?\d+), (-?\d+)\)")
+    ids = collections.defaultdict(set)
+    for dp, _, fns in os.walk(scripts_root):
+        base = os.path.basename(dp).upper()
+        if not base.endswith(".PAC.D"):
+            continue
+        for fn in fns:
+            if fn.lower().endswith(".txt"):
+                with open(os.path.join(dp, fn), errors="replace") as fh:
+                    for m in call.finditer(fh.read()):
+                        v = int(m.group(3))
+                        if v >= minid:
+                            ids[base].add(v)
+    derived = collections.defaultdict(lambda: collections.defaultdict(set))   # field -> view -> values
+    for dp, _, fns in os.walk(field_root):
+        base = os.path.basename(dp).upper()
+        for fn in fns:
+            if re.match(r"n\d+_\d+\.bin$", fn, re.I) and base in ids:
+                r = parse_ncal(open(os.path.join(dp, fn), "rb").read())
+                if not r:
+                    continue
+                for g in r["groups"]:
+                    for w in g:
+                        c = w[1]
+                        derived[base]["code"].add(c)
+                        derived[base]["low16"].add(c & 0xFFFF)
+                        derived[base]["high16"].add(c >> 16)
+                        if c % 50 == 1:
+                            derived[base]["(code-1)/50"].add((c - 1) // 50)
+                        if w[2] != 0xFFFFFFFF:
+                            derived[base]["param"].add(w[2])
+                for x in r["dates"]:
+                    derived[base]["date group"].add(x[4])
+    names = sorted(n for n in derived if n in ids)
+    if len(names) < 2:
+        raise SystemExit("need at least 2 fields with scripts and an n table")
+    views = ["code", "low16", "high16", "(code-1)/50", "param", "date group"]
+    own = collections.Counter(); ctl = collections.Counter(); tot = collections.Counter(); ex = []
+    for i, n in enumerate(names):
+        other = names[(i + len(names) // 2) % len(names)]
+        for v in views:
+            vals = {x for x in derived[n][v] if x >= minid}
+            tot[v] += len(ids[n])
+            hit = vals & ids[n]
+            own[v] += len(hit)
+            ctl[v] += len(vals & ids[other])
+            if hit and len(ex) < 40 and v in ("low16", "(code-1)/50", "code"):
+                ex.append("%s %s: %s" % (n, v, sorted(hit)[:8]))
+    lines = ["Fields with scripts and a calendar: %d. Script ids below %d ignored." % (len(names), minid), "",
+             "View of the calendar entries -> script ids found among them (own field vs control field), out of all script ids of those fields:"]
+    for v in views:
+        lines.append("  %-12s own %5d  control %5d  (of %d script ids)" % (v, own[v], ctl[v], tot[v]))
+    lines += ["", "Examples:"] + ["  " + e for e in ex]
+    text = "\n".join(lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+
+
+def fbnlink(field_root, out, minid=0):
+    """Compare a field's calendar (n*.bin) with its .FBN placement files: do the slot numbers match the FBN ids (0xC00+slot),
+    and do the group / parameter numbers match the numbers in the FBN file names (f006_003_105.FBN -> 105)?"""
+    folders = collections.defaultdict(dict)
+    for dp, _, fns in os.walk(field_root):
+        base = os.path.basename(dp).upper()
+        if not base.endswith(".PAC.D"):
+            continue
+        for fn in fns:
+            if re.match(r"n\d+_\d+\.bin$", fn, re.I):
+                folders[base]["n"] = os.path.join(dp, fn)
+            m = re.match(r"f\d+_\d+_(\d+)\.fbn$", fn, re.I)
+            if m:
+                folders[base].setdefault("fbn", {})[int(m.group(1))] = os.path.join(dp, fn)
+    names = sorted(n for n in folders if "n" in folders[n] and folders[n].get("fbn"))
+    if len(names) < 2:
+        raise SystemExit("need folders with both an n table and .FBN files")
+    lines = []
+    tot = collections.Counter()
+    ctl = collections.Counter()
+    shown = 0
+    info = {}
+    for n in names:
+        r = parse_ncal(open(folders[n]["n"], "rb").read())
+        slots = {w[0] & 0xFFFF for g in r["groups"] for w in g}
+        groups = {x[4] for x in r["dates"] if x[4] != 0xFFFFFFFF}
+        params = {w[2] for g in r["groups"] for w in g if w[2] != 0xFFFFFFFF}
+        suffix = set(folders[n]["fbn"])
+        ids = set()
+        for path in folders[n]["fbn"].values():
+            d = open(path, "rb").read()
+            cnt = struct.unpack_from("<I", d, 8)[0] if len(d) >= 12 else 0
+            for k in range(cnt):
+                o = 0x18 + 0x70 * k + 8
+                if o + 4 <= len(d):
+                    v = struct.unpack_from("<I", d, o)[0]
+                    if 0xC00 <= v < 0xD00:
+                        ids.add(v - 0xC00)
+        keep = lambda S: {v for v in S if v >= minid}
+        info[n] = (keep(slots), keep(groups), keep(params), keep(suffix), keep(ids))
+    for i, n in enumerate(names):
+        slots, groups, params, suffix, ids = info[n]
+        o = info[names[(i + len(names) // 2) % len(names)]]
+        tot["slots found among FBN ids"] += len(slots & ids); tot["slots"] += len(slots)
+        ctl["slots found among FBN ids"] += len(slots & o[4])
+        tot["date groups that are FBN name numbers"] += len(groups & suffix); tot["date groups"] += len(groups)
+        ctl["date groups that are FBN name numbers"] += len(groups & o[3])
+        tot["parameters that are FBN name numbers"] += len(params & suffix); tot["parameters"] += len(params)
+        ctl["parameters that are FBN name numbers"] += len(params & o[3])
+        for nm, S in (("date groups", groups), ("parameters", params)):
+            k = nm + " that are FBN ids"
+            tot[k] += len(S & ids); tot[nm + " (ids)"] += len(S)
+            ctl[k] += len(S & o[4])
+        if shown < 25:
+            shown += 1
+            lines.append("%s: slots %s | FBN ids %s | date groups %s | FBN name numbers %s | parameters %s" % (
+                n, sorted(slots)[:14], sorted(ids)[:14], sorted(groups)[:14], sorted(suffix)[:14], sorted(params)[:14]))
+    head = ["Folders with a calendar and .FBN files: %d" % len(names), "",
+            "Overlaps (own field versus control = another field), with the number of values tested:"]
+    for k in ("slots found among FBN ids", "date groups that are FBN name numbers", "parameters that are FBN name numbers", "date groups that are FBN ids", "parameters that are FBN ids"):
+        tot_k = k.split(" found")[0].split(" that")[0]
+        if k.endswith("FBN ids") and tot_k != "slots":
+            tot_k += " (ids)"
+        head.append("  %-42s own %6d  control %6d  (of %d)" % (k, tot[k], ctl[k], tot[tot_k]))
+    text = "\n".join(head + [""] + lines)
+    open(out, "w").write(text + "\n")
+    print(text)
+
+
 def head4(b):
     return b[:4].hex() if not b[:4].isalnum() else b[:4].decode()
 
@@ -518,6 +1002,34 @@ def main():
     fl.add_argument("--limit", type=int, default=0)
     fl.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     fl.add_argument("--no-textures", action="store_true")
+    oi = sp.add_parser("objids", help="check the object ids of field_313/field_357 calls against model file names")
+    oi.add_argument("scripts", help="folder with the script listings (.script.txt)")
+    oi.add_argument("models", help="folder with the extracted model files")
+    oi.add_argument("-o", "--out", default="objids.txt")
+    od = sp.add_parser("objdata", help="do the script object ids appear as numbers in the field's own small data files?")
+    od.add_argument("scripts")
+    od.add_argument("fields")
+    od.add_argument("-o", "--out", default="objdata.txt")
+    nb = sp.add_parser("nbin", help="statistics of the n###_###.bin tables read as 0x20-byte records")
+    nb.add_argument("root")
+    nb.add_argument("-o", "--out", default="nbin.txt")
+    nc = sp.add_parser("ncal", help="read the n###_###.bin tables as calendars (dates, groups)")
+    nc.add_argument("root")
+    nc.add_argument("-o", "--out", default="ncal.txt")
+    nk = sp.add_parser("ncodes", help="do numbers from the calendar entries match the object ids in the same field's scripts?")
+    nk.add_argument("scripts")
+    nk.add_argument("fields")
+    nk.add_argument("-o", "--out", default="ncodes.txt")
+    fk = sp.add_parser("fbnlink", help="compare each field's calendar with its .FBN placement files")
+    fk.add_argument("fields")
+    fk.add_argument("-o", "--out", default="fbnlink.txt")
+    fk.add_argument("--minid", type=int, default=0, help="ignore values below this (small numbers overlap by chance)")
+    ow = sp.add_parser("objwhere", help="where each script function's ids appear in the field data")
+    ow.add_argument("scripts"); ow.add_argument("fields")
+    ow.add_argument("-o", "--out", default="objwhere.txt")
+    cc = sp.add_parser("calcalls", help="test whether field_357/313 ids are calendar group numbers / entry codes")
+    cc.add_argument("scripts"); cc.add_argument("fields")
+    cc.add_argument("-o", "--out", default="calcalls.txt")
     dm = sp.add_parser("dump")
     dm.add_argument("file")
     w = sp.add_parser("words")
@@ -537,6 +1049,22 @@ def main():
         rws(a.root, a.out, a.png_dir, a.first)
     elif a.cmd == "fields":
         fields(a.root, a.out, a.match, a.limit, a.jobs, not a.no_textures)
+    elif a.cmd == "objids":
+        objids(a.scripts, a.models, a.out)
+    elif a.cmd == "objdata":
+        objdata(a.scripts, a.fields, a.out)
+    elif a.cmd == "nbin":
+        nbin(a.root, a.out)
+    elif a.cmd == "ncal":
+        ncal(a.root, a.out)
+    elif a.cmd == "ncodes":
+        ncodes(a.scripts, a.fields, a.out)
+    elif a.cmd == "fbnlink":
+        fbnlink(a.fields, a.out, a.minid)
+    elif a.cmd == "objwhere":
+        objwhere(a.scripts, a.fields, a.out)
+    elif a.cmd == "calcalls":
+        calcalls(a.scripts, a.fields, a.out)
     elif a.cmd == "dump":
         dump(a.file)
     elif a.cmd == "names":

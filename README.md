@@ -4,6 +4,23 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 
 **Status: research and tooling.** Nothing here runs the game yet. The tools read, unpack, convert and (for text) edit and repack the game's data from your own disc, and the file formats are documented.
 
+<!-- progress:start -->
+**Overall progress: about 13%** (rough estimate by the maintainers; most of the work is still ahead)
+
+`██░░░░░░░░░░░░░░░░░░` 13%
+
+| Phase | Progress | |
+| --- | --- | --- |
+| 0. Research and tooling | `█████████████████░░░` | 85% |
+| 1. Pick the approach, prototype | `░░░░░░░░░░░░░░░░░░░░` | 0% |
+| 2. Runtime layer (files, audio, video, input, saves) | `░░░░░░░░░░░░░░░░░░░░` | 0% |
+| 3. Graphics (GS and vector units to a modern API) | `░░░░░░░░░░░░░░░░░░░░` | 0% |
+| 4. Playable desktop build, QA | `░░░░░░░░░░░░░░░░░░░░` | 0% |
+| 5. Browser build and mod tooling | `░░░░░░░░░░░░░░░░░░░░` | 0% |
+
+Phase 0 is about 85%%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+<!-- progress:end -->
+
 | Area | State |
 | --- | --- |
 | Disc, archives, containers | Read and unpacked. |
@@ -13,6 +30,7 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 | Game text | Extract, edit, repack, patch into a disc copy that plays. |
 | 3D models | All 3,766 models export to glTF with skeletons, skin weights and animations (checked in Blender on a character, an NPC, a Persona, a boss, a weapon, a facility piece, a field object and an effect model). |
 | Effect data (`.BED`) | Structure and parameter-block headers read; the parameter fields are not decoded. |
+| Field (map) data | All 819 field `.RWS` files export to `.obj` with textures. The `n*.bin` tables are calendars (dates and entries, checked on 107 files); `.FBN` records are placements (position and rotation). Script calls `field_357(F, id)` look up a calendar date group (see [docs/formats.md](docs/formats.md)). `.HBN` and `h*.bin` are not decoded. |
 | Scripts (`.BF`) | Layout, instruction set and the table of the 213 game functions the scripts call are known ([docs/script-functions.md](docs/script-functions.md)); what each function does is not decoded yet. The dialogue inside scripts extracts and repacks like other text. |
 
 The next phases need developers; see [How to help](#how-to-help).
@@ -61,7 +79,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_models.py` | Surveys the `.RMD` files: header patterns, chunk lists, strings. `--tree` and `--hex` look inside one file. |
 | `p3fes_bmd.py` | Shows the structure (and optional hex dump) of one `.BMD` message file. |
 | `p3fes_fx.py` | Surveys the `.BED` effect files: `survey`, `nodes` (element types and examples), `fields` (every parameter word per type), `show` and `dump` for one file. |
-| `p3fes_field.py` | Surveys the field (map) data: `survey` (file types, sizes, first numbers), `names` (entry names in the field packs), `words` (every word position of the small field files), `check` (size rules of `.FBN`/`.HBN`), `fbn` (all `.FBN` records), `dump` (one small file as words) `split` (splits the `.FPC` containers into folders; needs `p3fes_unpack.py` beside it) `rws` (lists and decodes the textures in the `.RWS` files; needs `p3fes_rmd.py` beside it) and `fields` (writes every field's models as `.obj` and its textures as `.png`, with a report of anything odd; needs the `split` folders and `p3fes_rmd.py`). |
+| `p3fes_field.py` | Surveys the field (map) data: `survey` (file types, sizes, first numbers), `names` (entry names in the field packs), `words` (every word position of the small field files), `check` (size rules of `.FBN`/`.HBN`), `fbn` (all `.FBN` records), `dump` (one small file as words) `split` (splits the `.FPC` containers into folders; needs `p3fes_unpack.py` beside it) `rws` (lists and decodes the textures in the `.RWS` files; needs `p3fes_rmd.py` beside it) `nbin` and `ncal` (the calendar tables), and `ncodes`, `fbnlink`, `objids`, `objdata`, `objwhere` and `calcalls` (check script object ids against model file names, the calendar and the small field files) and `fields` (writes every field's models as `.obj` and its textures as `.png`, with a report of anything odd; needs the `split` folders and `p3fes_rmd.py`). |
 | `p3fes_bf.py` | The `.BF` scripts: `survey`, `analyse`, `messages`, `listing` (one script as readable statements), `msgcheck`, `balance`, `export` (every script as readable text), `context` (sample call sites of one function), `disasm` (raw instructions), `hex`; and for the boot executable: `functions`, `peek`, `code` (MIPS), `limit`, `lui`, `switch`, `ref`, `comm` (the script function table). |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
 

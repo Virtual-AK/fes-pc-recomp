@@ -1,5 +1,7 @@
 # File formats
 
+> Project progress: `██░░░░░░░░░░░░░░░░░░` 13% overall, see [docs/progress.md](progress.md) and [README](../README.md).
+
 What is known about the game's file formats, and how we checked it. "Verified" means a tool in this repository reads it and the results were checked on a real NTSC-U dump (file counts, sizes or converted output).
 
 Contents: [Disc and archives](#disc-and-archives-verified) · [Containers](#container-files-pac-pak-bin-cpk-verified) · [TMX textures](#tmx-textures-understood-verified-by-conversion) · [BMD messages](#bmd-message-files-msg1-verified-on-167-files-for-type-0-type-1-verified-on-one-real-message) · [AFS](#afs-archives-verified) · [ADX](#adx-audio-verified) · [SFD](#sfd-video-partly-known) · [Models (.RMD)](#models-rmd) · [Not decoded yet](#seen-but-not-decoded)
@@ -367,3 +369,36 @@ What each model position holds (average over files; guesses from size only, not 
 
 43 files (fields f221 and up, among others) hold one empty model (0 geometries, 0 atomics) and nothing else.
 In Blender the dorm lobby, the Port Island map, the plaza stage and others look right, including textures.
+
+### Field tables, second pass: `.FBN` records are transforms, `n*.bin` is a calendar
+
+**`.FBN` record (0x70 bytes, from 0x18; seen in `f006_003_000.FBN`, 23 records).** This corrects the first reading:
+`+0x00` stale pointer, `+0x04` word like `0xFFFF0004`, `+0x08` id `0xC00+n`, `+0x0C` float 30.0,
+`+0x20 / +0x30 / +0x40` three rows of four floats forming a 3x3 rotation (about the vertical axis in every sample I saw: `[c 0 -s 0] [0 1 0 0] [s 0 c 0]`),
+`+0x50 / +0x54 / +0x58` position (x, y, z; y is often 3.0 or a small height), `+0x60` flags (`3` or `0x103`), `+0x64` float 60.0, `+0x6C` stale pointer.
+So an `.FBN` is a list of placed things with a position and a facing. What each id (`0xC00+n`) is, and what the flag bit `0x100` means, is still open.
+
+**`n###_###.bin` is a calendar** (each record is 0x20 bytes; checked on `n006_002`, `n007_002`, `n008_001`, `n010_001`):
+- Record 0: word 0 = number of date records, the other words `0xFFFFFFFF`.
+- Then that many date records: word 0 = month (low 16 bits) and day (high 16 bits), word 1 = a time-of-day style value (1 or 6, sometimes 8), word 2 = `0xFFFFFFFF`, word 3 = a group number (mostly counting up as the dates advance, with a few out of order).
+- Then groups of entries ending with a record whose word 0 is `0x0000FFFF`. An entry has word 0 = `0x0005_kkkk` (kkkk = slot 0, 1, 2, 3), word 1 = a code (7651, 6251, 6201, 7701, 6351 in field 6), word 2 = a number that rises slowly from group to group, word 4 = `0xA0F`.
+- The header counts match the file sizes (39 dates in `n006_002.bin`, 364 in `n007_002.bin`), and every date I looked at is a valid month/day, so the date reading looks right. The meaning of the codes and the group numbers is not known.
+- Tool: `p3fes_field.py ncal` checks that over all 107 files and prints the common values; `nbin` shows the raw records.
+
+Script ids (`field_357(6, 21)` etc.) do appear inside the field's own data: `21`, `22`, `23` are group numbers in field 6's calendar (for 25 Sep, 3 Oct and 17 Oct in `n006_002.bin`); whether the scripts mean those groups is a guess to test.
+
+**Calendar check on all 107 files (`ncal`):** 2,112 of 2,112 date records have a valid month and day, and every header count fits its file, so the calendar reading is solid.
+Time-of-day word: 1 (1,526 records), 6 (385), 7 (139), 5 (45), 8 (15), 3 (2). Group entries: word 0 is always `0x0005_000k` with k = 0..12 (a slot number; `k` matches the `0xC00+k` ids of the `.FBN` records),
+word 1 is a code. Two code shapes show up: `50*m + 1` (7651 = 50*153+1, 6251, 5351, 12801 ...) and `(h << 16) | v` with v values such as 97, 98, 197, 247, 347, 403 (131571 = 2<<16 | 403). The `v` values are the same kind of number the scripts use for `field_357(6, id)`; that is a lead, not a result. (Tested by `p3fes_field.py ncodes`; later checks in this file show that the link is to `field_357` date groups, not to these codes.)
+
+### Calendar versus .FBN files (fbnlink, 91 folders)
+
+No clean link found. Calendar slot numbers versus FBN ids: own 372, control 215 (of 444), mostly small-number overlap. With values of 50 and up: date groups versus FBN file-name numbers 78 vs 46 control (of 695), parameters versus file-name numbers 52 vs 23 (of 949); versus the FBN ids inside the files: groups 64 vs 45, parameters 52 vs 49 (no signal). The run 50..63 in F006_003 appears in groups, parameters and FBN ids at once, but it is one folder and does not repeat elsewhere. Treat the calendar-to-FBN link as unproven; the file-name numbers are the weak lead.
+
+### Where script object ids show up (objwhere, 132 fields)
+
+Hits of a field's own script ids as 32-bit values in its own files, with a control field: field_357 ids in n*.bin 21 vs 0 (offsets 0xC/0x2C = word 3 of a 0x20 record = the date-group number); field_313 kind 5 ids in n*.bin 17 vs 1 (offset 0x24 = word 1 = the entry code); field_313 kind 2 ids in .hbn 14 vs 0 (a value next to floats and pointers, in records that also hold strings such as "draw_proc"). Counts are small; `calcalls` tests the 357/313-kind-5 reading directly.
+
+### field_357 ids are calendar date groups, with a hundreds prefix (calcalls)
+
+`field_357(F, id)` over 107 calendars: id itself is a date-group number of field F in 230 of 1010 calls (all field 6: 21, 22, 23). Of the other 780 calls (ids of 100 and up), `id mod 100` is a date group of field F in 780 of 780, against 69 for a control field. So id = 100 x k + group (k = 1..7; 400s are 616 of the 780). The calls are heavily repeated (the same pair appears in many script files), so only about 30 distinct pairs stand behind these counts, and field 6 dominates. What k means (variant, time of day, state) is open. `field_313(5, id)` as a calendar entry code is NOT supported (21 own versus 16 control of 90).

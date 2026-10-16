@@ -1,5 +1,7 @@
 # Phase 0 findings (NTSC-U, SLUS-21621)
 
+> Project progress: `██░░░░░░░░░░░░░░░░░░` 13% overall, see [docs/progress.md](progress.md) and [README](../README.md).
+
 All results come from the tools in this repository, run on a verified dump (matches the Redump entry). Only structure, names and sizes are recorded here.
 
 ## Disc layout

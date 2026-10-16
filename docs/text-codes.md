@@ -1,5 +1,7 @@
 # Message text codes (MSG1 / .BMD)
 
+> Project progress: `██░░░░░░░░░░░░░░░░░░` 13% overall, see [docs/progress.md](progress.md) and [README](../README.md).
+
 What is known about the bytes inside message lines. Worked out from the extracted text of a
 real NTSC-U disc (167 message files, about 15,600 lines). "Known" means the structure is
 confirmed by the data; "Likely" means inferred from the surrounding text and not yet

@@ -1,5 +1,7 @@
 # QA guide
 
+> Project progress: `██░░░░░░░░░░░░░░░░░░` 13% overall, see [docs/progress.md](progress.md) and [README](../README.md).
+
 You do not need to read code. Run a tool, look at the result, and report what you see.
 
 ## What to include in every report
