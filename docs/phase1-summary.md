@@ -39,3 +39,5 @@ The translated game was built and run on a Windows PC (through WSL2): it ran 3,6
 ## Fifth run (16 October 2026)
 
 The translated game now reaches the first 3D scenes in the dormitory (dialogue, choices, time-of-day box, walking, next morning), 60,000 frames from the first boot. Known faults: coloured noise on floors and walls, very dark scenes, one corrupted menu background. See formats.md for details.
+
+Next stage: see [playtest-plan.md](playtest-plan.md).
