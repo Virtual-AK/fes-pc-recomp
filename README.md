@@ -84,6 +84,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_iop.py` | `scan` lists the IOP modules (`.IRX`) on the disc and in the executable: names, sizes, and the libraries each exports and imports. |
 | `p3fes_pacing.py` | `scan` finds how the executable keeps time: system call wrappers, vertical-sync and timer hardware use, interrupt handlers, loops around sync calls, frame-time constants. |
 | `p3fes_iopimg.py` | `scan` lists the files inside the IOP reboot image (`IOPRP310.IMG`): module names, versions, sizes, the libraries each exports and imports. |
+| `p3fes_contact.py` | Makes contact sheets (PNG) from the test run's frame pictures, so many frames can be viewed or sent as one image. |
 | `p3fes_vu.py` | `scan` reports how the boot executable uses the PS2 vector units: VU0 macro-mode instructions, VU microcode blocks and microprogram uploads (numbers and addresses only). |
 | `p3fes_bf.py` | The `.BF` scripts: `survey`, `analyse`, `messages`, `listing` (one script as readable statements), `msgcheck`, `balance`, `export` (every script as readable text), `context` (sample call sites of one function), `disasm` (raw instructions), `hex`; and for the boot executable: `functions`, `peek`, `code` (MIPS), `limit`, `lui`, `switch`, `ref`, `comm` (the script function table). |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
@@ -124,6 +125,7 @@ Every tool prints what it did and writes a short report or a `problems.txt`. If 
 - [docs/text-codes.md](docs/text-codes.md): what the control codes inside message text mean.
 - [docs/script-functions.md](docs/script-functions.md): the script functions (`COMM` numbers) and where they live in the executable.
 - [docs/roadmap.md](docs/roadmap.md): the phases and the open questions.
+- [docs/phase1-summary.md](docs/phase1-summary.md): what Phase 1 settled and the first build milestone; [docs/windows-build.md](docs/windows-build.md): how to build and first-run it on Windows (through WSL2).
 - [docs/phase0-todo.md](docs/phase0-todo.md): what is left in Phase 0, item by item.
 
 In short: the game is one code image with no overlays, built on Sony's PS2 SDK and CRI middleware from early 2005. It reads all its data through CRI's file-system calls from three archives on the disc, and nearly all of that data is in simple, readable container formats.
