@@ -85,6 +85,11 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_pacing.py` | `scan` finds how the executable keeps time: system call wrappers, vertical-sync and timer hardware use, interrupt handlers, loops around sync calls, frame-time constants. |
 | `p3fes_iopimg.py` | `scan` lists the files inside the IOP reboot image (`IOPRP310.IMG`): module names, versions, sizes, the libraries each exports and imports. |
 | `p3fes_contact.py` | Makes contact sheets (PNG) from the test run's frame pictures, so many frames can be viewed or sent as one image. |
+| `ps2run_trace_patch.py` | Adds an opt-in texture and transfer trace (`PS2_TRACE_TEX=from,to`) to the PS2 Web Recomp graphics source, tagged with frame numbers; for finding the cause of picture faults. Steps 2 to 5 below build on it and are run in order in the same folder. |
+| `ps2run_trace_patch2.py` | Second trace step: bytes each GS upload really received, and how many were non-zero. |
+| `ps2run_trace_patch3.py` | Third trace step: `PS2_DUMP_TEX=frame,folder` writes each texture set in that frame as a grey picture of its palette indices (local use only). |
+| `ps2run_trace_patch4.py` | Fourth trace step: also writes each dumped texture in real colour (local use only). |
+| `ps2run_trace_patch5.py` | Fifth trace step: `PS2_TRACE_M3=1` prints each MSKPATH3 command and each GIF transfer with its path, to see how uploads and draws interleave. |
 | `p3fes_vu.py` | `scan` reports how the boot executable uses the PS2 vector units: VU0 macro-mode instructions, VU microcode blocks and microprogram uploads (numbers and addresses only). |
 | `p3fes_bf.py` | The `.BF` scripts: `survey`, `analyse`, `messages`, `listing` (one script as readable statements), `msgcheck`, `balance`, `export` (every script as readable text), `context` (sample call sites of one function), `disasm` (raw instructions), `hex`; and for the boot executable: `functions`, `peek`, `code` (MIPS), `limit`, `lui`, `switch`, `ref`, `comm` (the script function table). |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
@@ -141,3 +146,5 @@ An independent matching-decompilation project for this game exists at https://gi
 
 ## License
 The tools and documentation are released under the MIT license (see LICENSE).
+
+- [Playtest plan](docs/playtest-plan.md): what works, what is broken, and everything left to test.

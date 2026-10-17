@@ -23,10 +23,11 @@ Reached so far, all from the player's own disc, translated to PC code, with **0 
 
 | # | Fault | Seen at | Notes |
 | --- | --- | --- | --- |
-| F1 | Floors and some walls show coloured noise instead of their textures | field frames 51000 to 54600 | Mirrored name-entry letters appear around the noise, so the floor reads old graphics memory. A test on the software drawing path is running to tell which drawing path is at fault. |
-| F2 | Large parts of rooms and corridors very dark or black | frames 47400 to 49200, 55800 | May share a cause with F1 (missing textures or light maps). |
+| F1 | Floors and some walls show coloured noise instead of their textures | field frames 51000 to 54600 | Strong lead (not confirmed): the game sends all its texture uploads (PATH3) before the draws that use them and relies on MSKPATH3 to interleave them; the runtime ignores the mask, so later uploads overwrite textures and palettes that earlier draws still need. Ruled out: texture pre-decode, GS readbacks and copies (none exist), the palette-load guard, drawing path, upload sizes. See formats.md, fifth experiment. Next: trace MSKPATH3 (`PS2_TRACE_M3`), then hold PATH3 data while masked. |
+| F2 | Large parts of rooms and corridors very dark or black | frames 47400 to 49200, 55800 | May share a cause with F1 (palettes or light maps overwritten before use). |
 | F3 | Corrupted menu background | Journey/Answer and main menu | Name-entry background is fine, so it depends on the screen. |
 | F4 | Sound | everywhere | Not implemented in the translated game yet. Decision pending: run the game's own IOP sound code (option A) or re-implement the sound layer (option B). See phase1-decisions.md 1.5. |
+| F6 | `[sif] command 0x80000004 has no handler` is logged about twice per frame (129,740 times in 60,000 frames) | everywhere | An IOP-to-EE system command the runtime ignores. Harmless so far; find out what it carries (see formats.md). |
 | F5 | Speed and pacing never measured | everywhere | Runs so far were headless and have no real-time target. |
 
 ## 3. What still has to be tested
