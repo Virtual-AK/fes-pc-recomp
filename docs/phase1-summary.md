@@ -38,6 +38,6 @@ The translated game was built and run on a Windows PC (through WSL2): it ran 3,6
 
 ## Fifth run (16 October 2026, updated 17 October)
 
-The translated game now reaches the first 3D scenes in the dormitory (dialogue, choices, time-of-day box, walking, next morning), 60,000 frames from the first boot. Known faults: coloured noise on floors and walls, very dark scenes, one corrupted menu background. The floor noise has a strong lead: the runtime ignores the MSKPATH3 command that interleaves the game's texture uploads with its draws (formats.md, fifth experiment); not yet confirmed. See formats.md for details.
+The translated game now reaches the first 3D scenes in the dormitory (dialogue, choices, time-of-day box, walking, next morning), 60,000 frames from the first boot. Known faults: coloured noise on floors and walls, very dark scenes, one corrupted menu background. The floor noise was caused by the runtime ignoring the MSKPATH3 command that interleaves the game's texture uploads with its draws; with that fixed (formats.md, sixth experiment) the corridor draws correctly in the test runs, and the title-screen corruption went away with a second change to the same rule. See formats.md for details.
 
 Next stage: see [playtest-plan.md](playtest-plan.md).

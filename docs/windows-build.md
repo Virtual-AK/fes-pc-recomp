@@ -55,3 +55,7 @@ The disc is streamed from your own file; the page is only for you. Keep it priva
 
 ## What this does and does not prove
 It shows whether the translated game starts, how far it gets, and what is missing. It does not prove the game is playable. The expected result, in the project author's own words, is that "another game will most likely stop at a system call or an IOP library function nobody implemented yet". Each stop is then one small task for us.
+
+## Opening a game window (WSL1 or older Windows 10, no WSLg)
+
+`ps2run ... --window` needs a display. Windows 11 and recent Windows 10 builds give WSL2 one (WSLg). Check with `uname -r`: a kernel ending in `-Microsoft` with `4.4.0` is WSL1, which has no WSLg. Workaround that works on both: install VcXsrv on Windows, start XLaunch (multiple windows, display 0, no client, **Disable access control** ticked, Native OpenGL off), then in Ubuntu run `export DISPLAY=:0 SDL_VIDEODRIVER=x11` and start the runner with `env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR` in front. ALSA errors about a missing sound card are expected (no sound yet). If the threaded window crashes, `PS2_NO_VU_THREAD=1` and `PS2_ONE_THREAD=1` run it with fewer threads.

@@ -23,9 +23,9 @@ Reached so far, all from the player's own disc, translated to PC code, with **0 
 
 | # | Fault | Seen at | Notes |
 | --- | --- | --- | --- |
-| F1 | Floors and some walls show coloured noise instead of their textures | field frames 51000 to 54600 | Strong lead (not confirmed): the game sends all its texture uploads (PATH3) before the draws that use them and relies on MSKPATH3 to interleave them; the runtime ignores the mask, so later uploads overwrite textures and palettes that earlier draws still need. Ruled out: texture pre-decode, GS readbacks and copies (none exist), the palette-load guard, drawing path, upload sizes. See formats.md, fifth experiment. Next: trace MSKPATH3 (`PS2_TRACE_M3`), then hold PATH3 data while masked. |
-| F2 | Large parts of rooms and corridors very dark or black | frames 47400 to 49200, 55800 | May share a cause with F1 (palettes or light maps overwritten before use). |
-| F3 | Corrupted menu background | Journey/Answer and main menu | Name-entry background is fine, so it depends on the screen. |
+| F1 | ~~Floors and some walls show coloured noise instead of their textures~~ **Fixed in the test runs (17 October 2026)** | field frames 51000 to 54600 | Cause: the runtime ignored the VIF1 MSKPATH3 command, so all texture uploads (PATH3) landed before the draws that needed them. `ps2run_fix_path3_mask.py` holds PATH3 data while masked and releases one packet per mask pulse; the corridor from the 50000 state now draws correctly with no leftover data. Still to do: re-check the whole run, and port the rule to the threaded window build (formats.md, sixth experiment). |
+| F2 | ~~Large parts of rooms and corridors very dark or black~~ **Mostly fixed by the F1 fix (17 October 2026)** | was frames 47400 to 49200, 55800 | In the full 60,000-frame re-run the lobby (frames 44700 to 48900), corridor and room scenes are lit and textured. Three frames show only a blue-black screen with the clock box (49500, 56100 "Early Morning" title card, 59100): probably fades or title cards, to be checked with a finer frame step. |
+| F3 | ~~Corrupted background on the title scene / main menu~~ **Fixed in the test runs (17 October 2026)** | was frames 1890 to 2430 | Same family as F1: the queue of PATH3 uploads built up because the end of a draw chain with the mask left off was treated as a one-packet pulse. `ps2run_fix_path3_mask.py` now releases the whole queue when a VIF1 chain finishes unmasked. The title screen, logo, "The Journey / The Answer" and the main menu now draw correctly (formats.md). |
 | F4 | Sound | everywhere | Not implemented in the translated game yet. Decision pending: run the game's own IOP sound code (option A) or re-implement the sound layer (option B). See phase1-decisions.md 1.5. |
 | F6 | `[sif] command 0x80000004 has no handler` is logged about twice per frame (129,740 times in 60,000 frames) | everywhere | An IOP-to-EE system command the runtime ignores. Harmless so far; find out what it carries (see formats.md). |
 | F5 | Speed and pacing never measured | everywhere | Runs so far were headless and have no real-time target. |
@@ -120,3 +120,11 @@ Send one message per break with:
 8. The Answer.
 
 When a section is done, tick it here and add one line saying what broke and how it was fixed.
+
+## 7. Results so far from scripted runs (17 October 2026)
+
+Scripted runs from the saved states reached the school (shoe-locker tour, main lobby, first-floor hallway, Nurse's Office door prompt) with no visible graphics fault. Free-roam navigation by blind button scripts is slow and cannot tell a locked door from a fault (the character stopped at a corner at frames 108400 to 112000). Next steps for 3.1 and 3.2: a person walks the school in the window build and reports where the character cannot move and where the game stops responding.
+
+Window build, first run (17 October 2026): works through VcXsrv on WSL1 (see windows-build.md) with `PS2_NO_VU_THREAD=1`: 24.6 fps in software drawing, lobby correct. With the VU thread on it crashed (queue shared by two threads); fixed in the last step of `ps2run_fix_path3_mask.py`, to be re-run in the window.
+
+Window play, 17 October 2026: lobby, classroom, Dark Hour command room and saving all worked; speed 21 to 26 fps; open fault: brief stretching at the bottom left during short cut-in portraits (to be captured with F12). Loading the save back is not tested yet.
