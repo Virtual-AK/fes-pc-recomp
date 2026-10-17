@@ -61,7 +61,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 **Text (editing works)**
 | Tool | What it does |
 | --- | --- |
-| `p3fes_text.py` | `extract` writes the game's message text (the `.BMD` files and the dialogue inside `.BF` scripts) to editable text files; `repack` builds modified files from your edits. |
+| `p3fes_text.py` | `extract` writes the game's message text (the `.BMD` files and the dialogue inside `.BF` scripts) to editable text files; `repack` builds modified files from your edits; `diag` reports (numbers only) why a file cannot be rebuilt. |
 | `p3fes_textfind.py` | Searches the extracted text for a word or phrase and shows the file, message and line of each match. |
 | `p3fes_textcodes.py` | Counts the control codes (the `{F1 05}` style tokens) in the extracted text, with examples. |
 | `p3fes_patch.py` | Writes changed files (from a folder laid out like the extracted one) into a COPY of the disc image, then verifies the copy. In-place only: files must fit their existing space. Use `--dry-run` first. |
@@ -80,6 +80,11 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_bmd.py` | Shows the structure (and optional hex dump) of one `.BMD` message file. |
 | `p3fes_fx.py` | Surveys the `.BED` effect files: `survey`, `nodes` (element types and examples), `fields` (every parameter word per type), `show` and `dump` for one file. |
 | `p3fes_field.py` | Surveys the field (map) data: `survey` (file types, sizes, first numbers), `names` (entry names in the field packs), `words` (every word position of the small field files), `check` (size rules of `.FBN`/`.HBN`), `fbn` (all `.FBN` records), `dump` (one small file as words) `split` (splits the `.FPC` containers into folders; needs `p3fes_unpack.py` beside it) `rws` (lists and decodes the textures in the `.RWS` files; needs `p3fes_rmd.py` beside it) `nbin` and `ncal` (the calendar tables), and `ncodes`, `fbnlink`, `objids`, `objdata`, `objwhere`, `calcalls`, `datecheck`, `hbn`, `hbnlink`, `hbnmap`, `hbnprops`, `slotcalls`, `calls312`, `warpcalls`, `variantargs`, `variantcalls`, `fbnvariants`, `fbnmap`, `fbnobj`, `callprocs`, `doorwhere`, `hbinrecs`, `eventvariants`, `fbndump`, `fbnchars`, `hbinprocs`, `entrycount`, `hbnobj`, `entrywhere`, `doornorec`, `hbinw5`, `emptyfiles`, `pakscan` and `treediff` (check script object ids against model file names, the calendar and the small field files) and `fields` (writes every field's models as `.obj` and its textures as `.png`, with a report of anything odd; needs the `split` folders and `p3fes_rmd.py`). |
+| `p3fes_filecalls.py` | `scan` finds the file-related strings in the boot executable and the functions that load them and how often they are called (names, addresses and counts only). |
+| `p3fes_iop.py` | `scan` lists the IOP modules (`.IRX`) on the disc and in the executable: names, sizes, and the libraries each exports and imports. |
+| `p3fes_pacing.py` | `scan` finds how the executable keeps time: system call wrappers, vertical-sync and timer hardware use, interrupt handlers, loops around sync calls, frame-time constants. |
+| `p3fes_iopimg.py` | `scan` lists the files inside the IOP reboot image (`IOPRP310.IMG`): module names, versions, sizes, the libraries each exports and imports. |
+| `p3fes_vu.py` | `scan` reports how the boot executable uses the PS2 vector units: VU0 macro-mode instructions, VU microcode blocks and microprogram uploads (numbers and addresses only). |
 | `p3fes_bf.py` | The `.BF` scripts: `survey`, `analyse`, `messages`, `listing` (one script as readable statements), `msgcheck`, `balance`, `export` (every script as readable text), `context` (sample call sites of one function), `disasm` (raw instructions), `hex`; and for the boot executable: `functions`, `peek`, `code` (MIPS), `limit`, `lui`, `switch`, `ref`, `comm` (the script function table). |
 | `p3fes_textsurvey.py` | Surveys the message files and file-type counts of an extracted folder. |
 

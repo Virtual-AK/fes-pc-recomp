@@ -8,15 +8,15 @@ How to read the status: **done** = decoded and checked on a real disc; **partly*
 
 ## 1. Needed before Phase 1
 
-These are the open questions from [docs/roadmap.md](roadmap.md). None is answered yet.
+These are the open questions from [docs/roadmap.md](roadmap.md). None is answered yet. [docs/phase1-decisions.md](phase1-decisions.md) lays out the options and the first investigation for each. Summary of all five first-pass answers: [docs/phase1-summary.md](phase1-summary.md).
 
 | # | Question | Status | How we would find out |
 | --- | --- | --- | --- |
-| 1.1 | Recompile or decompile? Which existing PS2 recompilation work can be reused? | open | Read what exists, try the executable on the smallest candidate (Phase 1 prototype). |
-| 1.2 | How the game uses the vector units (VU0, VU1) for graphics, and how much can be translated automatically | open | Find the microcode in the executable, count how many different programs there are, read the biggest ones. |
-| 1.3 | How the CVFS/ROFS file calls map onto the archives | partly | The archive formats are done; how the executable calls into them is listed as open in the roadmap. |
-| 1.4 | How the game paces its frames (needed before raising the frame rate) | open | Find the vertical-sync wait and the main loop in the executable. |
-| 1.5 | Which IOP modules the game loads and which need replacing | open | List the modules on the disc and what each one does for the game (sound, memory card, pad, disc). |
+| 1.1 | Recompile or decompile? Which existing PS2 recompilation work can be reused? | **answered (first pass)** | Static recompilation. PS2 Web Recomp's recompiler translated our executable in 1.7 s with 0 rejected entries; generated C++ passes a syntax check. Left: link and run it with the disc image. See `docs/formats.md`. | Read what exists, try the executable on the smallest candidate (Phase 1 prototype). |
+| 1.2 | How the game uses the vector units (VU0, VU1) for graphics, and how much can be translated automatically | **answered (first pass)** | See `docs/formats.md`: heavy VU0 macro-mode use, about 170 different VU1 programs uploaded through VIF/DMA. Left: read the largest programs, and how the packets reach the GS. | Find the microcode in the executable, count how many different programs there are, read the biggest ones. |
+| 1.3 | How the CVFS/ROFS file calls map onto the archives | **answered (first pass)** | The game asks by path through counted request objects on top of a device-based `cvFs` layer; replace the public `cvFs*` functions with host versions. Left: check for direct `sceCd*` read calls. See `docs/formats.md`. |
+| 1.4 | How the game paces its frames (needed before raising the frame rate) | answered (first pass) | Vertical-blank interrupt handler with a refresh counter; no clock reads found, so game time is per frame. See `phase1-decisions.md`. |
+| 1.5 | Which IOP modules the game loads and which need replacing | **answered (first pass)** | 14 modules loaded by name: 5 for input and saves (small to replace), 9 for sound (the large piece; replace by re-implementing or by emulating the IOP). Left: open `IOPRP310.IMG`. See `docs/formats.md`. |
 | 1.6 | Other regions | decided | The tools read any region; only NTSC-U is a target. |
 
 ## 2. Data formats
@@ -53,7 +53,7 @@ What is known: `n*.bin` is a calendar; `.FBN` records are placements (slot = id 
 | 3.12 | The 43 empty field files | **done** | The unpacker skipped real entries (`.HBN`, `.CMR`, `.ENV`, ...) behind 16-byte fillers; fixed in `p3fes_unpack.py`. About 500 real files had been missing. Everything was re-extracted (`extracted3`), the script-based checks were rerun (`tools/rerun_checks.bat`, `tools/rerun_script_checks.bat`): no finding changed. Models, text, textures, audio and sound banks were redone (`tools/redo_exports.bat`, `tools/redo_sound_banks.bat`) with no read errors. The 43 empty field files stay empty (placeholders, not checked further). |
 | 3.13 | What `field_360`, `field_276`/`277`, `common_23` and the other arguments of `field_137` mean | partly | `field_276/277(npc key, value)` is a per-NPC counter; `field_360` takes 2, 3 or 4 only. |
 | 3.14 | `event_ctrl?` sub-step (third number) | open | Seen as 0 almost always, other values in `ns007_002` and the school `comu_teachers_room` procs. |
-| 3.15 | Text rebuild is disabled for 40 script files | open | `p3fes_text.py` reads but cannot rebuild the messages of the 19 `f007` scripts, `f012`, `NPCCOMU.BF` (messages not in file order) and the 17 `f035` scripts (rebuilt header 4 bytes smaller: 4426 vs 4430), so their dialogue cannot be edited yet. |
+| 3.15 | Text rebuild was disabled for 40 script files | **done** | Three causes in `p3fes_text.py`: zero bytes before the pointer table (`f035`), messages listed in another order than they lie in the file (`f007`, `f012`, `NPCCOMU.BF`, `ns007_002`), and zero bytes after a message. Confirmed on the real data: `problems.txt` now lists only the two scripts without messages. Edits to the files with extra message data must keep each message's size. |
 
 The interleaved lists (3.8): in `f006_003_111.FBN` and `_112.FBN` the records are chained through the last two words into two lists, slots 0, 6, 4, 1 and 7, 5, 2, 10, with the file order alternating between them; in `_110.FBN` the lists are 1, 55, 53, 51, 60 and 56, 54, 52, 57. Which list a person is in changes between variants, so the lists are not a property of a person.
 
