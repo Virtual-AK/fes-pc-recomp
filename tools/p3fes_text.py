@@ -34,7 +34,8 @@ How to read a text file:
 The text is the game's own. Keep these files on your computer; never upload them.
 Standard library only, Python 3.8+.
 """
-import argparse, os, struct, sys
+import argparse
+import collections, os, struct, sys
 
 BASE = 0x20          # all pointers inside a message file count from here
 NAME_LEN = 24
@@ -381,25 +382,56 @@ def parse_bmd(data):
             m = {"kind": "raw", "name": data[s:s + NAME_LEN].split(b"\0")[0].decode("ascii", "replace"),
                  "blob": data[s:e]}
         m["type"] = t
+        if m["kind"] == "dialog":
+            # zero bytes after a message that the builder would not write again are kept with the message
+            try:
+                rb = build_dialog(m, s)
+                tailz = data[s:e][len(rb):]
+                if len(rb) < e - s and data[s:s + len(rb)] == rb and not any(tailz):
+                    m["zpad"] = len(tailz)
+            except (KeyError, struct.error, ValueError):
+                pass
         msgs.append(m)
-    return {"ordered": ordered, "ftype": ftype, "word": word, "first": first, "starts": starts, "reloc_off": reloc_off,
-            "reloc": data[reloc_off:], "msgs": msgs, "gap": data[BASE + 8 * count: BASE + 8 * count + 16]}
+    f = {"ordered": ordered, "ftype": ftype, "word": word, "first": first, "starts": starts, "reloc_off": reloc_off,
+         "reloc": data[reloc_off:], "msgs": msgs, "gap": data[BASE + 8 * count: BASE + 8 * count + 16], "endpad": 0}
+    # A few files keep zero bytes between the last message and the pointer table (4 in the f035 scripts).
+    try:
+        rebuilt_off = struct.unpack_from("<I", build_bmd(f)[0], 16)[0]
+        if rebuilt_off < reloc_off and not any(data[rebuilt_off:reloc_off]):
+            f["endpad"] = reloc_off - rebuilt_off
+    except (ToolError, struct.error):
+        pass
+    return f
 
 
 def build_bmd(f):
-    if f.get("ordered") is False:
-        raise ToolError("the messages of this file are not in file order; it can be read but not rebuilt yet")
     msgs = f["msgs"]
     count = len(msgs)
     pos = BASE + 8 * count + 16
-    blobs, starts = [], []
-    for m in msgs:
-        starts.append(pos)
-        b = build_dialog(m, pos) if m["kind"] == "dialog" else m["blob"]
+    # Messages go back in the order they have in the file. In most files that is the table order; in a few
+    # the table lists them in another order, and two entries can share one message (the later one is an alias).
+    loose = f.get("ordered") is False
+    order = sorted(range(count), key=lambda i: (f["starts"][i], i)) if loose else list(range(count))
+    starts, blobs, owner = [0] * count, [], {}
+    for i in order:
+        m = msgs[i]
+        key = f["starts"][i] if loose else None
+        if key in owner:
+            j, ob = owner[key]
+            if (build_dialog(m, starts[j]) + bytes(m.get("zpad", 0)) if m["kind"] == "dialog" else m["blob"]) != ob:
+                raise ToolError("two entries (%s and %s) share one message and were edited differently"
+                                % (msgs[j]["name"], m["name"]))
+            starts[i] = starts[j]
+            continue
+        starts[i] = pos
+        b = build_dialog(m, pos) + bytes(m.get("zpad", 0)) if m["kind"] == "dialog" else m["blob"]
         blobs.append(b)
+        if key is not None:
+            owner[key] = (i, b)
         pos += len(b)
     while pos % 4:
         pos += 1
+    pos += f.get("endpad", 0)
     reloc_off = pos
     reloc = f["reloc"]
     if f.get("regen_reloc"):
@@ -734,6 +766,77 @@ def cmd_repack(a):
     print("Output folder: " + out)
 
 
+def cmd_diag(a):
+    """Numbers-only report on why one message file cannot be rebuilt (no game text is printed)."""
+    root = os.path.abspath(a.folder)
+    L = []
+    for rel in a.files:
+        L.append("=" * 60)
+        L.append(rel)
+        try:
+            with open(os.path.join(root, rel), "rb") as fh:
+                data = message_bytes(rel, fh.read())
+            f = parse_bmd(data)
+        except (ToolError, OSError) as e:
+            L.append("  cannot read: %s" % e)
+            continue
+        count = len(f["msgs"])
+        L.append("  message data %d bytes; header words: type %d, size %d, reloc at %d (size %d), count %d, word 0x%X"
+                 % (len(data), f["ftype"], len(data), f["reloc_off"], len(f["reloc"]), count, f["word"]))
+        L.append("  first message at %d (table end + 16 = %d); reloc offset %% 4 = %d, %% 16 = %d"
+                 % (min(f["starts"]), f["first"], f["reloc_off"] % 4, f["reloc_off"] % 16))
+        L.append("  gap bytes after the table: " + f["gap"].hex(" ") + "; zero bytes kept before the pointer table: %d" % f["endpad"])
+        starts = f["starts"]
+        dup = count - len(set(starts))
+        L.append("  messages in file order: %s; entries sharing a start with another: %d" % (f["ordered"], dup))
+        if not f["ordered"]:
+            order = sorted(range(count), key=lambda i: starts[i])
+            pos = {i: k for k, i in enumerate(order)}
+            moved = [i for i in range(count) if pos[i] != i]
+            L.append("  entries not at their file-order position: %d of %d (first 30 as index:position)" % (len(moved), count))
+            L.append("    " + " ".join("%d:%d" % (i, pos[i]) for i in moved[:30]))
+            L.append("  table order of start offsets (first 40): " + " ".join(str(s) for s in starts[:40]))
+            L.append("  types of the moved entries: " + ", ".join(
+                "%d x%d" % kv for kv in sorted(collections.Counter(f["msgs"][i]["type"] for i in moved).items())))
+        pts = all_pointers(f["msgs"], f["starts"])
+        dec = decode_reloc(f["reloc"])
+        L.append("  pointer table: %d bytes decode to %s pointers; found in the messages: %s"
+                 % (len(f["reloc"]), "?" if dec is None else len(dec), "?" if pts is None else len(pts)))
+        if True:
+            try:
+                new, _ = build_bmd(f)
+            except ToolError as e:
+                L.append("  rebuild failed: %s" % e)
+                new = None
+            if new is not None:
+                L.append("  rebuilt %d bytes against original %d" % (len(new), len(data)))
+                ranges, i, n = [], 0, min(len(new), len(data))
+                while i < n and len(ranges) < 12:
+                    if new[i] != data[i]:
+                        j = i
+                        while j < n and new[j] != data[j]:
+                            j += 1
+                        ranges.append((i, j - i))
+                        i = j
+                    else:
+                        i += 1
+                for off, ln in ranges:
+                    place = "header" if off < 32 else "message table" if off < 32 + 8 * count else \
+                        "gap" if off < 48 + 8 * count else "message data" if off < f["reloc_off"] else "pointer table"
+                    L.append("    differs at %d (%s), %d bytes: original %s | rebuilt %s" % (
+                        off, place, ln, data[off:off + min(ln, 16)].hex(" "), new[off:off + min(ln, 16)].hex(" ")))
+                if len(new) != len(data):
+                    L.append("    sizes differ by %d; original tail: %s | rebuilt tail: %s" % (
+                        len(data) - len(new), data[-12:].hex(" "), new[-12:].hex(" ")))
+    text = "\n".join(L) + "\n"
+    if a.out:
+        with open(a.out, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        print("Report: " + a.out)
+    else:
+        print(text)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Extract and repack the game's .BMD text.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -747,8 +850,12 @@ def main():
     r.add_argument("textfolder")
     r.add_argument("original")
     r.add_argument("-o", "--out", required=True)
+    d = sub.add_parser("diag", help="numbers-only report on why a message file cannot be rebuilt")
+    d.add_argument("folder")
+    d.add_argument("files", nargs="+", help="paths relative to the folder")
+    d.add_argument("-o", "--out")
     a = ap.parse_args()
-    (cmd_extract if a.cmd == "extract" else cmd_repack)(a)
+    {"extract": cmd_extract, "repack": cmd_repack, "diag": cmd_diag}[a.cmd](a)
 
 
 if __name__ == "__main__":
