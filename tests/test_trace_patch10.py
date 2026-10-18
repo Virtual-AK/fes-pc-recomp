@@ -13,5 +13,12 @@ with tempfile.TemporaryDirectory() as d:
     assert "patched" in r.stdout and "NOT" not in r.stdout, r.stdout + r.stderr
     s = open(f).read()
     assert "PS2_SKIP_PRIM" in s and "if (draw && skip_prim(s)) draw = false;" in s and s.index("bool skip_prim") < s.index("void trace_prim")
+    assert '"flat"' in s and '"zmsk"' in s
     assert "already patched" in run(f).stdout
+    # upgrade of a tree patched by the first version (no flat/zmsk)
+    old = "\n".join(l for l in s.split("\n") if '"flat"' not in l and '"zmsk"' not in l)
+    open(f, "w").write(old)
+    r = run(f)
+    assert "flat and zmsk" in r.stdout, r.stdout + r.stderr
+    assert '"flat"' in open(f).read() and "already patched" in run(f).stdout
 print("ok   trace patch 10 (PS2_SKIP_PRIM) needs patch 6, applies once and is idempotent")
