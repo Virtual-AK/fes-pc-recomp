@@ -1,7 +1,7 @@
 """Tenth trace step (run after ps2run_trace_patch6.py): PS2_SKIP_PRIM=frame,mode,value leaves out ONE class of shapes in that single
 frame (the shapes are still counted but not drawn), so a frame picture shows which class is responsible for a visual fault.
 mode and value: ctx,0 or ctx,1 (drawing setup 0 or 1); tme,0 or tme,1 (untextured or textured); abe,0 or abe,1 (without or with
-blending); type,N (0 point, 1 line, 2 line strip, 3 triangle, 4 triangle strip, 5 triangle fan, 6 sprite); tbp,HEX (texture base).
+blending); flat,N (untextured shapes of type N only); zmsk,0 or zmsk,1 (untextured shapes whose depth writes are on or off); type,N (0 point, 1 line, 2 line strip, 3 triangle, 4 triangle strip, 5 triangle fan, 6 sprite); tbp,HEX (texture base).
 Example: PS2_SKIP_PRIM=25079,tme,0 . The frame picture to look at is the one numbered one higher (frame_25080.ppm).
 Usage (in the ps2-web-recomp folder): python3 ps2run_trace_patch10.py [runtime/src/gs/gs.cpp]
 Safe to run twice. Rebuild afterwards: ninja -C build/native-p3fes ps2run
@@ -9,8 +9,18 @@ Safe to run twice. Rebuild afterwards: ninja -C build/native-p3fes ps2run
 import sys
 p = sys.argv[1] if len(sys.argv) > 1 else 'runtime/src/gs/gs.cpp'
 s = open(p).read()
+p2 = p
+ADD = '''    if (mode == "flat") return ((pr >> 4) & 1u) == 0 && (pr & 7u) == std::strtoul(c2 + 1, nullptr, 10);
+    if (mode == "zmsk") return ((pr >> 4) & 1u) == 0 && ((s.ctx[ctx].zbuf >> 32) & 1u) == std::strtoul(c2 + 1, nullptr, 10);
+'''
+ANCH = '    if (mode == "tbp")'
 if 'PS2_SKIP_PRIM' in s:
-    print("already patched"); raise SystemExit
+    if '"flat"' in s:
+        print("already patched"); raise SystemExit
+    if s.count(ANCH) != 1:
+        print("PATCH NOT APPLIED: cannot upgrade"); raise SystemExit(1)
+    open(p2, 'w').write(s.replace(ANCH, ADD + ANCH, 1))
+    print("patched (flat and zmsk modes added)"); raise SystemExit
 if 'void trace_prim(const State &s, int needed) {' not in s:
     print("PATCH NOT APPLIED: run ps2run_trace_patch6.py first"); raise SystemExit(1)
 OLD = 'void trace_prim(const State &s, int needed) {\n'
@@ -37,6 +47,7 @@ HELP = r'''bool skip_prim(const State &s) {
 }
 
 '''
+HELP = HELP.replace(ANCH, ADD + ANCH, 1)
 s = s.replace(OLD, HELP + OLD, 1)
 s = s.replace(CALL_OLD, '    if (s.count < needed) return;\n    if (draw && skip_prim(s)) draw = false;\n    if (draw) {\n', 1)
 if '#include <string>' not in s:
