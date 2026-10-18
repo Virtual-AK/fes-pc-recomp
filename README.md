@@ -5,20 +5,20 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 **Status: research and tooling.** Nothing here runs the game yet. The tools read, unpack, convert and (for text) edit and repack the game's data from your own disc, and the file formats are documented.
 
 <!-- progress:start -->
-**Overall progress: about 13%** (rough estimate by the maintainers; most of the work is still ahead)
+**Overall progress: about 73%** (rough estimate by the maintainers; the game already starts and plays in the browser and in a PC window, and most of what is left is testing and polish)
 
-`██░░░░░░░░░░░░░░░░░░` 13%
+`███████████████░░░░░` 73%
 
 | Phase | Progress | |
 | --- | --- | --- |
 | 0. Research and tooling | `█████████████████░░░` | 85% |
-| 1. Pick the approach, prototype | `░░░░░░░░░░░░░░░░░░░░` | 0% |
-| 2. Runtime layer (files, audio, video, input, saves) | `░░░░░░░░░░░░░░░░░░░░` | 0% |
-| 3. Graphics (GS and vector units to a modern API) | `░░░░░░░░░░░░░░░░░░░░` | 0% |
-| 4. Playable desktop build, QA | `░░░░░░░░░░░░░░░░░░░░` | 0% |
-| 5. Browser build and mod tooling | `░░░░░░░░░░░░░░░░░░░░` | 0% |
+| 1. Pick the approach, prototype | `████████████████████` | 100% |
+| 2. Runtime layer (files, audio, video, input, saves) | `██████████████████░░` | 90% |
+| 3. Graphics (GS and vector units to a modern API) | `█████████████████░░░` | 85% |
+| 4. Playable desktop build, QA | `████░░░░░░░░░░░░░░░░` | 20% |
+| 5. Browser build and mod tooling | `████████████░░░░░░░░` | 60% |
 
-Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. Phase 4 (testing the whole game) has only just started, and phase 5 still lacks mod tooling and a simpler install. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
 <!-- progress:end -->
 
 | Area | State |
@@ -112,6 +112,8 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_tricenter_patch.py` | Opt-in test (`PS2_TRI_CENTER=1`, CPU drawing route): triangle textures are read at pixel centres, like the real chip, to test the dashed outlines on the Tartarus minimap tiles. |
 | `ps2run_flipfix_patch.py` | Opt-in test (`PS2_TRI_FLIPFIX=1`, CPU drawing route, use with `PS2_TRI_CENTER=1`): flipped minimap tiles are moved one texel so they line up with unflipped ones. |
 | `ps2gpu_flipfix_patch.py` | Fix for the misaligned tiles on the Tartarus minimap: in the graphics-card route (browser build and PC window) flipped tiles are moved one texel so they line up. Apply `ps2gpu_tricenter_patch.py` first, then rebuild both builds. |
+| `ps2gs_uploadclamp_patch.py` | Fix for the line of coloured specks along the bottom edge of the anime movies: texture clamping now stops at the area the game really uploaded (both drawing routes). `PS2_NO_UPLOADCLAMP=1` turns it off for comparing. Rebuild both builds after applying. |
+| `ppm2png.py` | Turns saved `.ppm` frames into `.png` pictures that can be opened or sent, with no extra programs needed. |
 | `ps2gpu_tricenter_patch.py` | Fix for the dashed tile outlines on the Tartarus minimap: in the graphics-card route (browser build and PC window) triangle colours and textures are read at pixel centres, like the real chip. Rebuild both builds after applying. |
 | `ps2run_primarea_patch.py` | `PS2_TRACE_PRIMAREA=N` makes `PS2_TRACE_PRIM` print only shapes covering at least N pixels, so long frame ranges stay small. |
 | `ps2web_logcapture_patch.py` | Browser debugging aid: `?capture=SECONDS` collects everything the game prints (trace lines too) and downloads it as `ps2web_log.txt`. |
