@@ -14,6 +14,18 @@ What it does:
 - The **Autosave** button in the bottom bar lists the saves, with Resume (reloads the page and offers that one on the
   start screen), Delete, and Save now.
 
+## Settings
+
+`python3 tools/ps2web_autosaveopts_patch.py web/shell.html` (after `ps2web_autosave_patch.py`), then rebuild.
+The Autosave panel gets a settings block, kept in the browser:
+
+- **Save automatically:** Off, every minute, 2, 5, 10, 15 or 30 minutes (default every 2 minutes).
+- **Also save after each in-game save:** on or off (default on).
+- **Keep the newest of each kind:** 1, 3, 5 or 10 (default 3). Lowering it deletes the extra saves at once, which frees
+  browser storage.
+
+**Save now** always works, even with automatic saving turned off.
+
 Things to know:
 
 - The memory card is not part of an autosave. A resumed game uses the card as it is now; the card has its own backups

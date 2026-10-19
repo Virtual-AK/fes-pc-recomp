@@ -1,5 +1,7 @@
 # Building and first-running the port on Windows
 
+**Simpler: use [install.md](install.md) (one command).** This page is the manual, step-by-step version.
+
 Goal (the "first build milestone" in [phase1-summary.md](phase1-summary.md)): translate our game, run it, and see how far it gets, using the existing open-source PS2 Web Recomp project (MIT) with your own disc image.
 
 **Why WSL2:** that project's scripts are written for Linux (and macOS); they do not run in plain Windows. Windows 10/11 can run Linux inside it ("WSL2") and the finished browser build is then opened in Chrome or Edge on Windows, where WebGPU works. A plain-Windows build of the native runner is untested and not part of this plan.
