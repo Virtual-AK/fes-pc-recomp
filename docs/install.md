@@ -12,7 +12,7 @@ In the Ubuntu window:
 ```
 bash /mnt/c/p3fes/ps2-native-tools/tools/p3fes_install.sh
 ```
-It installs what it needs (asks for your Ubuntu password once), downloads the open-source PS2 Web Recomp project at the version these tools were tested with, applies all our patches (25, including the fix for the garbled title and floor pictures), finds your disc in `C:\p3fes`, and builds the game. The first build takes one to a few hours and sits quiet for long stretches: leave the window open. If it stops, run the same command again; finished steps are skipped.
+It installs what it needs (asks for your Ubuntu password once), downloads the open-source PS2 Web Recomp project at the version these tools were tested with, applies all our patches (25, including the fix for the garbled title and floor pictures), finds your disc in `C:\p3fes`, and builds the game. The first build takes about 10 minutes on a recent laptop and longer on older computers, and it sits quiet for stretches: leave the window open. If it stops, run the same command again; finished steps are skipped.
 
 If your disc is somewhere else, add its path at the end of the command.
 
