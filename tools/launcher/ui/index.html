@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Launcher</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#052046;--a1:#3FA6FF;--a2:#1B8CF2;--a3:#1479DD;--deep:#06173F;--shadow:#0A3C85;--ink:#05204A;--track:#0A2A66;
+--p1:rgba(150,210,255,.4);--p2:rgba(110,185,255,.22);--b1:rgba(150,210,255,.5);--b2:rgba(150,210,255,.15);--btn:rgba(120,190,255,.35);
+--ring:rgba(130,190,255,.22);--ring2:rgba(130,190,255,.3);--moon:rgba(150,205,255,.2);--sub:rgba(5,32,70,.9);--stripe:#F2A94E;--stripeEdge:#D98A2D}
+html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
+#fit{position:absolute;left:50%;top:50%;width:1280px;height:800px;transform-origin:0 0}
+#c{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--ground);color:#fff;font-family:'Lexend','Segoe UI',sans-serif;user-select:none}
+#c *{box-sizing:border-box}
+.a{position:absolute}
+.ring{left:900px;top:-150px;width:620px;height:620px;border-radius:50%;border:2px solid var(--ring)}
+.ticks{left:960px;top:-90px;width:500px;height:500px;border-radius:50%;background:repeating-conic-gradient(var(--ring2) 0 .8deg,transparent .8deg 15deg);-webkit-mask:radial-gradient(circle,transparent 0,transparent 234px,#000 235px,#000 250px,transparent 251px);mask:radial-gradient(circle,transparent 0,transparent 234px,#000 235px,#000 250px,transparent 251px)}
+.moon{left:1040px;top:120px;width:220px;height:220px;border-radius:50%;box-shadow:inset -44px 0 0 0 var(--moon)}
+.curve{left:-1090px;top:-390px;width:2300px;height:2300px;border-radius:50%;background:radial-gradient(circle at 28% 66%,var(--a1) 0,var(--a2) 46%,var(--a3) 100%)}
+.stripe{left:0;top:0;width:84px;height:800px;background:var(--stripe);border-right:5px solid var(--stripeEdge)}
+.title{left:112px;top:18px;font-size:78px;font-weight:800;line-height:1.1;letter-spacing:.01em;color:#FDB950;text-shadow:4px 4px 0 #9A5410,0 0 26px rgba(253,185,80,.45)}
+.sub{left:116px;top:112px;font-size:13px;font-weight:600;letter-spacing:.24em;color:var(--sub)}
+.plate{right:0;top:0;width:430px;height:150px;clip-path:polygon(24% 0,100% 0,100% 100%,0 0)}
+.date{right:44px;top:18px;background:#06123A;padding:5px 16px;display:flex;align-items:baseline;gap:12px;font-size:24px;font-weight:800}
+.pt{right:44px;top:66px;text-align:right}
+.pt .t{font-size:44px;font-weight:800;line-height:1;color:#fff}
+.pt .s{font-size:15px;font-weight:600;margin-top:6px;color:#fff}
+.bar{left:0;width:620px;height:56px;background:var(--deep);border-radius:0 16px 16px 0;transition:top .12s}
+.sq{left:56px;width:24px;height:24px}
+.it{left:128px;height:56px;display:flex;align-items:center;font-size:36px;font-weight:800;letter-spacing:.02em;text-shadow:2px 2px 0 var(--shadow)}
+.it.sel{font-size:38px}
+.cap{left:380px;width:214px;height:56px;display:flex;align-items:center;justify-content:flex-end;font-size:14px;font-weight:600;color:rgba(255,255,255,.88)}
+.hit{left:0;width:620px;height:56px;cursor:pointer}
+.sw{left:650px;top:180px;align-items:center;gap:10px}
+.sw .l{font-size:16px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow);margin-right:4px}
+.sw .b{border:2px solid;border-radius:8px;padding:6px 16px;font-size:15px;font-weight:800;cursor:pointer}
+.sw .k{font-size:12px;font-weight:600;font-style:italic;color:var(--ink);margin-left:4px}
+.panel{background:linear-gradient(180deg,var(--p1),var(--p2));border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:12px 22px}
+.sh{text-shadow:1px 1px 0 var(--shadow)}
+.row{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow)}
+.row>div:first-child,.row>div:nth-child(2){width:100px}
+.trk{flex-grow:1;height:14px;background:var(--track);border-radius:7px;padding:2px}
+.trk>div{height:10px;border-radius:5px}
+.hb{background:linear-gradient(90deg,var(--b1),var(--b2));border-radius:6px;padding:0 12px;display:flex;align-items:center;gap:12px;font-style:italic;font-weight:600;color:var(--ink)}
+.hb i{width:14px;height:14px;background:var(--deep);flex:none}
+.btns{right:60px;bottom:40px;display:flex;gap:22px;align-items:center}
+.btn{display:flex;align-items:center;gap:10px;background:var(--btn);border:1px solid rgba(255,255,255,.35);border-radius:22px;padding:5px 20px 5px 8px;font-size:22px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow);cursor:pointer}
+.why .rw{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid rgba(255,255,255,.3)}
+.why .rw .n{width:92px;font-size:16px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow)}
+.why .rw .v{flex-grow:1;font-size:15px;font-weight:600;color:var(--ink)}
+.why .rw .g{min-width:42px;text-align:center;color:var(--ink);border-radius:6px;padding:3px 8px;font-size:14px;font-weight:800}
+</style></head><body>
+<div id="fit"><div id="c"></div></div>
+<script>
+const $=s=>document.querySelector(s);
+const C=document.getElementById('c');
+const ITEMS=['PLAY','RESUME','MODS','SETTINGS','SAVES','HELP'];
+const GOLD='linear-gradient(90deg,#FF9A3C,#FFD08A)',RED='linear-gradient(90deg,#FF6B78,#FFB3BA)',VIO='linear-gradient(90deg,#7A5CFF,#C9B8FF)';
+let S=null,sel=0,note='',noteT=0,busy=false;
+
+function fit(){const k=Math.min(innerWidth/1280,innerHeight/800);$('#fit').style.transform='scale('+k+') translate(-50%,-50%)';}
+addEventListener('resize',fit);fit();
+
+function view(s){
+  const st=s.state, d=s.disc||{};
+  const T={
+   ready:{pa:'#2BD07F',pb:'#1BA862',ps:'#0B5E34',t:'Ready',s:'Installed on this computer',play:'PLAY',cap:s.mode==='exe'?'In a PC window':'In your browser',dim:1,
+     disc:'Found',dw:'100%',db:GOLD,bt:s.built||'Built',bw:'100%',pt:'25 / 25',pw:'100%',
+     pT:'AUTOSAVE',pB:'Not connected yet',pX:'Autosave details appear once saves are shared.',pN:'Your saves stay in the game meanwhile.',
+     dl:'Disc: '+(d.file||'found'),help:s.mode==='exe'?'Start the game in its own window.':'Start the game in your browser.'},
+   setup:{pa:'#FFB347',pb:'#E08A1E',ps:'#8A4F06',t:'Not Installed',s:'One-time setup needed',play:'SET UP',cap:'First time only',dim:.4,
+     disc:s.disc?'Found':'Not found',dw:s.disc?'100%':'0%',db:GOLD,bt:'Not yet',bw:'0%',pt:'0 / 25',pw:'0%',
+     pT:'FIRST TIME',pB:'Run the installer',pX:'Put your own Persona 3 FES (USA) .iso in C:\\p3fes.',pN:'About 4.5 GB. It stays on your computer.',
+     dl:s.disc?'Disc: '+d.file:'Disc: none found',help:'Run p3fes_install.sh in Ubuntu to set up. See docs/install.md.'},
+   building:{pa:'#5CA8FF',pb:'#2A6FE0',ps:'#123A8A',t:'Building',s:'You can leave it',play:'BUILDING',cap:'Please wait',dim:.4,
+     disc:'Found',dw:'100%',db:GOLD,bt:Math.min(99,Math.round(s.pieces/s.pieces_total*100))+' %',bw:Math.min(100,s.pieces/s.pieces_total*100)+'%',pt:'25 / 25',pw:'100%',
+     pT:'PROGRESS',pB:s.pieces+' / about '+s.pieces_total,pX:'Pieces compiled. It carries on if it stops.',pN:'Leave the install window open.',
+     dl:'Disc: '+(d.file||'found'),help:'Building your game. The first time takes 10 minutes or more.'},
+   wrong:{pa:'#FF6B78',pb:'#D1394A',ps:'#7A1523',t:'Wrong Disc',s:'This copy cannot be used',play:'CHOOSE DISC',cap:'Pick another file',dim:.4,
+     disc:'Not usable',dw:'100%',db:RED,bt:'Waiting',bw:'0%',pt:'Waiting',pw:'0%',
+     pT:'WHAT TO DO',pB:'Use the original disc',pX:'It must be Persona 3 FES (USA), not modified.',pN:'Your disc is never changed or uploaded.',
+     dl:'Disc: '+(d.file||'?'),help:'This disc image is not a supported copy. Put another in C:\\p3fes.'}
+  }[st];
+  let why=null;
+  const gid=d.game_id||'not found', reg=d.region||'unknown', gshow=d.game_id?gid.replace('_','-').replace('.',''):'Not found';
+  if(st==='wrong'){
+    if(s.reason==='region'){T.s='Wrong region';T.dl+=' · region '+reg;T.help='This is not the USA version. Choose the USA disc.';T.pB='Use the USA disc';T.pX='Only Persona 3 FES (USA, NTSC-U) works.';
+      why=[[reg+' · needs NTSC-U','NO'],[gshow+' · needs SLUS-21621','NO'],['Not checked','—']];}
+    else if(s.reason==='modded'){T.s='Disc has been changed';T.dl+=' · modified';T.help='This image was altered. Use an untouched copy of your disc.';T.pB='Use the original disc';T.pX='Mods are added later, to a separate copy.';
+      why=[['NTSC-U','OK'],['SLUS-21621','OK'],['Differs from the original','NO']];}
+    else{T.s='Disc file is damaged';T.dl+=' · incomplete';T.help='The file ends early or cannot be read. Copy the disc again.';T.pB='Copy the disc again';T.pX='The dump stopped part way or has read errors.';
+      why=[[d.region||'Not found',d.region==='NTSC-U'?'OK':'—'],[gshow,d.game_id?'OK':'—'],['File ends early or unreadable','NO']];}
+  }
+  return {T,why};
+}
+const badge=g=>g==='OK'?'#2BD07F':g==='NO'?'#FF6B78':'#8FA6C9';
+
+function renderHome(){
+  if(lost){C.innerHTML='<div class="a" style="left:0;top:340px;width:1280px;text-align:center;font-size:26px;font-weight:800">The launcher has stopped.<div style="font-size:16px;font-weight:600;margin-top:12px">Close this window and open launch.bat again.</div></div>';return;}
+  if(!S){C.innerHTML='<div class="a" style="left:0;top:370px;width:1280px;text-align:center;font-size:24px;font-weight:800">Starting…</div>';return;}
+  const {T,why}=view(S), n=new Date(), dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][n.getDay()];
+  const dc=dn==='Sun'?'#FF6B78':dn==='Sat'?'#6AB4FF':'#fff';
+  const ready=S.state==='ready', exe=S.mode==='exe';
+  const on=x=>x?'background:var(--deep);color:#F2A94E;border-color:#F2A94E':'background:var(--btn);color:#fff;border-color:rgba(255,255,255,.35)';
+  const top=i=>172+i*56;
+  let h=`<div class="a ring"></div><div class="a ticks"></div><div class="a moon"></div><div class="a curve"></div><div class="a stripe"></div>
+  <div class="a title">LAUNCHER</div><div class="a sub">FOR PERSONA 3 FES</div>
+  <div class="a plate" style="background:linear-gradient(100deg,transparent 0%,${T.pa} 38%,${T.pb} 100%)"></div>
+  <div class="a date"><span>${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}</span><span style="color:${dc}">${dn}</span></div>
+  <div class="a pt"><div class="t" style="text-shadow:2px 2px 0 ${T.ps},0 0 12px rgba(5,32,70,.6)">${T.t}</div><div class="s" style="text-shadow:1px 1px 0 ${T.ps},0 0 10px rgba(5,32,70,.6)">${T.s}</div></div>
+  <div class="a bar" style="top:${top(sel)}px"></div>`;
+  ITEMS.forEach((it,i)=>{
+    const y=top(i), lab=i===0?T.play:it, op=(i===0||i===3||i===5)?1:T.dim, s=i===sel;
+    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'#F2A94E':'var(--deep)'};opacity:${s?1:op}"></div>
+    <div class="a it${s?' sel':''}" style="top:${y}px;opacity:${s?1:op}">${lab}</div>
+    <div class="a hit" data-i="${i}" style="top:${y}px"></div>`;
+  });
+  h+=`<div class="a cap" style="top:${top(sel)}px">${sel===0?T.cap:''}</div>`;
+  h+=`<div class="a sw" style="display:${ready?'flex':'none'}"><div class="l">PLAY IN</div><div class="b" data-m="browser" style="${on(!exe)}">BROWSER</div><div class="b" data-m="exe" style="${on(exe)}">PC WINDOW</div><div class="k">Q / E</div></div>`;
+  h+=`<div class="a panel" style="left:112px;top:536px;width:540px;height:150px">
+   <div style="font-size:22px;font-weight:800;color:var(--ink)">Persona 3 FES <span style="font-size:14px;font-weight:600">NTSC-U</span></div>
+   <div class="row" style="margin-top:8px"><div>DISC</div><div>${T.disc}</div><div class="trk"><div style="width:${T.dw};background:${T.db}"></div></div></div>
+   <div class="row" style="margin-top:6px"><div>BUILT</div><div>${T.bt}</div><div class="trk"><div style="width:${T.bw};background:${GOLD}"></div></div></div>
+   <div class="row" style="margin-top:6px"><div>PATCHES</div><div>${T.pt}</div><div class="trk"><div style="width:${T.pw};background:${VIO}"></div></div></div></div>
+  <div class="a panel" style="left:690px;top:536px;width:440px;height:150px">
+   <div class="sh" style="font-size:17px;font-weight:800;font-style:italic">${T.pT}</div>
+   <div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${T.pB}</div>
+   <div style="font-size:15px;margin-top:4px;color:var(--ink)">${T.pX}</div>
+   <div style="margin-top:8px;font-size:15px;font-weight:600;color:var(--ink)">${T.pN}</div></div>`;
+  if(why){h+=`<div class="a panel why" style="left:690px;top:196px;width:500px"><div class="sh" style="font-size:17px;font-weight:800;font-style:italic;padding-bottom:8px">WHY IT WAS REJECTED</div>`+
+    ['REGION','GAME ID','CONTENTS'].map((l,i)=>`<div class="rw"><div class="n">${l}</div><div class="v">${why[i][0]}</div><div class="g" style="background:${badge(why[i][1])}">${why[i][1]}</div></div>`).join('')+`</div>`;}
+  h+=`<div class="a hb" style="left:112px;top:704px;width:540px;height:32px;font-size:16px"><i></i>${T.dl}</div>
+  <div class="a hb" style="left:112px;top:742px;width:660px;height:40px;font-size:20px"><i></i>${note||T.help}</div>
+  <div class="a btns"><div class="btn" data-go="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><path d="M10 10l10 10M20 10l-10 10" stroke="#fff" stroke-width="3"/></svg>Select</div>
+  <div class="btn" data-quit="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><circle cx="15" cy="15" r="6" fill="none" stroke="#FF6B78" stroke-width="3"/></svg>Close</div></div>`;
+  C.innerHTML=h;
+}
+
+/* ---------- Help and Settings screens ---------- */
+let screen='home',msel=0,capture=null,reportText='';
+const ROWL={cross:'CROSS · confirm',circle:'CIRCLE · cancel',square:'SQUARE',triangle:'TRIANGLE',l1:'L1',r1:'R1',l2:'L2',r2:'R2',start:'START',select:'SELECT'};
+const ROWS=Object.keys(ROWL);
+const MENUS={
+ help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','ABOUT'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.']},
+ settings:{title:'SETTINGS',sub:'KEYS APPLY THE NEXT TIME THE GAME STARTS',items:['CONTROLS','CONTROLLER','AUTOSAVE','DISPLAY','MEMORY CARD'],y:150,hint:['Choose the keys for the PC window.','Controllers.','Automatic saves.','Which browser opens the game.','Backups of the memory card.']}
+};
+const pnl=(inner,extra='')=>`<div class="a panel" style="left:650px;top:150px;width:570px;${extra}">${inner}</div>`;
+const H1=t=>`<div class="sh" style="font-size:17px;font-weight:800;font-style:italic">${t}</div>`;
+const P=(t,m=6)=>`<div style="font-size:15px;line-height:1.5;margin-top:${m}px;color:var(--ink)">${t}</div>`;
+const btnx=(t,a,on)=>`<div data-act="${a}" style="display:inline-block;margin:12px 10px 0 0;border:2px solid ${on?'#F2A94E':'transparent'};background:var(--deep);border-radius:8px;padding:8px 18px;font-size:15px;font-weight:800;color:#F2A94E;cursor:pointer">${t}</div>`;
+function body(){
+  const k=S?S.keys:{}, kd=S?S.key_defaults:{};
+  if(screen==='help'){
+    if(msel===0)return pnl(H1('GETTING STARTED')+['Put your own Persona 3 FES (USA) disc image in C:\\p3fes.','Run the installer in Ubuntu (docs/install.md). It takes 10 minutes or more.','Open this launcher. Home says <b>Ready</b> when the game is built.','Press <b>PLAY</b>. Pick the browser or the PC window with Q and E.'].map((t,i)=>`<div style="display:flex;gap:14px;margin-top:12px;font-size:15px;line-height:1.45;color:var(--ink)"><div style="flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:#F2A94E;font-weight:800;text-align:center;line-height:28px">${i+1}</div><div>${t}</div></div>`).join(''),'padding-bottom:18px');
+    if(msel===1)return pnl(H1('DEFAULT KEYS')+`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:8px;font-size:15px;color:var(--ink)">`+ROWS.map(r=>`<div style="display:flex;justify-content:space-between"><span style="font-weight:600">${ROWL[r]}</span><b>${kd[r]||''}</b></div>`).join('')+`</div>`+P('Arrow keys are the D-pad. W A S D is the left stick and T F G H the right stick. F11 or ` toggles fullscreen. Change keys in Settings.',12),'padding-bottom:18px');
+    if(msel===2)return pnl(H1('WHAT ARE YOU SEEING?')+[
+      ['The picture is garbled or the screen is blank','Close the game and start it again. If it repeats, copy a report (About) and send it to us.'],
+      ['The build stopped or seems stuck','It can sit quiet for a long time. Run the installer again: finished steps are skipped.'],
+      ['The launcher says my disc cannot be used','It needs an untouched USA copy of Persona 3 FES. Home shows which check failed.'],
+      ['The PC window does not open','Start VcXsrv first (docs/windows-build.md), then press Play again.'],
+      ['The game is slow in the browser','It needs WebGPU. Use Chrome or Edge, and check chrome://gpu.']
+    ].map(([q,a])=>`<div style="border-top:1px solid rgba(255,255,255,.3);margin-top:10px;padding-top:8px"><div style="font-size:16px;font-weight:800;color:var(--ink)">${q}</div>${P(a,2)}</div>`).join(''),'padding-bottom:16px');
+    return pnl(H1('ABOUT')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Launcher ${S?S.version:''}</div>`+P('For Persona 3 FES (USA, NTSC-U). Your disc and your saves stay on your computer.')+btnx('COPY A REPORT','report')+P('The report has version numbers and the checks Home shows. It never includes your disc or your saves.',10)+(reportText?`<pre style="margin:10px 0 0;padding:10px;background:var(--deep);border-radius:8px;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:#fff">${reportText.replace(/</g,'&lt;')}</pre>`:''),'padding-bottom:18px');
+  }
+  // settings
+  if(msel===0){
+    const half=Math.ceil(ROWS.length/2), col=(rs)=>rs.map(r=>`<div data-key="${r}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;margin-bottom:5px;border-radius:8px;cursor:pointer;background:${capture===r?'var(--deep)':'rgba(255,255,255,.18)'};color:${capture===r?'#F2A94E':'var(--ink)'};font-size:14px;font-weight:800"><span>${ROWL[r]}</span><span style="min-width:70px;text-align:right">${capture===r?'press a key…':(k[r]==='none'?'not set':k[r])}</span></div>`).join('');
+    return pnl(H1('KEYS FOR THE PC WINDOW')+`<div style="display:flex;gap:16px;margin-top:10px"><div style="flex:1">${col(ROWS.slice(0,half))}</div><div style="flex:1">${col(ROWS.slice(half))}</div></div>`+btnx('RESET TO DEFAULTS','resetkeys')+P('Click a row, then press the new key. Esc cancels. A key already used elsewhere is taken from that row. The browser game has its own Keys button.',10),'padding-bottom:18px');
+  }
+  if(msel===1)return pnl(H1('CONTROLLER')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">In the browser game</div>`+P('Plug in a controller, start the game in the browser and use the Controller button at the bottom. The PC window has no controller panel yet.'),'padding-bottom:18px');
+  if(msel===2)return pnl(H1('AUTOSAVE')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Not connected yet</div>`+P('Autosave lives inside the browser game today. It will show here once saves are shared between the browser and the PC window. Until then use the Autosave button in the game.'),'padding-bottom:18px');
+  if(msel===3){const b=S?S.browser:'msedge', o=(v,t)=>btnx(t,'br:'+v,b===v), sc=S?S.scale:'3', r=(v,t)=>btnx(t,'sc:'+v,sc===v);
+    return pnl(H1('BROWSER FOR THE GAME')+P('The browser game needs WebGPU. Edge and Chrome have it; Firefox may not.')+o('msedge','EDGE')+o('chrome','CHROME')+o('default','SYSTEM DEFAULT')+`<div style="margin-top:14px">${H1('RESOLUTION')}</div>`+P('Sharper picture needs a stronger graphics card. 3x ran at 60 frames per second on an RTX 3060 Ti.',4)+r('1','1x · 640×512')+r('2','2x · 1280×1024')+r('3','3x · 1920×1536')+P('Fullscreen: F11 in the PC window, the ` key in the browser.',10),'padding-bottom:18px');}
+  return pnl(H1('MEMORY CARD')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Not connected yet</div>`+P('Backups of the memory card are the Backups button in the browser game. They will move here with shared saves.'),'padding-bottom:18px');
+}
+function renderMenu(){
+  const M=MENUS[screen], top=i=>M.y+i*56;
+  let h=`<div class="a ring"></div><div class="a ticks"></div><div class="a moon"></div><div class="a curve"></div><div class="a stripe"></div>
+  <div class="a title">${M.title}</div><div class="a sub" style="font-size:12px">${M.sub}</div><div class="a bar" style="top:${top(msel)}px;width:600px"></div>`;
+  M.items.forEach((it,i)=>{const s=i===msel,y=top(i);
+    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'#F2A94E':'var(--deep)'}"></div><div class="a it${s?' sel':''}" style="top:${y}px;font-size:${s?34:32}px">${it}</div><div class="a hit" data-mi="${i}" style="top:${y}px;width:600px"></div>`;});
+  h+=body();
+  h+=`<div class="a hb" style="left:112px;top:742px;width:660px;height:40px;font-size:20px"><i></i>${note||M.hint[msel]}</div>
+  <div class="a btns"><div class="btn" data-back="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><circle cx="15" cy="15" r="6" fill="none" stroke="#FF6B78" stroke-width="3"/></svg>Back</div></div>`;
+  C.innerHTML=h;
+}
+function render(){ if(screen==='home'||lost||!S) renderHome(); else renderMenu(); }
+const SDLKEY=e=>{const c=e.code;
+  if(/^Key[A-Z]$/.test(c))return c[3]; if(/^Digit[0-9]$/.test(c))return c[5]; if(/^Numpad[0-9]$/.test(c))return 'Keypad '+c[6];
+  return {ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Enter:'Return',Backspace:'Backspace',Space:'Space',ShiftLeft:'Left Shift',ShiftRight:'Right Shift',ControlLeft:'Left Ctrl',Tab:'Tab'}[c]||null;};
+async function setKey(row,key){
+  const m=Object.assign({},S.keys);
+  for(const r of ROWS)if(r!==row&&m[r]===key)m[r]='none';
+  m[row]=key;
+  const r=await api('/api/keys',{map:m});
+  if(r.ok){S.keys=r.keys;say(ROWL[row].split(' ')[0]+' is now '+key+'. It applies the next time the PC window starts.');}else say(r.msg||'Could not save.');
+}
+async function resetKeys(){const r=await api('/api/keys',{map:S.key_defaults});if(r.ok){S.keys=r.keys;say('Keys are back to the defaults.');}}
+async function report(){
+  const r=await api('/api/report');reportText='';
+  try{await navigator.clipboard.writeText(r.text);say('Report copied. Paste it into your message.');}
+  catch(e){reportText=r.text;say('Could not copy. The report is shown here instead.');}
+}
+function open_(sc){screen=sc;msel=0;capture=null;reportText='';render();}
+function back(){screen='home';capture=null;reportText='';render();}
+function say(m){note=m;clearTimeout(noteT);render();noteT=setTimeout(()=>{note='';render();},4500);}
+async function api(p,b){const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{});return r.json();}
+let lost=false;
+async function refresh(){try{S=await api('/api/state');lost=false;}catch(e){lost=true;if(!S)S=null;}render();}
+async function setMode(m){if(!S||S.state!=='ready')return;await api('/api/mode',{mode:m});S.mode=m;render();}
+async function go(){
+  if(!S||busy)return;
+  if(sel===0){
+    if(S.state==='ready'){busy=true;say('Starting…');const r=await api('/api/play',{mode:S.mode});busy=false;say(r.msg||'');}
+    else if(S.state==='building')say('The build is still running. Please wait.');
+    else if(S.state==='wrong')say('Put another .iso in C:\\p3fes, then reopen the launcher.');
+    else say('Run p3fes_install.sh in Ubuntu first. See docs/install.md.');
+  }else if(sel===3)open_('settings');else if(sel===5)open_('help');
+  else say(ITEMS[sel][0]+ITEMS[sel].slice(1).toLowerCase()+' is not built yet.');
+}
+C.addEventListener('click',e=>{
+  const t=e.target.closest('[data-i],[data-m],[data-go],[data-quit],[data-mi],[data-back],[data-act],[data-key]'); if(!t)return;
+  if(t.dataset.mi!==undefined){msel=+t.dataset.mi;capture=null;reportText='';render();}
+  else if(t.dataset.back)back();
+  else if(t.dataset.key){capture=t.dataset.key;render();}
+  else if(t.dataset.act){const a=t.dataset.act;if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
+  else if(t.dataset.i!==undefined){sel=+t.dataset.i;render();go();}
+  else if(t.dataset.m)setMode(t.dataset.m);
+  else if(t.dataset.go)go();
+  else if(t.dataset.quit)window.close();
+});
+addEventListener('keydown',e=>{
+  if(screen!=='home'&&S){
+    if(capture){e.preventDefault();if(e.key==='Escape'){capture=null;render();return;}const k=SDLKEY(e);if(!k){say('That key cannot be used. Try another.');return;}const r=capture;capture=null;setKey(r,k);return;}
+    const n=MENUS[screen].items.length;
+    if(e.key==='ArrowDown'){msel=(msel+1)%n;render();}else if(e.key==='ArrowUp'){msel=(msel+n-1)%n;render();}
+    else if(e.key==='Escape'||e.key==='Backspace')back();
+    return;
+  }
+  if(e.key==='ArrowDown'){sel=(sel+1)%ITEMS.length;render();}
+  else if(e.key==='ArrowUp'){sel=(sel+ITEMS.length-1)%ITEMS.length;render();}
+  else if(e.key==='Enter'||e.key===' '){go();}
+  else if(e.key==='q'||e.key==='Q')setMode('browser');
+  else if(e.key==='e'||e.key==='E')setMode('exe');
+  else if(e.key==='Escape')window.close();
+});
+addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/bye');}catch(e){}});
+refresh();setInterval(refresh,3000);
+</script></body></html>
