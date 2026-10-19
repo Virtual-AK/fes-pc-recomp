@@ -5,9 +5,9 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 **Status: research and tooling.** Nothing here runs the game yet. The tools read, unpack, convert and (for text) edit and repack the game's data from your own disc, and the file formats are documented.
 
 <!-- progress:start -->
-**Overall progress: about 73%** (rough estimate by the maintainers; the game already starts and plays in the browser and in a PC window, and most of what is left is testing and polish)
+**Overall progress: about 75%** (rough estimate by the maintainers; the game already starts and plays in the browser and in a PC window, and most of what is left is testing and polish)
 
-`███████████████░░░░░` 73%
+`███████████████░░░░░` 75%
 
 | Phase | Progress | |
 | --- | --- | --- |
@@ -16,9 +16,9 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 | 2. Runtime layer (files, audio, video, input, saves) | `██████████████████░░` | 90% |
 | 3. Graphics (GS and vector units to a modern API) | `█████████████████░░░` | 85% |
 | 4. Playable desktop build, QA | `████░░░░░░░░░░░░░░░░` | 20% |
-| 5. Browser build and mod tooling | `████████████░░░░░░░░` | 60% |
+| 5. Browser build and mod tooling | `██████████████░░░░░░` | 70% |
 
-Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. Phase 4 (testing the whole game) has only just started, and phase 5 still lacks mod tooling and a simpler install. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. Phase 4 (testing the whole game) has only just started, and phase 5 has the browser build with card backups, autosave, key and controller settings, and a first mod route (patch files baked into a separate recompiled copy), but still lacks a simpler install. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
 <!-- progress:end -->
 
 | Area | State |
@@ -108,9 +108,16 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_vubranch_patch.py` | Fix for the half-drawn cut-in portraits, part 1: in the VU interpreter a conditional branch right after an integer instruction sees the OLD register value, as on the real chip (`PS2_VU_BRANCHNEW=1` switches it off for comparing). |
 | `ps2web_vubranch_patch.py` | The same fix for the browser's VU compiler (`runtime/src/vu_jit.cpp`). |
 | `ps2web_controls_patch.py` | Browser keys like PCSX2's default (WASD left stick, TFGH right stick, IJKL face buttons, Q/E shoulders, 1/2/3/4 for L2/L3/R2/R3) plus mouse look: click the picture, move the mouse sideways to turn the camera. |
+| `ps2web_cardbackup_patch.py` | Memory card backups for the browser build: the page keeps the last 10 versions of the card (each in-game save, and once at page start) with a Backups button to restore or download one. Restoring backs up the card it replaces. |
 | `ps2run_controls_patch.py` | The same PCSX2-style keys for the PC runner window (WASD left stick, TFGH right stick, IJKL face buttons, Q/E shoulders, 1/2/3/4 for L2/L3/R2/R3). No mouse look in the window yet. |
+| `ps2web_keyremap_patch.py` | Key remapping for the browser build: a Keys button opens a panel, click a row and press the new key. Saved in the browser, with Reset to defaults. See `docs/controls.md`. |
+| `ps2run_keyremap_patch.py` | Key remapping for the PC runner window from a `keys.txt` file (`cross = Z` style lines, SDL key names). See `docs/controls.md`. |
+| `ps2web_padremap_patch.py` | Controller panel for the browser build: with a controller connected the Keys button shows that controller's own button names (PlayStation, Xbox or Nintendo) and lets you rebind its buttons, saved per controller type. See `docs/controls.md`. |
+| `ps2run_sifquiet_patch.py` | Prints the harmless `[sif] command 0x........ has no handler` message once per command number instead of every time, for both the PC runner and the browser build. |
+| `ps2web_autosave_patch.py` | Full-state autosave for the browser build: the whole game is saved every 2 minutes and after each in-game save, and the start screen offers Resume to continue exactly where you were. An Autosave button lists, resumes and deletes the saves. See `docs/autosave.md`. |
 | `ps2run_tricenter_patch.py` | Opt-in test (`PS2_TRI_CENTER=1`, CPU drawing route): triangle textures are read at pixel centres, like the real chip, to test the dashed outlines on the Tartarus minimap tiles. |
 | `ps2run_flipfix_patch.py` | Opt-in test (`PS2_TRI_FLIPFIX=1`, CPU drawing route, use with `PS2_TRI_CENTER=1`): flipped minimap tiles are moved one texel so they line up with unflipped ones. |
+| `p3fes_pnach_apply.py` | Bakes a PCSX2 `.pnach` code patch (such as a gameplay mod) into a copy of the boot program for recompiling, checks it against the original words named in the patch's comments, and lists the new code entry points. See [docs/mods.md](docs/mods.md). |
 | `ps2gpu_flipfix_patch.py` | Fix for the misaligned tiles on the Tartarus minimap: in the graphics-card route (browser build and PC window) flipped tiles are moved one texel so they line up. Apply `ps2gpu_tricenter_patch.py` first, then rebuild both builds. |
 | `ps2gs_uploadclamp_patch.py` | Fix for the line of coloured specks along the bottom edge of the anime movies: texture clamping now stops at the area the game really uploaded (both drawing routes). `PS2_NO_UPLOADCLAMP=1` turns it off for comparing. Rebuild both builds after applying. |
 | `ppm2png.py` | Turns saved `.ppm` frames into `.png` pictures that can be opened or sent, with no extra programs needed. |
