@@ -5,10 +5,30 @@
 <style>
 :root{--ground:#052046;--a1:#3FA6FF;--a2:#1B8CF2;--a3:#1479DD;--deep:#06173F;--shadow:#0A3C85;--ink:#05204A;--track:#0A2A66;
 --p1:rgba(150,210,255,.4);--p2:rgba(110,185,255,.22);--b1:rgba(150,210,255,.5);--b2:rgba(150,210,255,.15);--btn:rgba(120,190,255,.35);
---ring:rgba(130,190,255,.22);--ring2:rgba(130,190,255,.3);--moon:rgba(150,205,255,.2);--sub:rgba(5,32,70,.9);--stripe:#F2A94E;--stripeEdge:#D98A2D}
+--ring:rgba(130,190,255,.22);--ring2:rgba(130,190,255,.3);--moon:rgba(150,205,255,.2);--sub:rgba(5,32,70,.9);--stripe:#F2A94E;--stripeEdge:#D98A2D;--acc:#F2A94E;--tt:#FDB950;--tts:#9A5410;--ttg:rgba(253,185,80,.45)}
+:root[data-theme=moon]{--ground:#05060F;--a1:#2B2F66;--a2:#181B45;--a3:#0C0E2A;--deep:#04050F;--shadow:#000;--ink:#EDEBFF;--track:#15183A;--p1:rgba(120,125,220,.28);--p2:rgba(70,75,170,.2);--b1:rgba(130,135,230,.4);--b2:rgba(130,135,230,.12);--btn:rgba(120,125,230,.3);--ring:rgba(255,224,130,.3);--ring2:rgba(255,224,130,.38);--moon:rgba(255,224,130,.5);--sub:rgba(237,235,255,.8);--stripe:#FFE082;--stripeEdge:#C9A43A;--acc:#FFE082;--tt:#FFE082;--tts:#1C1740;--ttg:rgba(255,224,130,.55)}
+:root[data-theme=dawn]{--fg:#2A2440;--shadow:rgba(255,255,255,.75);--selsh:#000;--ground:#1B2A4A;--a1:#FFF3D6;--a2:#FFD9A0;--a3:#F2B97A;--deep:#2A2F55;--ink:#2A2440;--track:#3A3F6A;--p1:rgba(255,248,235,.55);--p2:rgba(255,228,190,.3);--b1:rgba(255,248,235,.65);--b2:rgba(255,228,190,.22);--btn:rgba(255,225,185,.45);--ring:rgba(255,235,200,.35);--ring2:rgba(255,235,200,.4);--moon:rgba(255,240,210,.25);--sub:rgba(42,36,64,.9);--stripe:#9FC6F2;--stripeEdge:#6FA0DB;--acc:#FFD9A0;--tt:#FFFFFF;--tts:#C98A5A;--ttg:rgba(255,230,180,.6)}
+:root[data-theme=seal]{--fg:#12304F;--shadow:rgba(255,255,255,.8);--selsh:#000;--ground:#0E1D33;--a1:#EAF6FF;--a2:#BFDDF5;--a3:#8EBCE6;--deep:#16304F;--ink:#12304F;--track:#25456E;--p1:rgba(255,255,255,.6);--p2:rgba(220,240,255,.32);--b1:rgba(255,255,255,.7);--b2:rgba(220,240,255,.25);--btn:rgba(200,228,250,.5);--ring:rgba(255,255,255,.4);--ring2:rgba(255,255,255,.45);--moon:rgba(255,255,255,.35);--sub:rgba(18,48,79,.9);--stripe:#C9D6E3;--stripeEdge:#8FA7C0;--acc:#BFE3FF;--tt:#FFFFFF;--tts:#5B87B8;--ttg:rgba(190,225,255,.7)}
+:root[data-theme=pink]{--ground:#3D0A2B;--a1:#FF9CCB;--a2:#F2619F;--a3:#D8408C;--deep:#3A0A28;--shadow:#9B2A66;--ink:#3A0B28;--track:#5A1540;--p1:rgba(255,205,230,.45);--p2:rgba(255,170,215,.25);--b1:rgba(255,205,230,.55);--b2:rgba(255,205,230,.18);--btn:rgba(255,170,215,.4);--ring:rgba(255,170,215,.25);--ring2:rgba(255,170,215,.32);--moon:rgba(255,200,230,.22);--sub:rgba(58,11,40,.9);--stripe:#FFD36B;--stripeEdge:#E0A93A;--acc:#FFD36B;--tt:#FFE9A8;--tts:#8A2A5A;--ttg:rgba(255,225,140,.5)}
+:root[data-theme=reload]{--ground:#010A16;--a1:#22E6FF;--a2:#0BB5E8;--a3:#0A7FC0;--deep:#02101F;--shadow:#04507A;--ink:#021A30;--track:#05304F;--p1:rgba(150,240,255,.42);--p2:rgba(90,220,255,.22);--b1:rgba(170,245,255,.55);--b2:rgba(170,245,255,.16);--btn:rgba(90,225,255,.35);--ring:rgba(90,230,255,.3);--ring2:rgba(90,230,255,.38);--moon:rgba(150,245,255,.2);--sub:rgba(2,26,48,.9);--stripe:#EAFDFF;--stripeEdge:#22E6FF;--acc:#8CF5FF;--tt:#F2FEFF;--tts:#04507A;--ttg:rgba(34,230,255,.6)}
 html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
+:root[data-theme=daybreak]{--fg:#23284F;--shadow:rgba(255,255,255,.8);--selsh:#000;--ground:#0F1B3D;--a1:#FFE9C2;--a2:#F7B6A1;--a3:#7FA8E8;--deep:#1B2350;--ink:#23284F;--track:#2E3768;--p1:rgba(255,246,232,.6);--p2:rgba(255,214,196,.32);--b1:rgba(255,246,232,.7);--b2:rgba(255,214,196,.24);--btn:rgba(255,220,200,.5);--ring:rgba(255,236,190,.55);--ring2:rgba(255,236,190,.6);--moon:rgba(255,240,200,.55);--sub:rgba(35,40,79,.9);--stripe:#FFD36B;--stripeEdge:#E0A93A;--acc:#FFD98A;--tt:#FFFFFF;--tts:#D98A6A;--ttg:rgba(255,226,170,.8)}
+:root[data-theme=daybreak] .curve{background:linear-gradient(200deg,#7FA8E8 0%,#C9B6E8 30%,#F7B6A1 62%,#FFE9C2 100%)!important}
+:root[data-theme=horizon]{--fg:#FFFFFF;--ground:#0B1030;--a1:#2A2F6E;--a2:#1B2150;--a3:#10143A;--deep:#090C26;--shadow:#05071A;--ink:#FFF3DC;--track:#1B2150;--p1:rgba(255,200,140,.22);--p2:rgba(255,150,110,.14);--b1:rgba(255,210,150,.34);--b2:rgba(255,210,150,.1);--btn:rgba(255,190,130,.28);--ring:rgba(255,200,120,.35);--ring2:rgba(255,200,120,.35);--moon:rgba(255,226,160,.7);--sub:rgba(255,243,220,.85);--stripe:#FFB45A;--stripeEdge:#E0802A;--acc:#FFC873;--tt:#FFE2A8;--tts:#6A2A1A;--ttg:rgba(255,170,90,.6)}
+:root[data-theme=horizon] .curve{background:linear-gradient(0deg,#FF9A5A 0%,#E8708A 22%,#7A4FA0 48%,#2A2F6E 78%,#10143A 100%)!important}
+:root[data-theme=ceremony]{--fg:#3A2F1A;--shadow:rgba(255,255,255,.85);--selsh:#000;--ground:#2A2416;--a1:#FFFDF6;--a2:#F6EBCF;--a3:#E7CF98;--deep:#3A2F1A;--ink:#3A2F1A;--track:#5A4A28;--p1:rgba(255,255,255,.62);--p2:rgba(255,244,210,.35);--b1:rgba(255,255,255,.72);--b2:rgba(255,244,210,.26);--btn:rgba(255,236,190,.55);--ring:rgba(214,170,70,.45);--ring2:rgba(214,170,70,.5);--moon:rgba(214,170,70,.7);--sub:rgba(58,47,26,.9);--stripe:#D4A93E;--stripeEdge:#A98122;--acc:#F3D27A;--tt:#FFFFFF;--tts:#B8902E;--ttg:rgba(230,190,90,.8)}
+:root[data-theme=eclipse]{--ground:#02030A;--a1:#2A1740;--a2:#150C2A;--a3:#080514;--deep:#020208;--shadow:#000;--ink:#F3ECFF;--track:#1A1033;--p1:rgba(190,150,255,.2);--p2:rgba(120,80,200,.15);--b1:rgba(200,160,255,.3);--b2:rgba(200,160,255,.1);--btn:rgba(170,130,240,.25);--ring:rgba(255,214,110,.5);--ring2:rgba(255,214,110,.45);--moon:rgba(255,214,110,.95);--sub:rgba(243,236,255,.85);--stripe:#FFD36B;--stripeEdge:#B8861F;--acc:#FFD36B;--tt:#FFD98A;--tts:#1A0F33;--ttg:rgba(255,200,90,.7)}
+:root[data-theme=eclipse] .curve{background:radial-gradient(circle at 70% 30%,#3A2060 0,#150C2A 50%,#05030F 100%)!important}
+:root[data-theme=eclipse] .moon{filter:drop-shadow(0 0 22px rgba(255,214,110,.9)) drop-shadow(0 0 60px rgba(255,190,80,.5))}
+:root[data-theme=twelve]{--ground:#03120D;--a1:#1E7A5C;--a2:#0F4A39;--a3:#072A20;--deep:#02100B;--shadow:#000;--ink:#EEF7E8;--track:#0B3226;--p1:rgba(140,230,190,.22);--p2:rgba(70,170,130,.15);--b1:rgba(150,235,200,.3);--b2:rgba(150,235,200,.1);--btn:rgba(120,220,175,.24);--ring:transparent;--ring2:transparent;--moon:rgba(245,236,200,.85);--sub:rgba(238,247,232,.85);--stripe:#F1EAD2;--stripeEdge:#B8AC78;--acc:#F5ECC8;--tt:#F5ECC8;--tts:#06231A;--ttg:rgba(245,236,200,.5)}
+:root[data-theme=twelve] .curve{background:radial-gradient(circle at 70% 30%,#14614A 0,#0A3A2D 45%,#031610 100%)!important}
+:root[data-theme=twelve] .ticks{display:none}
+.badge{position:absolute;left:372px;top:109px;z-index:5;font-size:12px;font-weight:800;letter-spacing:.3em;color:#23284F;background:linear-gradient(90deg,#FFE9A8,#FFD36B);padding:4px 14px;border-radius:0 12px 12px 0;box-shadow:0 0 18px rgba(255,214,120,.7)}
+#c::before{content:'';position:absolute;left:0;top:0;width:1280px;height:800px;background-image:radial-gradient(1.6px 1.6px at 12% 18%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 27% 62%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 41% 9%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 58% 44%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 73% 80%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 88% 14%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 94% 58%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 66% 22%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 35% 88%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 7% 74%,#fff 50%,transparent 51%);opacity:0;pointer-events:none}
+:root[data-theme=horizon] #c::before{opacity:.5}
+:root[data-theme=eclipse] #c::before{opacity:.5}
 #fit{position:absolute;left:50%;top:50%;width:1280px;height:800px;transform-origin:0 0}
-#c{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--ground);color:#fff;font-family:'Lexend','Segoe UI',sans-serif;user-select:none}
+#c{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--ground);color:var(--fg,#fff);font-family:'Lexend','Segoe UI',sans-serif;user-select:none}
 #c *{box-sizing:border-box}
 .a{position:absolute}
 .ring{left:900px;top:-150px;width:620px;height:620px;border-radius:50%;border:2px solid var(--ring)}
@@ -16,17 +36,17 @@ html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
 .moon{left:1040px;top:120px;width:220px;height:220px;border-radius:50%;box-shadow:inset -44px 0 0 0 var(--moon)}
 .curve{left:-1090px;top:-390px;width:2300px;height:2300px;border-radius:50%;background:radial-gradient(circle at 28% 66%,var(--a1) 0,var(--a2) 46%,var(--a3) 100%)}
 .stripe{left:0;top:0;width:84px;height:800px;background:var(--stripe);border-right:5px solid var(--stripeEdge)}
-.title{left:112px;top:18px;font-size:78px;font-weight:800;line-height:1.1;letter-spacing:.01em;color:#FDB950;text-shadow:4px 4px 0 #9A5410,0 0 26px rgba(253,185,80,.45)}
+.title{left:112px;top:18px;font-size:78px;font-weight:800;line-height:1.1;letter-spacing:.01em;color:var(--tt);text-shadow:4px 4px 0 var(--tts),0 0 26px var(--ttg)}
 .sub{left:116px;top:112px;font-size:13px;font-weight:600;letter-spacing:.24em;color:var(--sub)}
 .plate{right:0;top:0;width:430px;height:150px;clip-path:polygon(24% 0,100% 0,100% 100%,0 0)}
-.date{right:44px;top:18px;background:#06123A;padding:5px 16px;display:flex;align-items:baseline;gap:12px;font-size:24px;font-weight:800}
+.date{right:44px;top:18px;color:#fff;background:#06123A;padding:5px 16px;display:flex;align-items:baseline;gap:12px;font-size:24px;font-weight:800}
 .pt{right:44px;top:66px;text-align:right}
 .pt .t{font-size:44px;font-weight:800;line-height:1;color:#fff}
 .pt .s{font-size:15px;font-weight:600;margin-top:6px;color:#fff}
 .bar{left:0;width:620px;height:56px;background:var(--deep);border-radius:0 16px 16px 0;transition:top .12s}
 .sq{left:56px;width:24px;height:24px}
 .it{left:128px;height:56px;display:flex;align-items:center;font-size:36px;font-weight:800;letter-spacing:.02em;text-shadow:2px 2px 0 var(--shadow)}
-.it.sel{font-size:38px}
+.it.sel{font-size:38px;color:#fff;text-shadow:2px 2px 0 var(--selsh,var(--shadow))}
 .cap{left:380px;width:214px;height:56px;display:flex;align-items:center;justify-content:flex-end;font-size:14px;font-weight:600;color:rgba(255,255,255,.88)}
 .hit{left:0;width:620px;height:56px;cursor:pointer}
 .sw{left:650px;top:180px;align-items:center;gap:10px}
@@ -63,21 +83,21 @@ function view(s){
   const st=s.state, d=s.disc||{};
   const T={
    ready:{pa:'#2BD07F',pb:'#1BA862',ps:'#0B5E34',t:'Ready',s:'Installed on this computer',play:'PLAY',cap:s.mode==='exe'?'In a PC window':'In your browser',dim:1,
-     disc:'Found',dw:'100%',db:GOLD,bt:s.built||'Built',bw:'100%',pt:'25 / 25',pw:'100%',
+     disc:'Found',dw:'100%',db:GOLD,bt:s.built||'Built',bw:'100%',pt:(s.card_sync?'26 / 26':'25 / 26'),pw:(s.card_sync?'100%':'96%'),
      pT:'AUTOSAVE',pB:'Not connected yet',pX:'Autosave details appear once saves are shared.',pN:'Your saves stay in the game meanwhile.',
      dl:'Disc: '+(d.file||'found'),help:s.mode==='exe'?'Start the game in its own window.':'Start the game in your browser.'},
    setup:{pa:'#FFB347',pb:'#E08A1E',ps:'#8A4F06',t:'Not Installed',s:'One-time setup needed',play:'SET UP',cap:'First time only',dim:.4,
-     disc:s.disc?'Found':'Not found',dw:s.disc?'100%':'0%',db:GOLD,bt:'Not yet',bw:'0%',pt:'0 / 25',pw:'0%',
-     pT:'FIRST TIME',pB:'Run the installer',pX:'Put your own Persona 3 FES (USA) .iso in C:\\p3fes.',pN:'About 4.5 GB. It stays on your computer.',
-     dl:s.disc?'Disc: '+d.file:'Disc: none found',help:'Run p3fes_install.sh in Ubuntu to set up. See docs/install.md.'},
+     disc:s.disc?'Found':'Not found',dw:s.disc?'100%':'0%',db:GOLD,bt:'Not yet',bw:'0%',pt:'0 / 26',pw:'0%',
+     pT:'FIRST TIME',pB:'Press Set up',pX:'You will choose your own Persona 3 FES (USA) .iso.',pN:'About 4.5 GB. It stays on your computer.',
+     dl:s.disc?'Disc: '+d.file:'Disc: none found',help:'Choose Set up to find your disc and install.'},
    building:{pa:'#5CA8FF',pb:'#2A6FE0',ps:'#123A8A',t:'Building',s:'You can leave it',play:'BUILDING',cap:'Please wait',dim:.4,
-     disc:'Found',dw:'100%',db:GOLD,bt:Math.min(99,Math.round(s.pieces/s.pieces_total*100))+' %',bw:Math.min(100,s.pieces/s.pieces_total*100)+'%',pt:'25 / 25',pw:'100%',
+     disc:'Found',dw:'100%',db:GOLD,bt:Math.min(99,Math.round(s.pieces/s.pieces_total*100))+' %',bw:Math.min(100,s.pieces/s.pieces_total*100)+'%',pt:'25 / 26',pw:'96%',
      pT:'PROGRESS',pB:s.pieces+' / about '+s.pieces_total,pX:'Pieces compiled. It carries on if it stops.',pN:'Leave the install window open.',
      dl:'Disc: '+(d.file||'found'),help:'Building your game. The first time takes 10 minutes or more.'},
    wrong:{pa:'#FF6B78',pb:'#D1394A',ps:'#7A1523',t:'Wrong Disc',s:'This copy cannot be used',play:'CHOOSE DISC',cap:'Pick another file',dim:.4,
      disc:'Not usable',dw:'100%',db:RED,bt:'Waiting',bw:'0%',pt:'Waiting',pw:'0%',
      pT:'WHAT TO DO',pB:'Use the original disc',pX:'It must be Persona 3 FES (USA), not modified.',pN:'Your disc is never changed or uploaded.',
-     dl:'Disc: '+(d.file||'?'),help:'This disc image is not a supported copy. Put another in C:\\p3fes.'}
+     dl:'Disc: '+(d.file||'?'),help:'This disc image is not a supported copy. Choose another.'}
   }[st];
   let why=null;
   const gid=d.game_id||'not found', reg=d.region||'unknown', gshow=d.game_id?gid.replace('_','-').replace('.',''):'Not found';
@@ -99,17 +119,17 @@ function renderHome(){
   const {T,why}=view(S), n=new Date(), dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][n.getDay()];
   const dc=dn==='Sun'?'#FF6B78':dn==='Sat'?'#6AB4FF':'#fff';
   const ready=S.state==='ready', exe=S.mode==='exe';
-  const on=x=>x?'background:var(--deep);color:#F2A94E;border-color:#F2A94E':'background:var(--btn);color:#fff;border-color:rgba(255,255,255,.35)';
+  const on=x=>x?'background:var(--deep);color:var(--acc);border-color:var(--acc)':'background:var(--btn);color:var(--fg,#fff);border-color:rgba(255,255,255,.35)';
   const top=i=>172+i*56;
   let h=`<div class="a ring"></div><div class="a ticks"></div><div class="a moon"></div><div class="a curve"></div><div class="a stripe"></div>
-  <div class="a title">LAUNCHER</div><div class="a sub">FOR PERSONA 3 FES</div>
+  <div class="a title">LAUNCHER</div><div class="a sub">FOR PERSONA 3 FES</div>${S.journey?'<div class="badge">THE JOURNEY · COMPLETE</div>':''}
   <div class="a plate" style="background:linear-gradient(100deg,transparent 0%,${T.pa} 38%,${T.pb} 100%)"></div>
   <div class="a date"><span>${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}</span><span style="color:${dc}">${dn}</span></div>
   <div class="a pt"><div class="t" style="text-shadow:2px 2px 0 ${T.ps},0 0 12px rgba(5,32,70,.6)">${T.t}</div><div class="s" style="text-shadow:1px 1px 0 ${T.ps},0 0 10px rgba(5,32,70,.6)">${T.s}</div></div>
   <div class="a bar" style="top:${top(sel)}px"></div>`;
   ITEMS.forEach((it,i)=>{
-    const y=top(i), lab=i===0?T.play:it, op=(i===0||i===3||i===5)?1:T.dim, s=i===sel;
-    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'#F2A94E':'var(--deep)'};opacity:${s?1:op}"></div>
+    const y=top(i), lab=i===0?T.play:it, op=(i===0||i===3||i===4||i===5)?1:T.dim, s=i===sel;
+    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'var(--acc)':'var(--deep)'};opacity:${s?1:op}"></div>
     <div class="a it${s?' sel':''}" style="top:${y}px;opacity:${s?1:op}">${lab}</div>
     <div class="a hit" data-i="${i}" style="top:${y}px"></div>`;
   });
@@ -135,21 +155,32 @@ function renderHome(){
 }
 
 /* ---------- Help and Settings screens ---------- */
-let screen='home',msel=0,capture=null,reportText='';
+let G=null,gq='',gs='new',gp=0,gload=false,gmsg='',D=null,dload=false,dfile=0,dimg=0;
+async function gbOpen(id){D=null;dload=true;dfile=0;dimg=0;render();try{D=await api('/api/gb/mod',{id});if(D.ok){const f=D.files.find(x=>x.ok);dfile=f?f.id:0;}}catch(e){D={ok:false,err:'The launcher could not be reached.'};}dload=false;render();}
+async function gbLoad(refresh){gload=true;gmsg='';render();try{G=await api('/api/gb/view',{q:gq,sort:gs,page:gp,refresh:!!refresh});gp=G.page;}catch(e){G={ok:false,err:'The launcher could not be reached.',mods:[],total:0,page:0,pages:1};}gload=false;render();}
+let screen='home',msel=0,capture=null,reportText='',pend='';
 const ROWL={cross:'CROSS · confirm',circle:'CIRCLE · cancel',square:'SQUARE',triangle:'TRIANGLE',l1:'L1',r1:'R1',l2:'L2',r2:'R2',start:'START',select:'SELECT'};
 const ROWS=Object.keys(ROWL);
 const MENUS={
  help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','ABOUT'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.']},
- settings:{title:'SETTINGS',sub:'KEYS APPLY THE NEXT TIME THE GAME STARTS',items:['CONTROLS','CONTROLLER','AUTOSAVE','DISPLAY','MEMORY CARD'],y:150,hint:['Choose the keys for the PC window.','Controllers.','Automatic saves.','Which browser opens the game.','Backups of the memory card.']}
+ saves:{title:'SAVES',sub:'PICK UP WHERE YOU LEFT OFF',items:['AUTOSAVES','MEMORY CARD','BACKUPS'],y:160,hint:['Saves of the whole game.','The card both versions share.','Earlier copies of the card.']},
+ mods:{title:'MODS',sub:'YOUR NORMAL GAME IS NEVER CHANGED',items:['DIRECT COMMANDS','FEMC PROTAGONIST','RELOAD STYLE PACK','FILE MODS','BROWSE GAMEBANANA','ADD A PATCH'],y:160,hint:['Control party members in battle.','Play as the female protagonist.','A look-alike menu pack idea.','Add mods that replace game files (text, images, sounds).','Find Persona 3 FES mods on GameBanana and add them.','Check a patch file against your disc.']},
+ setup:{title:'SETUP',sub:'FIRST TIME ONLY',items:['FIND YOUR DISC','GET THE TOOLS','BUILD THE GAME','PLAY'],y:160,tag:1,hint:['Your own Persona 3 FES (USA) disc image.','Downloads what the build needs.','Turns your disc into a game that runs here.','Ready when the build is done.']},
+ settings:{title:'SETTINGS',sub:'KEYS APPLY THE NEXT TIME THE GAME STARTS',items:['CONTROLS','CONTROLLER','AUTOSAVE','DISPLAY','THEME','MEMORY CARD'],y:150,hint:['Choose the keys for the PC window.','Controllers.','Automatic saves.','Which browser opens the game.','Colours of the launcher.','The card both versions share.']}
 };
 const pnl=(inner,extra='')=>`<div class="a panel" style="left:650px;top:150px;width:570px;${extra}">${inner}</div>`;
 const H1=t=>`<div class="sh" style="font-size:17px;font-weight:800;font-style:italic">${t}</div>`;
 const P=(t,m=6)=>`<div style="font-size:15px;line-height:1.5;margin-top:${m}px;color:var(--ink)">${t}</div>`;
-const btnx=(t,a,on)=>`<div data-act="${a}" style="display:inline-block;margin:12px 10px 0 0;border:2px solid ${on?'#F2A94E':'transparent'};background:var(--deep);border-radius:8px;padding:8px 18px;font-size:15px;font-weight:800;color:#F2A94E;cursor:pointer">${t}</div>`;
+const btnx=(t,a,on)=>`<div data-act="${a}" style="display:inline-block;margin:12px 10px 0 0;border:2px solid ${on?'var(--acc)':'transparent'};background:var(--deep);border-radius:8px;padding:8px 18px;font-size:15px;font-weight:800;color:var(--acc);cursor:pointer">${t}</div>`;
+function setupSteps(){
+  const done=[!!S.disc_ok,!!S.tools_done,!!S.has_web,!!S.has_web];
+  const cur=done.indexOf(false);
+  return done.map((d,i)=>d?'DONE':(i===cur?'NOW':'WAITING'));
+}
 function body(){
   const k=S?S.keys:{}, kd=S?S.key_defaults:{};
   if(screen==='help'){
-    if(msel===0)return pnl(H1('GETTING STARTED')+['Put your own Persona 3 FES (USA) disc image in C:\\p3fes.','Run the installer in Ubuntu (docs/install.md). It takes 10 minutes or more.','Open this launcher. Home says <b>Ready</b> when the game is built.','Press <b>PLAY</b>. Pick the browser or the PC window with Q and E.'].map((t,i)=>`<div style="display:flex;gap:14px;margin-top:12px;font-size:15px;line-height:1.45;color:var(--ink)"><div style="flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:#F2A94E;font-weight:800;text-align:center;line-height:28px">${i+1}</div><div>${t}</div></div>`).join(''),'padding-bottom:18px');
+    if(msel===0)return pnl(H1('GETTING STARTED')+['Put your own Persona 3 FES (USA) disc image in C:\\p3fes.','Run the installer in Ubuntu (docs/install.md). It takes 10 minutes or more.','Open this launcher. Home says <b>Ready</b> when the game is built.','Press <b>PLAY</b>. Pick the browser or the PC window with Q and E.'].map((t,i)=>`<div style="display:flex;gap:14px;margin-top:12px;font-size:15px;line-height:1.45;color:var(--ink)"><div style="flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:var(--acc);font-weight:800;text-align:center;line-height:28px">${i+1}</div><div>${t}</div></div>`).join(''),'padding-bottom:18px');
     if(msel===1)return pnl(H1('DEFAULT KEYS')+`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:8px;font-size:15px;color:var(--ink)">`+ROWS.map(r=>`<div style="display:flex;justify-content:space-between"><span style="font-weight:600">${ROWL[r]}</span><b>${kd[r]||''}</b></div>`).join('')+`</div>`+P('Arrow keys are the D-pad. W A S D is the left stick and T F G H the right stick. F11 or ` toggles fullscreen. Change keys in Settings.',12),'padding-bottom:18px');
     if(msel===2)return pnl(H1('WHAT ARE YOU SEEING?')+[
       ['The picture is garbled or the screen is blank','Close the game and start it again. If it repeats, copy a report (About) and send it to us.'],
@@ -160,23 +191,121 @@ function body(){
     ].map(([q,a])=>`<div style="border-top:1px solid rgba(255,255,255,.3);margin-top:10px;padding-top:8px"><div style="font-size:16px;font-weight:800;color:var(--ink)">${q}</div>${P(a,2)}</div>`).join(''),'padding-bottom:16px');
     return pnl(H1('ABOUT')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Launcher ${S?S.version:''}</div>`+P('For Persona 3 FES (USA, NTSC-U). Your disc and your saves stay on your computer.')+btnx('COPY A REPORT','report')+P('The report has version numbers and the checks Home shows. It never includes your disc or your saves.',10)+(reportText?`<pre style="margin:10px 0 0;padding:10px;background:var(--deep);border-radius:8px;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:#fff">${reportText.replace(/</g,'&lt;')}</pre>`:''),'padding-bottom:18px');
   }
+  if(screen==='mods'){
+    const M=S.mods||{}, tag=(t,c)=>`<span style="float:right;font-size:12px;letter-spacing:1px;background:${c};color:#0B1A3F;border-radius:6px;padding:2px 8px">${t}</span>`, big=x=>`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${x}</div>`;
+    if(msel===0){
+      const ok=S.state==='ready'&&M.direct, where=S.mode==='exe'?'PC window':'browser';
+      return pnl(H1('DIRECT COMMANDS')+tag(M.direct?'BUILT':'NOT BUILT',M.direct?'#2BD07F':'#8FA6C9')+big('Control party members')+P('Lets you control party members in battle. Works in the browser and the PC window.')+P('Needed one extra code entry point, which is added automatically.')+
+        (ok?btnx('PLAY WITH THIS MOD','playmod')+P('Opens in the '+where+', as chosen on Home. Your normal game stays as it was, and the memory card is shared.',8):P(S.state!=='ready'?'Finish setup first.':'This mod has not been built on this computer yet.',10)),'padding-bottom:18px');
+    }
+    if(msel===1)return pnl(H1('FEMC PROTAGONIST')+tag('IN DEVELOPMENT','var(--acc)')+big('Not available yet')+P('Play as the female protagonist from Persona 3 Portable. Choosing it will also switch the launcher to the pink menu theme.')+P('It is a community project that is still being made.')+`<div style="margin-top:12px;display:inline-block;border-radius:8px;background:rgba(255,255,255,.25);padding:8px 18px;font-size:15px;font-weight:800;color:var(--ink)">NOT AVAILABLE YET</div>`,'padding-bottom:18px');
+    if(msel===2)return pnl(H1('RELOAD STYLE PACK')+tag('CONCEPT','#8FA6C9')+big('An idea for later')+P('A pack that changes portraits, music and menus to look like Persona 3 Reload, installed like any other mod.')+P('Nothing to install yet.'),'padding-bottom:18px');
+    if(msel===3){
+      const F=M.files||{list:[]}, busyF=F.busy;
+      const rows=F.list.length?F.list.map((m,ix)=>{const rm=pend==='lmr:'+m.id;return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;color:var(--ink)"><div style="font-size:15px;font-weight:800">${m.name.replace(/</g,'&lt;')}</div><div style="font-size:12px" title="${(m.skipped||[]).join('\n').replace(/"/g,'')}">${m.kind?'<b>'+m.kind+'</b> · ':''}${ix===0&&F.list.length>1?'<b>TOP PRIORITY</b> · ':''}${m.fit} of ${m.total} files fit your disc${m.fit<m.total?' · '+(m.total-m.fit)+' skipped':''}</div></div>${ix>0?`<div data-act="lmu:${m.id}" title="Give this mod higher priority" style="background:var(--deep);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer">&#9650;</div>`:''}<div data-act="lmt:${m.id}" style="background:var(--deep);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:${m.enabled?'#2BD07F':'#8FA6C9'};cursor:pointer">${m.enabled?'ON':'OFF'}</div><div data-act="lmr:${m.id}" style="background:var(--deep);border:2px solid ${rm?'#FF6B78':'transparent'};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:${rm?'#FF6B78':'var(--acc)'};cursor:pointer">${rm?'SURE? REMOVE':'REMOVE'}</div></div>`}).join(''):P('No mods added yet.');
+      return pnl(H1('FILE MODS')+tag(F.on?F.on+' ON':'NONE ON',F.on?'#2BD07F':'#8FA6C9')+big('Replace game files')+P('Add a mod folder, .zip, .7z or .rar. The launcher finds where each file goes on your disc and lays it over the game when it starts. Your disc and your normal game are never changed.')+
+        (F.serve_ok===false?P('<b>One-time update needed:</b> run Setup > GET THE TOOLS again so the game server can load file mods.',8):'')+
+        (busyF?P('<b>'+(F.msg||'Working…')+'</b>',10):btnx('ADD A FOLDER','lma:folder')+btnx('ADD A ZIP / 7Z / RAR','lma:zip')+(F.msg?P(F.msg,8):''))+
+        `<div style="margin-top:8px">${rows}</div>`+P('Works in the browser game after you press Play. The PC window does not use file mods yet. Mods are made by their authors; we do not ship them.',8),'padding-bottom:16px');
+    }
+    if(msel===4){
+      const F=M.files||{list:[]}, busyF=F.busy;
+      if(!G&&!gload)setTimeout(()=>gbLoad(false),0);
+      const esc=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      const sb=(v,t)=>btnx(t,'gbs:'+v,gs===v);
+      if(D||dload){
+        const fmt=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+        if(dload||!D)return pnl(H1('BROWSE GAMEBANANA')+tag('PERSONA 3 FES','#8FA6C9')+P('<b>Loading the mod…</b>',10)+btnx('BACK TO THE LIST','gbb'),'padding-bottom:14px;top:110px');
+        if(!D.ok)return pnl(H1('BROWSE GAMEBANANA')+P('<b>'+esc(D.err||'Could not load that mod.')+'</b>',10)+btnx('BACK TO THE LIST','gbb'),'padding-bottom:14px;top:110px');
+        const img=D.images.length?`<img src="/api/gb/img?u=${encodeURIComponent(D.images[Math.min(dimg,D.images.length-1)])}" style="display:block;max-width:100%;max-height:270px;margin:8px auto 0;border-radius:8px">`+(D.images.length>1?`<div style="margin-top:6px;text-align:center">${D.images.map((u,i)=>`<img data-act="gbm:${i}" src="/api/gb/img?u=${encodeURIComponent(u)}" style="height:38px;margin:0 3px;border-radius:5px;cursor:pointer;border:2px solid ${i===dimg?'var(--acc)':'transparent'}">`).join('')}</div>`:''):P('No pictures were posted for this mod.',8);
+        const files=D.files.map(f=>`<div ${f.ok?`data-act="gbf:${f.id}"`:''} style="padding:5px 8px;margin-top:4px;border-radius:7px;border:2px solid ${f.id===dfile&&f.ok?'var(--acc)':'transparent'};background:rgba(255,255,255,${f.ok?.28:.12});cursor:${f.ok?'pointer':'default'};color:var(--ink);opacity:${f.ok?1:.6}"><div style="font-size:14px;font-weight:800">${f.id===dfile&&f.ok?'&#9679; ':''}${esc(f.name)} <span style="font-weight:600">· ${fmt(f.size)}</span></div><div style="font-size:12px">${f.ok?esc(f.desc||'Archive that can be added'):'Not a .zip, .7z or .rar: cannot be added here'}</div></div>`).join('');
+        const any=D.files.some(f=>f.ok);
+        return pnl(H1(esc(D.name))+tag(D.version?'VERSION '+esc(D.version):'PERSONA 3 FES','#8FA6C9')+
+          P('by '+esc(D.by)+' · '+D.likes+' likes · '+D.views+' views',2)+img+
+          `<div style="margin-top:8px;max-height:190px;overflow:auto;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.2);font-size:13px;line-height:1.4;color:var(--ink);white-space:pre-wrap">${esc(D.desc||'The author did not write a description.')}</div>`+
+          `<div style="margin-top:6px;max-height:170px;overflow:auto">${files||P('This mod has no files.')}</div>`+
+          (busyF?P('<b>'+esc(F.msg||'Working…')+'</b>',8):(any?btnx('INSTALL SELECTED FILE','gbi:'+D.id+':'+dfile):P('Nothing here can be installed through the launcher.',8))+btnx('BACK TO THE LIST','gbb')+(F.msg?P(esc(F.msg),6):'')),'padding-bottom:14px;top:90px');
+      }
+      let body;
+      if(gload||!G)body=P('<b>Loading the list from GameBanana…</b>',10);
+      else if(!G.ok)body=P('<b>'+esc(G.err)+'</b><br>Check your internet connection and try REFRESH.',10);
+      else{
+        const rows=G.mods.map(m=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;min-width:0;color:var(--ink)"><div style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.name)}</div><div style="font-size:12px">by ${esc(m.by)}${m.cat?' · '+esc(m.cat):''} · ${m.likes} likes · ${m.views} views</div></div><div data-act="gbd:${m.id}" style="background:var(--deep);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer;white-space:nowrap">PREVIEW</div></div>`).join('');
+        body=`<div style="margin-top:6px">${rows||P('No mods match that search.')}</div>`+
+          `<div style="margin-top:4px">`+(G.page>0?btnx('PREV','gbp:-1'):'')+(G.page<G.pages-1?btnx('NEXT','gbp:1'):'')+`<span style="font-size:13px;color:var(--ink);margin-left:6px">page ${G.page+1} of ${G.pages} · ${G.total} mods</span></div>`;
+      }
+      return pnl(H1('BROWSE GAMEBANANA')+tag('PERSONA 3 FES','#8FA6C9')+
+        (busyF?P('<b>'+esc(F.msg||'Working…')+'</b>',10):(sb('new','NEWEST')+sb('liked','MOST LIKED')+sb('viewed','MOST VIEWED')+btnx(gq?'SEARCH: '+esc(gq).slice(0,14):'SEARCH','gbq',!!gq)+btnx('REFRESH','gbr')+(F.msg?P(esc(F.msg),8):'')+body))+
+        P('Mods come from GameBanana and belong to their authors. PREVIEW shows the description, pictures and files before anything is downloaded.',8),'padding-bottom:14px;top:110px');
+    }
+    const c=M.check;
+    const res=c?`<div style="margin-top:12px;padding:8px 10px;background:rgba(255,255,255,.2);border-radius:8px"><div style="font-size:15px;font-weight:800;color:var(--ink)">${c.file}: <span style="color:${c.fits?'#0B7A43':'#B3202F'}">${c.verdict}</span></div>${c.lines.map(l=>`<div style="font-size:13px;color:var(--ink);margin-top:2px">${l}</div>`).join('')}</div>`:'';
+    return pnl(H1('ADD A PATCH')+P('Choose a PCSX2 patch file (.pnach). The launcher checks it against your disc and tells you if anything does not fit.')+btnx('CHOOSE A FILE','choosemod')+res+
+      P('<b>1 · CHECK</b> Each line is compared with the code on your disc. Works now.<br><b>2 · BUILD</b> A separate copy is built with the patch. Not in the launcher yet: see docs/mods.md.<br><b>3 · PLAY</b> Pick the mod here. Your normal game stays as it was.',10)+P('Mod files are made by their authors. We do not ship them.',8),'padding-bottom:16px');
+  }
+  if(screen==='setup'){
+    const st=setupSteps(), d=S.disc||{};
+    if(msel===0){
+      let big,txt;
+      if(S.disc_ok){big='Found';txt=(d.file||'')+' · USA (SLUS-21621). Your disc stays on this computer and is never changed.';}
+      else if(S.state==='wrong'){big={region:'Wrong region',modded:'Disc has been changed',damaged:'Disc file is damaged'}[S.reason]||'Not usable';txt='This disc image cannot be used. It must be an untouched Persona 3 FES (USA, NTSC-U) copy. Choose another file.';}
+      else{big='Not found';txt='Choose your own Persona 3 FES (USA) .iso file, or put it in C:\\p3fes and reopen the launcher. About 4.5 GB.';}
+      return pnl(H1('FIND YOUR DISC')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${big}</div>`+P(txt)+btnx(S.disc_ok?'CHOOSE ANOTHER':'CHOOSE DISC','choosedisc')+P('A file window opens. It may appear behind this one.',10),'padding-bottom:18px');
+    }
+    if(msel===1){
+      const run=S.installing||S.state==='building';
+      return pnl(H1('GET THE TOOLS')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${st[1]==='DONE'?'Done':run?'Running':'Not yet'}</div>`+
+        P('Installs the Ubuntu packages and downloads the open-source PS2 Web Recomp project, then builds the game from your disc. It needs the internet. It may ask for your Ubuntu password once, in its own window. Type it there. Nothing shows while you type.')+
+        (S.state==='ready'?'':run?P('Setup is running in its own window. Leave it open.',10):btnx(S.disc_ok?(st[1]==='DONE'||S.pieces?'CONTINUE SETUP':'START SETUP'):'CHOOSE DISC FIRST',S.disc_ok?'startsetup':'choosedisc')),'padding-bottom:18px');
+    }
+    if(msel===2){
+      const pc=Math.min(100,Math.round(S.pieces/S.pieces_total*100)), log=(S.log||[]).map(l=>`<div style="font:12px/1.5 ui-monospace,Consolas,monospace;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l}</div>`).join('');
+      return pnl(H1('BUILDING THE GAME')+(S.has_web?`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Done</div>`+P('Built '+(S.built||'')+'.'):
+        `<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${S.pieces} / about ${S.pieces_total}</div><div class="trk" style="margin-top:8px;height:12px"><div style="width:${pc}%;background:${GOLD}"></div></div>`+
+        P('Pieces compiled. The first time takes 10 minutes or more and can sit quiet for a while. Leave the setup window open.')+`<div style="margin-top:8px;padding:6px 8px;background:rgba(255,255,255,.2);border-radius:8px">${log||'<div style="font-size:12px;color:var(--ink)">Waiting for the build to start…</div>'}</div>`+
+        P('If it stops, choose Get the tools and press Continue setup. Finished steps are skipped.',8)),'padding-bottom:18px');
+    }
+    return pnl(H1('PLAY')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${S.state==='ready'?'Ready':'Waiting'}</div>`+P(S.state==='ready'?'Everything is installed. Go back and press Play.':'Play unlocks when the build is finished.')+(S.state==='ready'?btnx('BACK TO HOME','sethome'):''),'padding-bottom:18px');
+  }
+  if(screen==='saves'){
+    const c=S&&S.card?S.card:{};
+    if(msel===0){
+      const A=S&&S.autosaves?S.autosaves:{list:[],older:0,bytes:0};
+      const RS={'timer':'timer','game save':'after a game save','manual':'saved by you'};
+      const rows=A.list.length?A.list.map((a,k)=>{const dl=pend==='da:'+a.id;return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;color:var(--ink)"><div style="font-size:15px;font-weight:800">${a.when} · ${RS[a.reason]||a.reason}${k===0?'<span style="margin-left:10px;background:var(--acc);color:#0B1A3F;border-radius:6px;padding:1px 7px;font-size:11px">NEWEST</span>':''}</div><div style="font-size:12px">About ${Math.max(1,Math.round(a.size/1048576))} MB</div></div><div data-act="ra:${a.id}" style="background:var(--deep);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer">RESUME</div><div data-act="da:${a.id}" style="background:var(--deep);border:2px solid ${dl?'#FF6B78':'transparent'};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:${dl?'#FF6B78':'var(--acc)'};cursor:pointer">${dl?'SURE? DELETE':'DELETE'}</div></div>`}).join(''):P('No autosaves yet. They appear here after you play in the browser game.');
+      return pnl(H1('YOUR AUTOSAVES')+`<div style="margin-top:6px">${rows}</div>`+P('SPACE USED '+Math.round(A.bytes/1048576)+' MB. The browser game makes these as you play. Change how often, and how many it keeps, in the game\'s Autosave panel.'+(A.older?' '+A.older+' from an older version of the game cannot be resumed.':'')+' Resume opens the browser game, then click Resume autosave on its start screen.',10),'padding-bottom:16px');
+    }
+    if(msel===1)return pnl(H1('MEMORY CARD')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${c.exists?'Saved '+c.modified:'No card yet'}</div>`+P('One file, shared by the PC window and the browser game. Size '+(c.size?(c.size/1048576).toFixed(2)+' MB':'—')+'.')+`<div style="font:13px/1.5 ui-monospace,Consolas,monospace;margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.2);border-radius:8px;color:var(--ink);word-break:break-all">${c.dir||''}\\Mcd001.ps2</div>`+btnx('OPEN FOLDER','openfolder')+P('To keep a copy, copy that file somewhere safe.',10),'padding-bottom:18px');
+    const L=c.list||[];
+    const rows=L.length?L.map(b=>{const rs=pend==='rs:'+b.name,dl=pend==='dl:'+b.name;return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;font-size:15px;font-weight:800;color:var(--ink)">${b.when}<span style="font-weight:600;font-size:13px;margin-left:10px">${(b.size/1048576).toFixed(2)} MB</span></div><div data-act="rs:${b.name}" style="background:var(--deep);border:2px solid ${rs?'var(--acc)':'transparent'};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer">${rs?'SURE? RESTORE':'RESTORE'}</div><div data-act="dl:${b.name}" style="background:var(--deep);border:2px solid ${dl?'#FF6B78':'transparent'};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:${dl?'#FF6B78':'var(--acc)'};cursor:pointer">${dl?'SURE? DELETE':'DELETE'}</div></div>`}).join(''):P('No earlier copies yet. One is kept each time a save replaces the card.');
+    return pnl(H1('EARLIER COPIES OF THE CARD')+`<div style="margin-top:6px">${rows}</div>`+P('Newest first, up to 10. Close the browser game and the PC window before restoring, or the next save there replaces it. The card you replace is kept as a backup.',10),'padding-bottom:16px');
+  }
   // settings
   if(msel===0){
-    const half=Math.ceil(ROWS.length/2), col=(rs)=>rs.map(r=>`<div data-key="${r}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;margin-bottom:5px;border-radius:8px;cursor:pointer;background:${capture===r?'var(--deep)':'rgba(255,255,255,.18)'};color:${capture===r?'#F2A94E':'var(--ink)'};font-size:14px;font-weight:800"><span>${ROWL[r]}</span><span style="min-width:70px;text-align:right">${capture===r?'press a key…':(k[r]==='none'?'not set':k[r])}</span></div>`).join('');
+    const half=Math.ceil(ROWS.length/2), col=(rs)=>rs.map(r=>`<div data-key="${r}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;margin-bottom:5px;border-radius:8px;cursor:pointer;background:${capture===r?'var(--deep)':'rgba(255,255,255,.18)'};color:${capture===r?'var(--acc)':'var(--ink)'};font-size:14px;font-weight:800"><span>${ROWL[r]}</span><span style="min-width:70px;text-align:right">${capture===r?'press a key…':(k[r]==='none'?'not set':k[r])}</span></div>`).join('');
     return pnl(H1('KEYS FOR THE PC WINDOW')+`<div style="display:flex;gap:16px;margin-top:10px"><div style="flex:1">${col(ROWS.slice(0,half))}</div><div style="flex:1">${col(ROWS.slice(half))}</div></div>`+btnx('RESET TO DEFAULTS','resetkeys')+P('Click a row, then press the new key. Esc cancels. A key already used elsewhere is taken from that row. The browser game has its own Keys button.',10),'padding-bottom:18px');
   }
   if(msel===1)return pnl(H1('CONTROLLER')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">In the browser game</div>`+P('Plug in a controller, start the game in the browser and use the Controller button at the bottom. The PC window has no controller panel yet.'),'padding-bottom:18px');
   if(msel===2)return pnl(H1('AUTOSAVE')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Not connected yet</div>`+P('Autosave lives inside the browser game today. It will show here once saves are shared between the browser and the PC window. Until then use the Autosave button in the game.'),'padding-bottom:18px');
   if(msel===3){const b=S?S.browser:'msedge', o=(v,t)=>btnx(t,'br:'+v,b===v), sc=S?S.scale:'3', r=(v,t)=>btnx(t,'sc:'+v,sc===v);
     return pnl(H1('BROWSER FOR THE GAME')+P('The browser game needs WebGPU. Edge and Chrome have it; Firefox may not.')+o('msedge','EDGE')+o('chrome','CHROME')+o('default','SYSTEM DEFAULT')+`<div style="margin-top:14px">${H1('RESOLUTION')}</div>`+P('Sharper picture needs a stronger graphics card. 3x ran at 60 frames per second on an RTX 3060 Ti.',4)+r('1','1x · 640×512')+r('2','2x · 1280×1024')+r('3','3x · 1920×1536')+P('Fullscreen: F11 in the PC window, the ` key in the browser.',10),'padding-bottom:18px');}
-  return pnl(H1('MEMORY CARD')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Not connected yet</div>`+P('Backups of the memory card are the Backups button in the browser game. They will move here with shared saves.'),'padding-bottom:18px');
+  if(msel===4){const th=S&&S.theme?S.theme:'blue', t=(v,n)=>btnx(n,'th:'+v,th===v),
+      sw=(a,b,c)=>`<span style="white-space:nowrap;display:inline-block;margin-bottom:6px"><span style="display:inline-block;width:26px;height:26px;border-radius:6px;background:${a};margin-right:4px;border:2px solid ${b}"></span><span style="display:inline-block;width:26px;height:26px;border-radius:6px;background:${c};margin-right:12px"></span></span>`;
+    return pnl(H1('THEME')+P('Changes the colours of this launcher only. The game is not affected.')+t('blue','BLUE')+t('pink','PINK')+t('reload','RELOAD')+t('moon','MOON')+t('dawn','DAWN')+t('seal','SEAL')+t('daybreak','DAYBREAK')+t('horizon','HORIZON')+t('ceremony','CEREMONY')+t('eclipse','ECLIPSE')+(S&&S.journey?t('twelve','TWELVE'):'')+
+      `<div style="margin-top:12px;color:var(--ink);font-size:13px;line-height:1.6"><b>BLUE</b> the original. <b>PINK</b> ready for the female protagonist mod. <b>RELOAD</b> electric cyan. <b>MOON</b> indigo and gold. <b>DAWN</b> cream and peach. <b>SEAL</b> white and ice blue. <b>DAYBREAK</b> a sky gradient. <b>HORIZON</b> sunset over a dark sea. <b>CEREMONY</b> ivory and gold. <b>ECLIPSE</b> violet with a glowing moon. They are only colours, no art from the game.</div>`+
+      `<div style="margin-top:10px">${sw('#1B8CF2','#06173F','#F2A94E')}${sw('#F2619F','#3A0A28','#FFD36B')}${sw('#0BB5E8','#02101F','#EAFDFF')}${sw('#2B2F66','#FFE082','#FFE082')}${sw('#FFD9A0','#2A2F55','#9FC6F2')}${sw('#BFDDF5','#16304F','#C9D6E3')}${sw('#7FA8E8','#23284F','#F7B6A1')}${sw('#E8708A','#10143A','#FFB45A')}${sw('#F6EBCF','#3A2F1A','#D4A93E')}${sw('#2A1740','#FFD36B','#FFD36B')}${S&&S.journey?sw('#1E7A5C','#02100B','#F5ECC8'):''}</div>`+
+      `<div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.3);padding-top:4px">${H1('THE JOURNEY')}`+(S&&S.journey?P('Unlocked: the TWELVE theme and a gold badge on the home screen.')+btnx('LOCK IT AGAIN','jy:0'):P('Reached the end of The Journey? Unlock a special green theme and a gold badge. It is on your honour for now.')+btnx('I FINISHED THE JOURNEY','jy:1'))+`</div>`,'padding-bottom:18px');}
+  const c=S&&S.card?S.card:{};
+  return pnl(H1('SHARED MEMORY CARD')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${c.exists?'Saved '+c.modified:'No card yet'}</div>`+P('The PC window and the browser game use this one file, so a save made in either is there in the other.')+`<div style="font:13px/1.5 ui-monospace,Consolas,monospace;margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.2);border-radius:8px;color:var(--ink);word-break:break-all">${c.dir||''}\\Mcd001.ps2</div>`+P((c.backups||0)+' earlier copies kept (the newest 10).',8)+btnx('OPEN FOLDER','openfolder')+(S&&S.has_web&&!S.card_sync?P('<b>The browser game cannot use it yet.</b> Rebuild it once: run the installer again, or <code>scripts/build_web.sh p3fes</code> in the game folder.',10):''),'padding-bottom:18px');
 }
 function renderMenu(){
   const M=MENUS[screen], top=i=>M.y+i*56;
   let h=`<div class="a ring"></div><div class="a ticks"></div><div class="a moon"></div><div class="a curve"></div><div class="a stripe"></div>
   <div class="a title">${M.title}</div><div class="a sub" style="font-size:12px">${M.sub}</div><div class="a bar" style="top:${top(msel)}px;width:600px"></div>`;
   M.items.forEach((it,i)=>{const s=i===msel,y=top(i);
-    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'#F2A94E':'var(--deep)'}"></div><div class="a it${s?' sel':''}" style="top:${y}px;font-size:${s?34:32}px">${it}</div><div class="a hit" data-mi="${i}" style="top:${y}px;width:600px"></div>`;});
+    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'var(--acc)':'var(--deep)'}"></div><div class="a it${s?' sel':''}" style="top:${y}px;font-size:${s?34:32}px">${it}</div><div class="a hit" data-mi="${i}" style="top:${y}px;width:600px"></div>`;
+    if(M.tag===2){const M2=S.mods||{},g=[M2.direct?'BUILT':'NOT BUILT','IN DEVELOPMENT','CONCEPT','']; h+=`<div class="a" style="left:360px;width:220px;text-align:right;top:${y+17}px;font-size:12px;font-weight:800;letter-spacing:1px;color:#BFD3F2">${g[i]}</div>`;}
+    else if(M.tag){const g=setupSteps()[i];h+=`<div class="a" style="left:470px;top:${y+17}px;font-size:13px;font-weight:800;letter-spacing:1px;color:${g==='DONE'?'#2BD07F':g==='NOW'?'var(--acc)':'#8FA6C9'}">${g}</div>`;}});
   h+=body();
   h+=`<div class="a hb" style="left:112px;top:742px;width:660px;height:40px;font-size:20px"><i></i>${note||M.hint[msel]}</div>
   <div class="a btns"><div class="btn" data-back="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><circle cx="15" cy="15" r="6" fill="none" stroke="#FF6B78" stroke-width="3"/></svg>Back</div></div>`;
@@ -199,29 +328,32 @@ async function report(){
   try{await navigator.clipboard.writeText(r.text);say('Report copied. Paste it into your message.');}
   catch(e){reportText=r.text;say('Could not copy. The report is shown here instead.');}
 }
-function open_(sc){screen=sc;msel=0;capture=null;reportText='';render();}
-function back(){screen='home';capture=null;reportText='';render();}
+function open_(sc){screen=sc;msel=0;capture=null;reportText='';pend='';render();}
+function back(){screen='home';capture=null;reportText='';pend='';render();}
 function say(m){note=m;clearTimeout(noteT);render();noteT=setTimeout(()=>{note='';render();},4500);}
 async function api(p,b){const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{});return r.json();}
 let lost=false;
-async function refresh(){try{S=await api('/api/state');lost=false;}catch(e){lost=true;if(!S)S=null;}render();}
+function applyTheme(){document.documentElement.setAttribute('data-theme',(S&&S.theme)||'blue');}
+async function refresh(){try{S=await api('/api/state');lost=false;}catch(e){lost=true;if(!S)S=null;}applyTheme();render();}
 async function setMode(m){if(!S||S.state!=='ready')return;await api('/api/mode',{mode:m});S.mode=m;render();}
 async function go(){
   if(!S||busy)return;
   if(sel===0){
     if(S.state==='ready'){busy=true;say('Starting…');const r=await api('/api/play',{mode:S.mode});busy=false;say(r.msg||'');}
-    else if(S.state==='building')say('The build is still running. Please wait.');
-    else if(S.state==='wrong')say('Put another .iso in C:\\p3fes, then reopen the launcher.');
-    else say('Run p3fes_install.sh in Ubuntu first. See docs/install.md.');
-  }else if(sel===3)open_('settings');else if(sel===5)open_('help');
+    else{open_('setup');msel=Math.max(0,setupSteps().indexOf('NOW'));render();}
+  }else if(sel===1){
+    const L=S&&S.autosaves?S.autosaves.list:[];
+    if(!L.length)say('No autosaves yet. Play in the browser first.');
+    else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'browser',resume:String(L[0].id)});busy=false;say(r.msg||'');}
+  }else if(sel===2)open_('mods');else if(sel===3)open_('settings');else if(sel===5)open_('help');else if(sel===4)open_('saves');
   else say(ITEMS[sel][0]+ITEMS[sel].slice(1).toLowerCase()+' is not built yet.');
 }
 C.addEventListener('click',e=>{
   const t=e.target.closest('[data-i],[data-m],[data-go],[data-quit],[data-mi],[data-back],[data-act],[data-key]'); if(!t)return;
-  if(t.dataset.mi!==undefined){msel=+t.dataset.mi;capture=null;reportText='';render();}
+  if(t.dataset.mi!==undefined){msel=+t.dataset.mi;capture=null;reportText='';pend='';render();}
   else if(t.dataset.back)back();
   else if(t.dataset.key){capture=t.dataset.key;render();}
-  else if(t.dataset.act){const a=t.dataset.act;if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
+  else if(t.dataset.act){const a=t.dataset.act;if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
   else if(t.dataset.i!==undefined){sel=+t.dataset.i;render();go();}
   else if(t.dataset.m)setMode(t.dataset.m);
   else if(t.dataset.go)go();

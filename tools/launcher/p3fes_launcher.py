@@ -6,7 +6,7 @@ It reads what the installer left behind, shows the Home screen, and starts the g
 Nothing from the game is read except the disc's SYSTEM.CNF line (to check the version).
 Standard library only.
 """
-import argparse, glob, json, os, re, socket, struct, subprocess, sys, threading, time
+import argparse, glob, urllib.request, json, os, re, shlex, shutil, socket, struct, subprocess, sys, threading, time, urllib.parse, zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +14,10 @@ UI = os.path.join(HERE, "ui")
 DIR = os.environ.get("P3F_DIR", os.path.expanduser("~/ps2-web-recomp"))
 NAME = "p3fes"
 GAME_PORT = 8620
+SERVER_PORT = [8630]
+WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windows-side folder to start in
+CARD_BYTES = 8650752
+CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
 LAUNCHER_VERSION = "0.2"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
@@ -22,6 +26,8 @@ state_lock = threading.Lock()
 last_ping = [0.0]
 bye_time = [0.0]
 children = []
+serving = [None]   # which build our game server is serving
+MOD_NAME = "p3fesmod"
 
 
 KEY_ROWS = ["cross", "circle", "square", "triangle", "l1", "r1", "l2", "r2", "start", "select"]
@@ -98,6 +104,9 @@ def find_iso():
     p = os.path.join(DIR, "games", NAME, "disc.iso")
     if os.path.exists(p):
         return os.path.realpath(p)
+    chosen = load_cfg().get("iso")
+    if chosen and os.path.isfile(chosen):
+        return chosen
     cands = sorted(glob.glob("/mnt/c/p3fes/*.iso")) + [os.path.expanduser("~/p3fes.iso")] + sorted(glob.glob(os.path.expanduser("~/*.iso")))
     for c in cands:
         if os.path.isfile(c):
@@ -175,6 +184,499 @@ def pieces_done():
         return 0
 
 
+THEMES_ALL = ("blue", "pink", "reload", "moon", "dawn", "seal", "daybreak", "horizon", "ceremony", "eclipse", "twelve")
+
+
+def theme_now(cfg):
+    t = cfg.get("theme", "blue")
+    if t == "twelve" and not cfg.get("journey"):
+        return "blue"
+    return t if t in THEMES_ALL else "blue"
+
+
+def mods_state():
+    return {"direct": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "check": load_cfg().get("mod_check"), "overlay": bool(overlay_path()), "files": lm_state()}
+
+
+# ------------------------------------------------------------------ loose-file mods
+# A mod is a folder of replacement files laid out like the game (DATA/, BTL/ ...). Added mods are kept in C:\\p3fes\\mods\\<id>\\files,
+# and the enabled ones are merged into mods\\active.ovl, which the browser game's server lays over the disc (docs/mod-folder-plan.md).
+lm_work = {"busy": False, "msg": ""}
+lm_cache = {}
+LM_ID = re.compile(r"^[a-z0-9_-]{1,60}$")
+
+
+def lm_dir():
+    d = os.path.join(os.path.dirname(saves_dir()), "mods")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def lm_load():
+    try:
+        with open(os.path.join(lm_dir(), "mods.json")) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def lm_save(lst):
+    p = os.path.join(lm_dir(), "mods.json")
+    with open(p + ".tmp", "w") as f:
+        json.dump(lst, f, indent=1)
+    os.replace(p + ".tmp", p)
+
+
+def lm_state():
+    lst = lm_load()
+    return {"list": lst, "busy": lm_work["busy"], "msg": lm_work["msg"], "on": sum(1 for m in lst if m.get("enabled")),
+            "serve_ok": serve_has_overlay()}
+
+
+def serve_has_overlay():
+    try:
+        return "ps2-overlay" in open(os.path.join(DIR, "scripts", "serve.py")).read()
+    except Exception:
+        return False
+
+
+def lm_modmap():
+    sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+    import p3fes_modmap
+    return p3fes_modmap
+
+
+def lm_locate(iso):
+    key = (iso, os.path.getsize(iso), os.path.getmtime(iso))
+    if lm_cache.get("key") != key:
+        lm_cache["loc"] = lm_modmap().locate(iso)
+        lm_cache["key"] = key
+    return lm_cache["loc"]
+
+
+def lm_rebuild(iso, loc):
+    """Merge the enabled mods (the one higher in the list wins where two change the same thing) into active.ovl, or remove it when none are enabled."""
+    M = lm_modmap()
+    ovl = os.path.join(lm_dir(), "active.ovl")
+    merged = {}
+    for m in reversed(lm_load()):            # the list is shown with the highest priority on top; apply from the lowest up so it wins
+        if m.get("enabled") and LM_ID.match(m.get("id", "")):
+            for it in M.plan(iso, os.path.join(lm_dir(), m["id"], "files"), loc=loc):
+                if it["ok"]:
+                    merged.pop(it["key"], None)
+                    merged[it["key"]] = it
+    if not merged:
+        if os.path.exists(ovl):
+            os.remove(ovl)
+        return 0
+    M.write_overlay(list(merged.values()), os.path.getsize(iso), ovl, iso)
+    return len(merged)
+
+
+def lm_extract_zip(zpath, dest):
+    total = 0
+    with zipfile.ZipFile(zpath) as z:
+        for info in z.infolist():
+            name = info.filename.replace("\\", "/")
+            if info.is_dir():
+                continue
+            if name.startswith("/") or ".." in name.split("/") or ":" in name.split("/")[0]:
+                raise ValueError("The zip has an unsafe path (%s)." % name[:60])
+            total += info.file_size
+            if total > 4 * 1024 ** 3:
+                raise ValueError("The zip is larger than 4 GB when unpacked.")
+            target = os.path.join(dest, *name.split("/"))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with z.open(info) as src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out, 1 << 20)
+
+
+def lm_kind(path):
+    """What was added, for the mod list: FOLDER, ZIP, 7Z or RAR (by content, not by name)."""
+    if os.path.isdir(path):
+        return "FOLDER"
+    try:
+        with open(path, "rb") as f:
+            head = f.read(8)
+    except Exception:
+        return "ARCHIVE"
+    return "ZIP" if head[:2] == b"PK" else "7Z" if head[:2] == b"7z" else "RAR" if head[:4] == b"Rar!" else "ARCHIVE"
+
+
+def lm_archive_tool():
+    for n in ("7z", "7zz", "7za", "7zr", "unrar", "bsdtar"):
+        t = shutil.which(n)
+        if t:
+            return n, t
+    return None, None
+
+
+def lm_extract_archive(apath, dest):
+    """Unpack a .zip, .7z or .rar (found by what is inside the file, not its name). zip uses Python; 7z and rar use 7-Zip, unrar or bsdtar if installed."""
+    with open(apath, "rb") as f:
+        head = f.read(8)
+    if head[:2] == b"PK":
+        return lm_extract_zip(apath, dest)
+    kind = "7z" if head[:6] == b"7z\xbc\xaf\x27\x1c" else "rar" if head[:4] == b"Rar!" else None
+    if not kind:
+        raise ValueError("That file is not a .zip, .7z or .rar.")
+    name, tool = lm_archive_tool()
+    if not name:
+        raise ValueError("To open .%s files, install 7-Zip once in Ubuntu: sudo apt install p7zip-full p7zip-rar. Then add the mod again." % kind)
+    os.makedirs(dest, exist_ok=True)
+    if name == "unrar":
+        cmd = [tool, "x", "-y", "-idq", apath, dest + "/"]
+    elif name == "bsdtar":
+        cmd = [tool, "-xf", apath, "-C", dest]
+    else:
+        cmd = [tool, "x", "-y", "-o" + dest, "--", apath]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout).strip().splitlines()[-1:] or [""]
+        raise ValueError("Could not unpack it (%s). %s" % (name, tail[0][:120]))
+    total, root = 0, os.path.realpath(dest)
+    for dp, dn, fn in os.walk(dest):
+        for x in dn + fn:
+            q = os.path.join(dp, x)
+            if os.path.islink(q) or not os.path.realpath(q).startswith(root + os.sep):
+                raise ValueError("The archive has an unsafe path (%s)." % x[:60])
+        for x in fn:
+            total += os.path.getsize(os.path.join(dp, x))
+    if total > 4 * 1024 ** 3:
+        raise ValueError("The archive is larger than 4 GB when unpacked.")
+
+
+def lm_add_work(path):
+    tmp = os.path.join(lm_dir(), "_new")
+    try:
+        iso = find_iso()
+        if not iso:
+            lm_work["msg"] = "Your disc was not found. Finish setup first."
+            return
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp)
+        lm_work["msg"] = "Reading the mod…"
+        if os.path.isdir(path):
+            shutil.copytree(path, os.path.join(tmp, "src"))
+        else:
+            lm_extract_archive(path, os.path.join(tmp, "src"))
+        lm_work["msg"] = "Checking it against your disc (this can take a minute the first time)…"
+        loc = lm_locate(iso)
+        M = lm_modmap()
+        root = M.mod_root(os.path.join(tmp, "src"), loc[0])
+        if not root:
+            lm_work["msg"] = "No game folders (like DATA or BTL) were found in that mod, so it is not a loose-file mod this launcher can use."
+            return
+        base = re.sub(r"[^a-z0-9_-]+", "-", os.path.splitext(os.path.basename(path.rstrip("/")))[0].lower()).strip("-")[:40] or "mod"
+        lst = lm_load()
+        ids = {m["id"] for m in lst}
+        mid, n = base, 2
+        while mid in ids or os.path.exists(os.path.join(lm_dir(), mid)):
+            mid = "%s-%d" % (base, n)
+            n += 1
+        os.makedirs(os.path.join(lm_dir(), mid))
+        shutil.move(root, os.path.join(lm_dir(), mid, "files"))
+        items = [i for i in M.plan(iso, os.path.join(lm_dir(), mid, "files"), loc=loc) if "/" in i["rel"] or i["ok"]]   # ignore Package.xml, Preview.png and the like
+        fit = sum(1 for i in items if i["ok"])
+        lst.insert(0, {"id": mid, "kind": lm_kind(path), "name": os.path.splitext(os.path.basename(path.rstrip("/")))[0][:60], "enabled": fit > 0, "fit": fit, "total": len(items),
+                    "skipped": [("%s: %s" % (i["rel"], i["why"]))[:140] for i in items if not i["ok"]][:6]})
+        lm_save(lst)
+        lm_work["msg"] = "Building…"
+        lm_rebuild(iso, loc)
+        kind = lst[0]["kind"]
+        lm_work["msg"] = ("Added (%s). %d of %d files fit your disc." % (kind, fit, len(items))) if fit else "Added (%s), but none of its files fit your disc." % kind
+    except Exception as e:
+        lm_work["msg"] = "Could not add that mod: %s" % e
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        lm_work["busy"] = False
+
+
+def lm_change_work(mid, remove, up=False):
+    try:
+        iso = find_iso()
+        lst = lm_load()
+        if remove:
+            lst = [m for m in lst if m["id"] != mid]
+            shutil.rmtree(os.path.join(lm_dir(), mid), ignore_errors=True)
+        elif up:
+            ix = next((k for k, m in enumerate(lst) if m["id"] == mid), None)
+            if ix:
+                lst[ix - 1], lst[ix] = lst[ix], lst[ix - 1]
+        else:
+            for m in lst:
+                if m["id"] == mid:
+                    m["enabled"] = not m.get("enabled")
+        lm_save(lst)
+        if iso:
+            lm_work["msg"] = "Updating…"
+            lm_rebuild(iso, lm_locate(iso))
+        lm_work["msg"] = "Done."
+    except Exception as e:
+        lm_work["msg"] = "Could not do that: %s" % e
+    finally:
+        lm_work["busy"] = False
+
+
+def lm_start(target, *args):
+    if lm_work["busy"]:
+        return {"ok": False, "msg": "Still working on the last change."}
+    lm_work["busy"] = True
+    lm_work["msg"] = ""
+    threading.Thread(target=target, args=args, daemon=True).start()
+    return {"ok": True, "msg": "Working…"}
+
+
+
+# ------------------------------------------------------------------ GameBanana browsing
+# Lists the Persona 3 FES mods on GameBanana (its public API) and installs one into FILE MODS when the player asks. Nothing is shipped or cached on disk;
+# the list is read when the screen is opened, the mod file is downloaded straight from gamebanana.com and then goes through the normal add flow.
+GB_GAME = 8502
+GB_API = "https://gamebanana.com/apiv11"
+GB_PAGE = 6
+gb_cache = {"t": 0.0, "mods": [], "err": ""}
+gb_lock = threading.Lock()
+
+
+def gb_host_ok(url):
+    try:
+        h = urllib.parse.urlparse(url)
+        return h.scheme == "https" and (h.hostname == "gamebanana.com" or (h.hostname or "").endswith(".gamebanana.com"))
+    except Exception:
+        return False
+
+
+def gb_get(url, timeout=25):
+    if not gb_host_ok(url):
+        raise ValueError("Not a GameBanana address.")
+    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read(8 * 1024 * 1024).decode("utf-8", "replace"))
+
+
+def gb_fetch_all():
+    mods, page = [], 1
+    while page <= 14:
+        url = "%s/Mod/Index?_nPage=%d&_nPerpage=50&_aFilters%%5BGeneric_Game%%5D=%d&_sSort=Generic_Newest" % (GB_API, page, GB_GAME)
+        d = gb_get(url)
+        recs = d.get("_aRecords") or []
+        for r in recs:
+            try:
+                mods.append({"id": int(r["_idRow"]), "name": str(r.get("_sName", "?"))[:90], "by": str((r.get("_aSubmitter") or {}).get("_sName", ""))[:40],
+                             "likes": int(r.get("_nLikeCount") or 0), "views": int(r.get("_nViewCount") or 0), "date": int(r.get("_tsDateAdded") or 0),
+                             "cat": str((r.get("_aRootCategory") or {}).get("_sName", ""))[:30]})
+            except (KeyError, TypeError, ValueError):
+                continue
+        meta = d.get("_aMetadata") or {}
+        if len(recs) < 50 or meta.get("_bIsComplete"):
+            break
+        page += 1
+    return mods
+
+
+def gb_view(q="", sort="new", page=0, refresh=False):
+    with gb_lock:
+        if refresh or not gb_cache["mods"] or time.time() - gb_cache["t"] > 900:
+            try:
+                gb_cache["mods"] = gb_fetch_all()
+                gb_cache["t"] = time.time()
+                gb_cache["err"] = "" if gb_cache["mods"] else "GameBanana returned no mods."
+            except Exception as e:
+                gb_cache["err"] = "Could not reach GameBanana (%s)." % str(e)[:80]
+        mods = list(gb_cache["mods"])
+        err = gb_cache["err"]
+    q = (q or "").strip().lower()
+    if q:
+        mods = [x for x in mods if q in x["name"].lower() or q in x["by"].lower() or q in x["cat"].lower()]
+    mods.sort(key=lambda x: -x["likes"] if sort == "liked" else -x["views"] if sort == "viewed" else -x["date"])
+    pages = max(1, (len(mods) + GB_PAGE - 1) // GB_PAGE)
+    page = max(0, min(int(page or 0), pages - 1))
+    return {"ok": not err or bool(gb_cache["mods"]), "err": err, "total": len(mods), "page": page, "pages": pages, "q": q, "sort": sort,
+            "mods": mods[page * GB_PAGE:(page + 1) * GB_PAGE]}
+
+
+GB_EXTS = (".zip", ".7z", ".rar")
+
+
+def gb_text(html, limit=1500):
+    """A mod's description (HTML) as plain text."""
+    from html.parser import HTMLParser
+
+    class T(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.out, self.skip = [], 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style"):
+                self.skip += 1
+            elif tag in ("br", "p", "div", "li", "h1", "h2", "h3", "h4", "tr"):
+                self.out.append("\n")
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style") and self.skip:
+                self.skip -= 1
+            elif tag in ("p", "div", "li", "h1", "h2", "h3", "h4"):
+                self.out.append("\n")
+
+        def handle_data(self, d):
+            if not self.skip:
+                self.out.append(d)
+    t = T()
+    try:
+        t.feed(str(html or ""))
+    except Exception:
+        pass
+    txt = re.sub(r"[ \t\xa0]+", " ", "".join(t.out))
+    txt = re.sub(r"\n\s*\n\s*\n+", "\n\n", txt).strip()
+    return txt[:limit] + ("…" if len(txt) > limit else "")
+
+
+def gb_mod(mid):
+    """What the preview screen shows: description, pictures and the files that can be installed."""
+    info = gb_get("%s/Mod/%d/ProfilePage" % (GB_API, mid))
+    imgs = []
+    for im in ((info.get("_aPreviewMedia") or {}).get("_aImages") or []):
+        base, f = str(im.get("_sBaseUrl", "")), str(im.get("_sFile530") or im.get("_sFile") or "")
+        if base and f and gb_host_ok(base + "/" + f):
+            imgs.append(base + "/" + f)
+    files = []
+    for f in (info.get("_aFiles") or []):
+        name = str(f.get("_sFile", ""))
+        files.append({"id": int(f.get("_idRow") or 0), "name": name[:80], "size": int(f.get("_nFilesize") or 0), "desc": str(f.get("_sDescription", ""))[:120],
+                      "date": int(f.get("_tsDateAdded") or 0), "ok": name.lower().endswith(GB_EXTS) and bool(f.get("_sDownloadUrl"))})
+    return {"ok": True, "id": mid, "name": str(info.get("_sName", "?"))[:90], "by": str((info.get("_aSubmitter") or {}).get("_sName", ""))[:40],
+            "version": str(info.get("_sVersion", ""))[:20], "likes": int(info.get("_nLikeCount") or 0), "views": int(info.get("_nViewCount") or 0),
+            "desc": gb_text(info.get("_sText") or info.get("_sDescription") or ""), "images": imgs[:8], "files": files[:12]}
+
+
+gb_img_cache = {}
+
+
+def gb_image(url):
+    if url in gb_img_cache:
+        return gb_img_cache[url]
+    if not gb_host_ok(url):
+        raise ValueError("Not a GameBanana address.")
+    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        ct = r.headers.get("Content-Type", "")
+        if not gb_host_ok(r.geturl()) or not ct.startswith("image/") or "svg" in ct:
+            raise ValueError("Not an image.")
+        data = r.read(4 * 1024 * 1024 + 1)
+    if len(data) > 4 * 1024 * 1024:
+        raise ValueError("Image too large.")
+    if len(gb_img_cache) > 24:
+        gb_img_cache.pop(next(iter(gb_img_cache)))
+    gb_img_cache[url] = (ct, data)
+    return ct, data
+
+
+def gb_install_work(mid, fid=0):
+    tmp = os.path.join(lm_dir(), "_dl")
+    try:
+        lm_work["msg"] = "Asking GameBanana for the files…"
+        info = gb_get("%s/Mod/%d/ProfilePage" % (GB_API, mid))
+        title = str(info.get("_sName", "mod"))
+        files = [f for f in (info.get("_aFiles") or []) if str(f.get("_sFile", "")).lower().endswith(GB_EXTS) and f.get("_sDownloadUrl")]
+        if not files:
+            kinds = sorted({os.path.splitext(str(f.get("_sFile", "")))[1].lower() for f in (info.get("_aFiles") or [])} - {""})
+            lm_work["msg"] = "This mod has no .zip, .7z or .rar file%s, so it cannot be added here." % (" (it has: %s)" % ", ".join(kinds) if kinds else "")
+            return
+        if fid:
+            pick = [x for x in files if int(x.get("_idRow") or 0) == fid]
+            if not pick:
+                lm_work["msg"] = "That file is no longer listed on GameBanana."
+                return
+            files = pick
+        f = files[0]
+        size = int(f.get("_nFilesize") or 0)
+        if size > 2 * 1024 ** 3:
+            lm_work["msg"] = "That download is over 2 GB, which is too large for this."
+            return
+        if not gb_host_ok(str(f["_sDownloadUrl"])):
+            lm_work["msg"] = "GameBanana gave an address that is not on gamebanana.com, so it was not used."
+            return
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp)
+        ext = os.path.splitext(str(f["_sFile"]).lower())[1]
+        dest = os.path.join(tmp, (re.sub(r"[^A-Za-z0-9 ._-]+", "", title).strip()[:50] or "mod") + ext)
+        lm_work["msg"] = "Downloading %s…" % str(f["_sFile"])[:50]
+        req = urllib.request.Request(str(f["_sDownloadUrl"]), headers={"User-Agent": "p3fes-launcher/1.0"})
+        got = 0
+        with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as out:
+            if not gb_host_ok(r.geturl()):
+                lm_work["msg"] = "The download moved to an address that is not on gamebanana.com, so it was stopped."
+                return
+            while True:
+                b = r.read(1 << 20)
+                if not b:
+                    break
+                got += len(b)
+                if got > 2 * 1024 ** 3:
+                    raise ValueError("the download is larger than 2 GB")
+                out.write(b)
+                lm_work["msg"] = "Downloading %s… %d MB" % (str(f["_sFile"])[:40], got >> 20)
+        extra = ""
+        lm_add_work(dest)
+        lm_work["msg"] = lm_work["msg"] + extra
+        return
+    except Exception as e:
+        lm_work["msg"] = "Could not download that mod: %s" % str(e)[:100]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        lm_work["busy"] = False
+
+
+def lm_pick(kind):
+    if kind == "zip":
+        ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Title = 'Choose a mod (.zip, .7z or .rar)'; "
+              "$d.Filter = 'Mod archive (*.zip;*.7z;*.rar)|*.zip;*.7z;*.rar'; if ($d.ShowDialog() -eq 'OK') { $d.FileName }")
+    else:
+        ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose the mod folder'; "
+              "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }")
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-STA", "-Command", ps], capture_output=True, text=True, timeout=600, cwd=WINCWD)
+        win = r.stdout.strip().splitlines()[-1].strip() if r.stdout.strip() else ""
+        path = subprocess.run(["wslpath", "-u", win], capture_output=True, text=True, timeout=5).stdout.strip() if win else ""
+    except Exception:
+        return None, "Could not open the file window."
+    if not path:
+        return None, "Nothing chosen."
+    if not (os.path.isdir(path) if kind != "zip" else os.path.isfile(path)):
+        return None, "Could not read that."
+    return path, ""
+
+
+def installer_running():
+    try:
+        out = subprocess.run(["pgrep", "-af", "p3fes_install.sh"], capture_output=True, text=True, timeout=5).stdout
+        return any("p3fes_launcher" not in l and "pgrep" not in l for l in out.splitlines())
+    except Exception:
+        return False
+
+
+def build_log():
+    """Last three compiled files, for the setup screen."""
+    p = os.path.join(DIR, "build", "web-" + NAME, ".ninja_log")
+    try:
+        with open(p) as f:
+            lines = [l.rstrip("\n").split("\t") for l in f if not l.startswith("#")]
+        n = len(lines)
+        return ["[%d/%d] %s" % (n - 2 + k, PIECES, os.path.basename(l[3])) for k, l in enumerate(lines[-3:]) if len(l) > 3]
+    except Exception:
+        return []
+
+
+def web_has_card_sync():
+    try:
+        with open(os.path.join(DIR, "build", "web-" + NAME, "ps2web.html"), "r", errors="ignore") as f:
+            t = f.read()
+            return "ps2-card-sync" in t or "CS_URL" in t
+    except Exception:
+        return False
+
+
 def get_state():
     cfg = load_cfg()
     web = os.path.join(DIR, "build", "web-" + NAME, "ps2web.html")
@@ -183,8 +685,9 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "keys": read_keys(),
-           "key_defaults": KEY_DEFAULTS, "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT)}
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "keys": read_keys(),
+           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT),
+           "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
         out["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(web)))
     if disc:
@@ -197,6 +700,7 @@ def get_state():
     elif build_running() and os.path.isdir(DIR):
         out["state"] = "building"
         out["pieces"] = pieces_done()
+        out["tools_done"] = True
     elif disc and not out["disc_ok"]:
         out["state"] = "wrong"
         if disc["game_id"] is None:
@@ -225,7 +729,10 @@ def port_open(port):
 
 def win_open(url, app=False, prefer=None):
     """Open a URL in Windows (from WSL). Prefers Edge, then Chrome, then the default browser."""
-    flag = ["--app=" + url, "--window-size=1296,839"] if app else [url]
+    # cmd.exe treats & as "run another command", so escape it. Unescaped, the URL was cut at the first &,
+    # the leftover failed, and the loop then opened every browser in turn.
+    cu = url.replace("&", "^&")
+    flag = ["--app=" + cu, "--window-size=1296,839"] if app else [cu]
     order = ["msedge", "chrome"]
     if prefer in order:
         order.remove(prefer)
@@ -234,18 +741,146 @@ def win_open(url, app=False, prefer=None):
         order = []
     for exe in order:
         try:
-            r = subprocess.run(["cmd.exe", "/c", "start", "", exe] + flag, capture_output=True, timeout=10, cwd="/mnt/c")
+            r = subprocess.run(["cmd.exe", "/c", "start", "", exe] + flag, capture_output=True, timeout=10, cwd=WINCWD)
             if r.returncode == 0:
                 return exe
         except Exception:
             pass
     if not app:
         try:
-            subprocess.run(["cmd.exe", "/c", "start", "", url], capture_output=True, timeout=10, cwd="/mnt/c")
+            subprocess.run(["cmd.exe", "/c", "start", "", cu], capture_output=True, timeout=10, cwd=WINCWD)
             return "default"
         except Exception:
             pass
     return None
+
+
+def choose_disc():
+    """Windows file dialog (from WSL via PowerShell). Returns (ok, message). A usable disc is remembered."""
+    ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; "
+          "$d.Title = 'Choose your Persona 3 FES (USA) disc image'; $d.Filter = 'Disc image (*.iso)|*.iso|All files (*.*)|*.*'; "
+          "if (Test-Path 'C:\\p3fes') { $d.InitialDirectory = 'C:\\p3fes' }; if ($d.ShowDialog() -eq 'OK') { $d.FileName }")
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-STA", "-Command", ps], capture_output=True, text=True, timeout=600, cwd=WINCWD)
+    except Exception:
+        return False, "Could not open the file window. Put your .iso in C:\\p3fes and reopen the launcher."
+    win = r.stdout.strip().splitlines()[-1].strip() if r.stdout.strip() else ""
+    if not win:
+        return False, "No file chosen."
+    try:
+        path = subprocess.run(["wslpath", "-u", win], capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        path = ""
+    if not path or not os.path.isfile(path):
+        return False, "Could not read that file."
+    d = check_disc(path)
+    if d["game_id"] is None:
+        return False, "That file is not a readable disc image."
+    if d["region"] != "NTSC-U" or d["game_id"] != WANT_ID:
+        return False, "That is not Persona 3 FES (USA). Choose the USA disc."
+    if d["contents"] != "ok":
+        return False, "That disc image is damaged or has been changed. Use an untouched copy."
+    c = load_cfg()
+    c["iso"] = path
+    save_cfg(c)
+    return True, "Disc accepted: " + os.path.basename(path)
+
+
+def check_pnach(path):
+    """Compare a .pnach with the boot program on the player's disc using p3fes_pnach_apply.py. Nothing is built."""
+    elf = os.path.join(DIR, "games", NAME, "disc", "SLUS_216.21")
+    tool = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "p3fes_pnach_apply.py"))
+    res = {"file": os.path.basename(path), "fits": False, "lines": [], "verdict": ""}
+    if not os.path.isfile(elf):
+        res["verdict"] = "Your disc has not been unpacked yet, so there is nothing to check against. Finish setup first."
+        return res
+    if not os.path.isfile(tool):
+        res["verdict"] = "The checking tool was not found next to the launcher folder."
+        return res
+    tmp = os.path.join(os.path.expanduser("~"), ".p3fes-modcheck.tmp")
+    try:
+        r = subprocess.run([sys.executable, tool, elf, path, "-o", tmp], capture_output=True, text=True, timeout=60)
+    except Exception as e:
+        res["verdict"] = "The check could not run: %s" % e
+        return res
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    out = r.stdout + r.stderr
+    m = re.search(r"(\d+) match, (\d+) differ", out)
+    w = re.search(r"written: (\d+) \((\d+) changed a value\), outside the image: (\d+)", out)
+    if not w:
+        res["verdict"] = "This file could not be read as a code patch. " + (out.strip().splitlines()[-1][:120] if out.strip() else "")
+        return res
+    written, changed, outside = int(w.group(1)), int(w.group(2)), int(w.group(3))
+    match, differ = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+    res["lines"] = ["%d patch line%s apply to your program" % (written, "" if written == 1 else "s"), "%d of them change%s something" % (changed, "s" if changed == 1 else "")]
+    if match + differ:
+        res["lines"].append("%d of %d original-code notes match your disc" % (match, match + differ))
+    else:
+        res["lines"].append("This file has no original-code notes, so only the addresses were checked")
+    if outside:
+        res["lines"].append("%d lines point outside the game program" % outside)
+    if written == 0:
+        res["verdict"] = "Nothing in this file applies to the game program."
+    elif differ or outside:
+        res["verdict"] = "Part of this file does not fit your disc. It may be for a different version of the game."
+    else:
+        res["fits"] = True
+        res["verdict"] = "It fits your disc."
+    return res
+
+
+def choose_pnach():
+    ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; "
+          "$d.Title = 'Choose a mod patch file'; $d.Filter = 'PCSX2 patch (*.pnach)|*.pnach|All files (*.*)|*.*'; "
+          "if ($d.ShowDialog() -eq 'OK') { $d.FileName }")
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-STA", "-Command", ps], capture_output=True, text=True, timeout=600, cwd=WINCWD)
+    except Exception:
+        return {"ok": False, "msg": "Could not open the file window."}
+    win = r.stdout.strip().splitlines()[-1].strip() if r.stdout.strip() else ""
+    if not win:
+        return {"ok": False, "msg": "No file chosen."}
+    try:
+        path = subprocess.run(["wslpath", "-u", win], capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        path = ""
+    if not path or not os.path.isfile(path) or os.path.getsize(path) > 5 * 1024 * 1024:
+        return {"ok": False, "msg": "Could not read that file."}
+    res = check_pnach(path)
+    c = load_cfg()
+    c["mod_check"] = res
+    save_cfg(c)
+    return {"ok": True, "msg": res["verdict"]}
+
+
+def start_setup():
+    """Runs the installer in its own console window (it may ask for the Ubuntu password once)."""
+    st = get_state()
+    if st["state"] == "ready":
+        return {"ok": False, "msg": "The game is already installed."}
+    if installer_running() or st["state"] == "building":
+        return {"ok": False, "msg": "Setup is already running in its own window."}
+    if not st["disc_ok"] or not st["disc_path"]:
+        return {"ok": False, "msg": "Choose your disc first."}
+    inst = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "p3fes_install.sh"))
+    if not os.path.isfile(inst):
+        return {"ok": False, "msg": "p3fes_install.sh was not found next to the launcher folder."}
+    run = os.path.expanduser("~/.p3fes-setup-run.sh")
+    with open(run, "w") as f:
+        f.write("#!/usr/bin/env bash\necho 'Persona 3 FES setup. Leave this window open until it says Finished.'\necho\n"
+                "bash %s %s\nrc=$?\necho\nif [ $rc = 0 ]; then echo 'Finished. You can close this window and press Play in the launcher.';"
+                " else echo 'Setup stopped. Take a screenshot of this window and send it to us, then run SET UP again to carry on.'; fi\n"
+                "read -r -p 'Press Enter to close this window.' _\n" % (shlex.quote(inst), shlex.quote(st["disc_path"])))
+    try:
+        subprocess.Popen(["cmd.exe", "/c", "start", "Persona 3 FES setup", "wsl.exe", "bash", run], cwd=WINCWD,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        return {"ok": False, "msg": "Could not open the setup window: %s" % e}
+    return {"ok": True, "msg": "Setup is running in its own window. It may ask for your Ubuntu password once."}
 
 
 def saves_dir():
@@ -259,13 +894,178 @@ def saves_dir():
     return d
 
 
+def overlay_path():
+    """The active loose-file mod (made by p3fes_modmap.py overlay): next to the saves, in C:\\p3fes\\mods\\active.ovl. Returns None when there is none or serve.py cannot use it."""
+    p = os.path.join(os.path.dirname(saves_dir()), "mods", "active.ovl")
+    try:
+        if not os.path.isfile(p) or "ps2-overlay" not in open(os.path.join(DIR, "scripts", "serve.py")).read():
+            return None
+    except Exception:
+        return None
+    return p
+
+
+def card_path():
+    return os.path.join(saves_dir(), "Mcd001.ps2")
+
+
+BK_RE = re.compile(r"^Mcd001-\d{8}-\d{6}\.ps2$")
+
+
+def backups_list():
+    d = os.path.join(saves_dir(), "backups")
+    out = []
+    if os.path.isdir(d):
+        for n in sorted(os.listdir(d), reverse=True):
+            if BK_RE.match(n):
+                t = n[7:22]
+                out.append({"name": n, "when": "%s-%s-%s %s:%s" % (t[0:4], t[4:6], t[6:8], t[9:11], t[11:13]), "size": os.path.getsize(os.path.join(d, n))})
+    return out
+
+
+AS_ID = re.compile(r"^\d{1,20}$")
+
+
+def as_root():
+    return os.path.join(saves_dir(), "autosaves")
+
+
+def as_dir(key):
+    return os.path.join(as_root(), re.sub(r"[^0-9A-Za-z-]", "_", key)[:80] or "x")
+
+
+def as_items(d):
+    out = []
+    if os.path.isdir(d):
+        for n in os.listdir(d):
+            if n.endswith(".json") and n != "deleted.json":
+                try:
+                    with open(os.path.join(d, n)) as f:
+                        m = json.load(f)
+                    if os.path.isfile(os.path.join(d, n[:-5] + ".bin")):
+                        out.append(m)
+                except Exception:
+                    pass
+    out.sort(key=lambda m: -m["id"])
+    return out
+
+
+def as_deleted(d):
+    try:
+        with open(os.path.join(d, "deleted.json")) as f:
+            return [int(i) for i in json.load(f)]
+    except Exception:
+        return []
+
+
+def as_current_key():
+    try:
+        with open(os.path.join(as_root(), "current.txt")) as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def as_delete(d, i):
+    for ext in (".bin", ".json"):
+        try:
+            os.remove(os.path.join(d, "%d%s" % (i, ext)))
+        except OSError:
+            pass
+    gone = as_deleted(d)
+    if i not in gone:
+        gone.append(i)
+        with open(os.path.join(d, "deleted.json"), "w") as f:
+            json.dump(gone[-500:], f)
+
+
+def as_state():
+    """Autosaves for the build the browser game last announced (else the newest folder); the rest are counted as 'older'."""
+    root = as_root()
+    folders = []
+    total = 0
+    if os.path.isdir(root):
+        for n in os.listdir(root):
+            d = os.path.join(root, n)
+            if os.path.isdir(d):
+                items = as_items(d)
+                folders.append((d, items))
+                for m in items:
+                    try:
+                        total += os.path.getsize(os.path.join(d, "%d.bin" % m["id"]))
+                    except OSError:
+                        pass
+    key = as_current_key()
+    pick = None
+    if key:
+        pick = as_dir(key)
+    elif folders:
+        pick = max(folders, key=lambda f: f[1][0]["id"] if f[1] else 0)[0]
+    cur = []
+    older = 0
+    for d, items in folders:
+        if d == pick:
+            cur = items
+        else:
+            older += len(items)
+    lst = [{"id": m["id"], "reason": m.get("reason", ""), "time": m.get("time", 0),
+            "when": time.strftime("%Y-%m-%d %H:%M", time.localtime(m.get("time", 0) / 1000)), "size": m.get("bytes", 0)} for m in cur]
+    return {"list": lst, "older": older, "bytes": total}
+
+
+def card_info():
+    p = card_path()
+    d = os.path.join(saves_dir(), "backups")
+    n = len(glob.glob(os.path.join(d, "Mcd001-*.ps2"))) if os.path.isdir(d) else 0
+    ok = os.path.exists(p)
+    win = saves_dir()
+    try:
+        win = subprocess.run(["wslpath", "-w", saves_dir()], capture_output=True, text=True, timeout=5).stdout.strip() or win
+    except Exception:
+        pass
+    bl = backups_list()
+    return {"dir": win, "exists": ok, "modified": time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(p))) if ok else None,
+            "backups": len(bl), "list": bl, "size": os.path.getsize(p) if ok else 0}
+
+
+def pc_window_running():
+    if any(c.poll() is None and "ps2run" in str(c.args[0]) for c in children):
+        return True
+    try:
+        return subprocess.run(["pgrep", "-x", "ps2run"], capture_output=True, timeout=5).returncode == 0
+    except Exception:
+        return False
+
+
+def store_card(data):
+    """Write the shared card. The old file is kept as a timestamped backup when it differs (newest 10 kept)."""
+    p = card_path()
+    if os.path.exists(p):
+        with open(p, "rb") as f:
+            old = f.read()
+        if old == data:
+            return
+        bd = os.path.join(saves_dir(), "backups")
+        os.makedirs(bd, exist_ok=True)
+        with open(os.path.join(bd, time.strftime("Mcd001-%Y%m%d-%H%M%S.ps2")), "wb") as f:
+            f.write(old)
+        for extra in sorted(glob.glob(os.path.join(bd, "Mcd001-*.ps2")))[:-10]:
+            try:
+                os.remove(extra)
+            except Exception:
+                pass
+    tmp = p + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, p)
+
+
 def display_env():
     """Environment for the PC window. WSL2 with WSLg has a display already; WSL1 needs an X server
     on Windows (VcXsrv, see docs/windows-build.md). Returns (env, problem or None)."""
     env = dict(os.environ)
-    if os.path.isdir("/mnt/wslg"):
-        return env, None
-    if not port_open(6000):
+    wslg = os.path.isdir("/mnt/wslg")
+    if not wslg and not port_open(6000):
         return env, "No display found. Start VcXsrv first (see docs/windows-build.md), then try again."
     # Keys: use the launcher's own file, not a keys.txt that happens to sit in the game folder.
     # Edit ~/.p3fes-keys.txt to remap (lines like "cross = K"; see docs/controls.md). Empty means the default layout.
@@ -276,6 +1076,25 @@ def display_env():
         except Exception:
             pass
     env["PS2_KEYS"] = kp
+    if wslg:
+        # WSL2: Ubuntu has no Vulkan driver for the card (no Dozen), but Mesa's Direct3D12 OpenGL driver works.
+        # Default: draw through OpenGL on the card. Put "P3F_RENDER=vulkan" in ~/.p3fes-window-env to go back.
+        extra = {}
+        try:
+            with open(os.path.expanduser("~/.p3fes-window-env")) as f:
+                for ln in f:
+                    if "=" in ln and not ln.lstrip().startswith("#"):
+                        k, v = ln.strip().split("=", 1)
+                        extra[k.strip()] = v.strip()
+        except OSError:
+            pass
+        if extra.get("P3F_RENDER", "gl") == "gl":
+            env.setdefault("GALLIUM_DRIVER", "d3d12")
+            env.setdefault("WGPU_BACKEND", "gl")
+        for k, v in extra.items():
+            if k != "P3F_RENDER":
+                env[k] = v
+        return env, None
     env["DISPLAY"] = "127.0.0.1:0"
     env["SDL_VIDEODRIVER"] = "x11"
     env.pop("WAYLAND_DISPLAY", None)
@@ -283,15 +1102,20 @@ def display_env():
     return env, None
 
 
-def play(mode):
+def play(mode, resume=None, mod=False):
     st = get_state()
+    name = MOD_NAME if mod else NAME
     if st["state"] != "ready":
         return {"ok": False, "msg": "The game is not installed yet."}
+    if mod and not os.path.exists(os.path.join(DIR, "build", "web-" + name, "ps2web.html")):
+        return {"ok": False, "msg": "That mod is not built on this computer yet."}
     if mode == "exe":
-        if not st["has_exe"]:
+        exe = os.path.join(DIR, "build", "native-" + name, "ps2run")
+        if not os.path.exists(exe):
             return {"ok": False, "msg": "The PC window version is not built yet."}
-        cmd = [os.path.join(DIR, "build", "native-" + NAME, "ps2run"), os.path.join(DIR, "games", NAME, "disc", "SLUS_216.21"),
-               "--disc", os.path.join(DIR, "games", NAME, "disc.iso"), "--window",
+        prog = os.path.join(DIR, "games", name, "core.elf") if mod else os.path.join(DIR, "games", NAME, "disc", "SLUS_216.21")
+        cmd = [exe, prog,
+               "--disc", os.path.join(DIR, "games", name, "disc.iso"), "--window",
                "--memcard", os.path.join(saves_dir(), "Mcd001.ps2")]
         if any(c.poll() is None and "ps2run" in str(c.args[0]) for c in children):
             return {"ok": False, "msg": "The PC window is already running. Close it first (two would overwrite each other's saves)."}
@@ -300,16 +1124,33 @@ def play(mode):
             return {"ok": False, "msg": problem}
         children.append(subprocess.Popen(cmd, cwd=DIR, env=env))
         return {"ok": True, "msg": "Started the PC window. Its memory card is in " + saves_dir() + ". If none appears, check VcXsrv is running."}
+    ovl = None if mod else overlay_path()
+    want = (name, ovl, os.path.getmtime(ovl) if ovl else None)
+    if port_open(GAME_PORT) and serving[0] not in (None, want):
+        # the other build is being served: stop our server so this one can take the port
+        for c in children:
+            if c.poll() is None and "serve.py" in " ".join(map(str, c.args)):
+                c.terminate()
+        for _ in range(30):
+            if not port_open(GAME_PORT):
+                break
+            time.sleep(0.2)
     if not port_open(GAME_PORT):
-        cmd = [sys.executable, "scripts/serve.py", "build/web-" + NAME, "games/%s/disc.iso" % NAME]
+        cmd = [sys.executable, "scripts/serve.py", "build/web-" + name, "games/%s/disc.iso" % name]
+        if ovl:
+            cmd += ["--overlay", ovl]
         children.append(subprocess.Popen(cmd, cwd=DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        serving[0] = want
         for _ in range(30):
             if port_open(GAME_PORT):
                 break
             time.sleep(0.2)
     pref = load_cfg().get("browser", "msedge")
     scale = load_cfg().get("scale", "3")
-    how = win_open("http://localhost:%d/?PS2_SCALE=%s" % (GAME_PORT, scale), prefer=pref)
+    url = "http://localhost:%d/?PS2_SCALE=%s&cardsync=%d" % (GAME_PORT, scale, SERVER_PORT[0])
+    if resume:
+        url += "&resume=%d" % resume
+    how = win_open(url, prefer=pref)
     return {"ok": True, "msg": "Opened in " + (how or "your browser") if how else "Open http://localhost:%d/ in Chrome or Edge." % GAME_PORT}
 
 
@@ -328,7 +1169,139 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def cors_ok(self):
+        """Only the game page (localhost:8620) may use /card. Other websites are refused."""
+        origin = self.headers.get("Origin")
+        allowed = ("http://localhost:%d" % GAME_PORT, "http://127.0.0.1:%d" % GAME_PORT)
+        return origin is None or origin in allowed, origin
+
+    def card_reply(self, code, body=b"", origin=None, ctype="application/octet-stream"):
+        self.send_response(code)
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def autosave_http(self, method, origin):
+        """/autosave?key=K (list), /autosave/<id>?key=K (GET, PUT, DELETE). Used only by the game page."""
+        u = urllib.parse.urlparse(self.path)
+        q = urllib.parse.parse_qs(u.query)
+        key = (q.get("key") or [""])[0]
+        parts = u.path.strip("/").split("/")
+        if not key or len(key) > 120 or len(parts) > 2:
+            return self.card_reply(400, b"bad request", origin)
+        d = as_dir(key)
+        if len(parts) == 1:
+            if method != "GET":
+                return self.card_reply(405, b"", origin)
+            if (q.get("announce") or [""])[0] == "1":
+                os.makedirs(as_root(), exist_ok=True)
+                with open(os.path.join(as_root(), "current.txt"), "w") as f:
+                    f.write(key)
+            body = json.dumps({"items": as_items(d), "deleted": as_deleted(d)}).encode()
+            return self.card_reply(200, body, origin, "application/json")
+        if not AS_ID.match(parts[1]):
+            return self.card_reply(400, b"bad id", origin)
+        i = int(parts[1])
+        f = os.path.join(d, "%d.bin" % i)
+        if method == "GET":
+            if not os.path.isfile(f):
+                return self.card_reply(404, b"", origin)
+            with open(f, "rb") as fh:
+                return self.card_reply(200, fh.read(), origin)
+        if method == "DELETE":
+            if os.path.isdir(d):
+                as_delete(d, i)
+            return self.card_reply(200, b"ok", origin)
+        n = int(self.headers.get("Content-Length") or 0)
+        if n < 1024 or n > 400 * 1024 * 1024:
+            return self.card_reply(400, b"bad size", origin)
+        reason = (q.get("reason") or [""])[0][:20]
+        enc = (q.get("enc") or ["raw"])[0]
+        try:
+            meta = {"id": i, "key": key, "reason": reason, "time": int((q.get("time") or ["0"])[0]), "size": int((q.get("size") or ["0"])[0]),
+                    "enc": enc if enc in ("gzip", "raw") else "raw", "bytes": n}
+        except ValueError:
+            return self.card_reply(400, b"bad request", origin)
+        os.makedirs(d, exist_ok=True)
+        with open(f + ".tmp", "wb") as fh:
+            left = n
+            while left > 0:
+                chunk = self.rfile.read(min(left, 1 << 20))
+                if not chunk:
+                    break
+                fh.write(chunk)
+                left -= len(chunk)
+        if left:
+            os.remove(f + ".tmp")
+            return self.card_reply(400, b"short upload", origin)
+        os.replace(f + ".tmp", f)
+        with open(os.path.join(d, "%d.json" % i), "w") as fh:
+            json.dump(meta, fh)
+        self.card_reply(200, b"ok", origin)
+
+    def do_OPTIONS(self):
+        ok, origin = self.cors_ok()
+        if not (self.path == "/card" or self.path.startswith("/autosave")) or not ok:
+            return self.card_reply(403)
+        self.card_reply(204, b"", origin)
+
+    def do_DELETE(self):
+        ok, origin = self.cors_ok()
+        if not self.path.startswith("/autosave") or not ok:
+            return self.card_reply(403)
+        self.autosave_http("DELETE", origin)
+
+    def do_PUT(self):
+        ok, origin = self.cors_ok()
+        if self.path.startswith("/autosave") and ok:
+            return self.autosave_http("PUT", origin)
+        if self.path != "/card" or not ok:
+            return self.card_reply(403)
+        n = int(self.headers.get("Content-Length") or 0)
+        if n != CARD_BYTES:
+            return self.card_reply(400, b"not a memory card", origin)
+        data = self.rfile.read(n)
+        if data[:28] != CARD_MAGIC:
+            return self.card_reply(400, b"not a formatted memory card", origin)
+        if pc_window_running():
+            return self.card_reply(409, b"the PC window is running", origin)
+        try:
+            store_card(data)
+        except Exception as e:
+            return self.card_reply(500, str(e).encode(), origin)
+        self.card_reply(200, b"ok", origin)
+
     def do_GET(self):
+        if self.path.startswith("/autosave"):
+            ok, origin = self.cors_ok()
+            if not ok:
+                return self.card_reply(403)
+            return self.autosave_http("GET", origin)
+        if self.path == "/card":
+            ok, origin = self.cors_ok()
+            if not ok:
+                return self.card_reply(403)
+            p = card_path()
+            if not os.path.exists(p):
+                return self.card_reply(404, b"", origin)
+            with open(p, "rb") as f:
+                return self.card_reply(200, f.read(), origin)
+        if self.path.startswith("/api/gb/img?"):
+            try:
+                u = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("u", [""])[0]
+                ct, data = gb_image(u)
+                return self.send(200, data, ct)
+            except Exception:
+                return self.send(404, {"error": "no image"})
         if self.path == "/api/state":
             last_ping[0] = time.time()
             return self.send(200, get_state())
@@ -364,6 +1337,20 @@ class H(BaseHTTPRequestHandler):
             c["browser"] = data["browser"]
             save_cfg(c)
             return self.send(200, {"ok": True})
+        if self.path == "/api/journey":
+            c = load_cfg()
+            c["journey"] = bool(data.get("on"))
+            if not c["journey"] and c.get("theme") == "twelve":
+                c["theme"] = "blue"
+            save_cfg(c)
+            return self.send(200, {"ok": True})
+        if self.path == "/api/theme" and data.get("theme") in THEMES_ALL:
+            c = load_cfg()
+            if data["theme"] == "twelve" and not c.get("journey"):
+                return self.send(200, {"ok": False})
+            c["theme"] = data["theme"]
+            save_cfg(c)
+            return self.send(200, {"ok": True})
         if self.path == "/api/scale" and data.get("scale") in ("1", "2", "3"):
             c = load_cfg()
             c["scale"] = data["scale"]
@@ -376,8 +1363,78 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, {"ok": True, "keys": read_keys()})
             except Exception as e:
                 return self.send(200, {"ok": False, "msg": "Could not save: %s" % e})
+        if self.path in ("/api/card/restore", "/api/card/delete"):
+            name = str(data.get("name", ""))
+            if not BK_RE.match(name):
+                return self.send(200, {"ok": False, "msg": "Unknown backup."})
+            f = os.path.join(saves_dir(), "backups", name)
+            if not os.path.isfile(f):
+                return self.send(200, {"ok": False, "msg": "That backup is gone."})
+            if self.path.endswith("delete"):
+                os.remove(f)
+                return self.send(200, {"ok": True, "msg": "Backup deleted."})
+            if pc_window_running():
+                return self.send(200, {"ok": False, "msg": "The PC window is running. Close it first."})
+            with open(f, "rb") as fh:
+                d = fh.read()
+            if len(d) != CARD_BYTES or d[:28] != CARD_MAGIC:
+                return self.send(200, {"ok": False, "msg": "That file is not a memory card."})
+            store_card(d)
+            return self.send(200, {"ok": True, "msg": "Card restored. The card it replaced is kept as a backup."})
+        if self.path == "/api/lmod/add":
+            if lm_work["busy"]:
+                return self.send(200, {"ok": False, "msg": "Still working on the last change."})
+            path, why = lm_pick("zip" if data.get("kind") == "zip" else "folder")
+            if not path:
+                return self.send(200, {"ok": False, "msg": why})
+            return self.send(200, lm_start(lm_add_work, path))
+        if self.path in ("/api/lmod/toggle", "/api/lmod/remove", "/api/lmod/up"):
+            mid = str(data.get("id", ""))
+            if not LM_ID.match(mid) or not any(m["id"] == mid for m in lm_load()):
+                return self.send(200, {"ok": False, "msg": "Unknown mod."})
+            return self.send(200, lm_start(lm_change_work, mid, self.path.endswith("remove"), self.path.endswith("/up")))
+        if self.path == "/api/gb/view":
+            return self.send(200, gb_view(str(data.get("q", ""))[:60], str(data.get("sort", "new")), data.get("page", 0), bool(data.get("refresh"))))
+        if self.path in ("/api/gb/install", "/api/gb/mod"):
+            try:
+                gid = int(data.get("id"))
+                fid = int(data.get("file") or 0)
+            except (TypeError, ValueError):
+                return self.send(200, {"ok": False, "msg": "Unknown mod."})
+            if self.path.endswith("/mod"):
+                try:
+                    return self.send(200, gb_mod(gid))
+                except Exception as e:
+                    return self.send(200, {"ok": False, "err": "Could not load that mod (%s)." % str(e)[:80]})
+            return self.send(200, lm_start(gb_install_work, gid, fid))
+        if self.path == "/api/mod/choose":
+            return self.send(200, choose_pnach())
+        if self.path == "/api/disc/choose":
+            ok, msg = choose_disc()
+            return self.send(200, {"ok": ok, "msg": msg})
+        if self.path == "/api/setup/start":
+            return self.send(200, start_setup())
+        if self.path == "/api/openfolder":
+            try:
+                w = subprocess.run(["wslpath", "-w", saves_dir()], capture_output=True, text=True, timeout=5).stdout.strip()
+                subprocess.Popen(["explorer.exe", w], cwd=WINCWD if os.path.isdir("/mnt/c") else None)
+                return self.send(200, {"ok": True})
+            except Exception as e:
+                return self.send(200, {"ok": False, "msg": "Could not open the folder: %s" % e})
         if self.path == "/api/play":
-            return self.send(200, play(data.get("mode") or load_cfg().get("mode", "browser")))
+            rid = str(data.get("resume") or "")
+            return self.send(200, play(data.get("mode") or load_cfg().get("mode", "browser"), int(rid) if AS_ID.match(rid) else None, bool(data.get("mod"))))
+        if self.path == "/api/autosave/delete":
+            rid = str(data.get("id") or "")
+            if not AS_ID.match(rid):
+                return self.send(200, {"ok": False, "msg": "Unknown autosave."})
+            root = as_root()
+            for n in (os.listdir(root) if os.path.isdir(root) else []):
+                d = os.path.join(root, n)
+                if os.path.isfile(os.path.join(d, rid + ".bin")):
+                    as_delete(d, int(rid))
+                    return self.send(200, {"ok": True, "msg": "Autosave deleted."})
+            return self.send(200, {"ok": False, "msg": "That autosave is gone."})
         self.send(404, {"error": "not found"})
 
 
@@ -401,6 +1458,7 @@ def main():
     url = "http://127.0.0.1:%d/" % a.port
     try:
         srv = ThreadingHTTPServer(("127.0.0.1", a.port), H)
+        SERVER_PORT[0] = a.port
     except OSError:
         # already running: just open another window onto it
         print("The launcher is already running; opening its window.")
