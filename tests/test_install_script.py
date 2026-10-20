@@ -21,7 +21,7 @@ before('ps2run_window_capture_patch.py', 'ps2run_window_savestate_patch.py')
 before('ps2run_window_savestate_patch.py', 'ps2web_autosave_patch.py')
 for a, b in [('ps2web_cardbackup_patch.py', 'ps2web_controls_patch.py'), ('ps2web_controls_patch.py', 'ps2web_keyremap_patch.py'),
              ('ps2web_keyremap_patch.py', 'ps2web_padremap_patch.py'), ('ps2web_padremap_patch.py', 'ps2web_autosave_patch.py'),
-             ('ps2web_autosave_patch.py', 'ps2web_autosaveopts_patch.py')]:
+             ('ps2web_autosave_patch.py', 'ps2web_autosaveopts_patch.py'), ('ps2web_cardsync_patch.py', 'ps2web_autosavesync_patch.py'), ('ps2web_autosaveopts_patch.py', 'ps2web_autosavesync_patch.py')]:
     before(a, b)
 assert 'game data' not in text.lower() or 'No game data' in text
 print("ok install script: %d patches in a safe order, version pinned" % len(block))
