@@ -108,7 +108,7 @@ def parse_dir(win, lba, size, path, visited, out):
         if flags & 0x02:
             parse_dir(win, extent, length, full, visited, out)
         else:
-            out.append({"path": full, "lba": extent, "size": length})
+            out.append({"path": full, "lba": extent, "size": length, "recpos": lba * SECTOR + pos - n})
 
 
 def list_files(win):

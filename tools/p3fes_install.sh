@@ -100,6 +100,9 @@ ps2web_keyremap_patch.py
 ps2web_padremap_patch.py
 ps2web_autosave_patch.py
 ps2web_autosaveopts_patch.py
+ps2web_cardsync_patch.py
+ps2web_autosavesync_patch.py
+ps2web_serveovl_patch.py
 "
 for f in $PATCHES; do
   [ -f "$HERE/$f" ] || fail "$f is missing from $HERE. Keep p3fes_install.sh inside the tools folder of the repository."
@@ -110,6 +113,7 @@ for f in $PATCHES; do
     fail "$f did not fit the downloaded project (it may have changed). Send me this screen."
   fi
 done
+[ "$PATCHES_ONLY" = 1 ] || touch "$DIR/.tools-ok"   # the launcher reads this to show "get the tools: done"
 if [ "$PATCHES_ONLY" = 1 ]; then echo; echo "All patches fit."; exit 0; fi
 
 # ---------------------------------------------------------------- 4. disc
@@ -128,6 +132,10 @@ echo "using $ISO"
 case "$ISO" in
   /mnt/*)
     # reading from the Windows disk is slow: copy once to Linux's own disk
+    if [ ! -e "games/$NAME/disc.iso" ] && [ -e "$HOME/p3fes.iso" ] && [ "$(stat -c %s "$HOME/p3fes.iso")" != "$(stat -c %s "$ISO")" ]; then
+      echo "the disc you chose differs from the copy in $HOME/p3fes.iso, replacing it"
+      rm -f "$HOME/p3fes.iso"
+    fi
     if [ ! -e "$HOME/p3fes.iso" ] && [ ! -e "games/$NAME/disc.iso" ]; then
       echo "copying to $HOME/p3fes.iso (about 4.5 GB, one time)"
       cp "$ISO" "$HOME/p3fes.iso" || fail "copy failed. Is there about 10 GB of free space?"
@@ -165,6 +173,10 @@ say "Translating and building the game (this is the long step)"
 echo "It can sit quietly for a long time. Leave this window open."
 if [ -f "build/web-$NAME/ps2web.html" ]; then
   echo "already built: delete build/web-$NAME to rebuild"
+  if ! grep -q -e "ps2-card-sync" -e "CS_URL" "build/web-$NAME/ps2web.html" 2>/dev/null || ! grep -q "asDiskSync" "build/web-$NAME/ps2web.html" 2>/dev/null; then
+    echo "Updating the browser page with the newest patches (a few minutes, no full rebuild)"
+    scripts/build_web.sh "$NAME" || fail "updating the browser page failed. Send me the last 30 lines of this window."
+  fi
 else
   scripts/port.sh "$NAME" "$ISO" || fail "the build stopped. Send me the last 30 lines of this window."
 fi

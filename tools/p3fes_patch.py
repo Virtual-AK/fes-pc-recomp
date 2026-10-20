@@ -175,7 +175,7 @@ def learn_align(f, fsize):
     print("Containers where exactly one alignment fits: " + (", ".join("%d: %d" % kv for kv in sorted(decisive.items())) or "none"))
 
 
-def container_layout(data, forced=0):
+def container_layout(data, forced=0, guess=False):
     """Understand a container well enough to rebuild it. Returns a dict or raises ToolError.
 
     The entries sit at positions rounded up to some alignment (64, 128...). The file shows which
@@ -197,6 +197,8 @@ def container_layout(data, forced=0):
         rule = forced
     elif not valid:
         raise ToolError("the spacing between entries does not follow a simple alignment rule")
+    elif len(valid) > 1 and guess:
+        rule = min(valid)
     elif len(valid) > 1:
         raise ToolError("cannot tell the alignment (could be %s); run again with --align N" % ", ".join(map(str, valid)))
     else:

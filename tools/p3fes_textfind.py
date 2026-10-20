@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-p3fes_textfind.py - search the extracted game text for a word or phrase.
+p3fes_textfind.py - search the extracted game text (.bmd.txt message files and .bf.txt script text) for a word or phrase.
 
 Run it on the folder p3fes_text.py extract made (for example C:\\p3fes\\extracted_text). For every
 match it prints the file, the message name, the line number inside the message, and a short snippet
@@ -29,7 +29,7 @@ def main():
     shown, files = 0, set()
     for dp, _, names in os.walk(a.folder):
         for n in sorted(names):
-            if not n.lower().endswith(".bmd.txt"):
+            if not n.lower().endswith((".bmd.txt", ".bf.txt")):
                 continue
             p = os.path.join(dp, n)
             rel = os.path.relpath(p, a.folder)
