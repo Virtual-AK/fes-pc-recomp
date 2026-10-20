@@ -4,20 +4,35 @@ Thank you for testing. You need: Windows 10 or 11, about 20 GB free space, Chrom
 
 Before you start, open `chrome://gpu` (or `edge://gpu`) and note the line that says WebGPU. If it says "Disabled" or "Unavailable", the browser version will run badly: tell me, and try the PC window instead. Firefox is not supported; use Chrome or Edge.
 
-Follow [install.md](install.md) from the top. Below is what you should see at each step, and what to send if it doesn't match. Write down roughly what time each step started and finished.
+Follow the steps below. Write down roughly what time each step started and finished. If anything does not match, send a screenshot of the window. The commands in [install.md](install.md) still work as a fallback.
 
-## Checklist
+## Part 1: get Ubuntu on Windows (once)
 
 | Step | You should see | If not, send |
 |---|---|---|
 | `wsl --install -d Ubuntu` in PowerShell (administrator) | It installs Ubuntu and asks to restart | A screenshot of the PowerShell window |
-| Open **Ubuntu** from the Start menu | A black window asking for a user name and password | A screenshot |
-| Disc in `C:\p3fes`, repository unzipped there | `p3fes_install.sh` exists inside a `tools` folder | The output of `find /mnt/c -name p3fes_install.sh` |
-| Run the install command | Lines starting `== [1/5]`, `[2/5]` and so on, then a long quiet build | The last 30 lines of the window |
-| Ubuntu password prompt | Asked once; typing shows nothing, which is normal | Tell me if it asked more than once |
-| Build finishes | `== Done` and a line naming `play.sh` | The last 30 lines |
-| Run `play.sh`, open `http://localhost:8620/` | The title screen with the P3F logo and a clear background | A screenshot of the page |
+| Open **Ubuntu** from the Start menu | A black window asking for a user name and password. Pick them, then close the window | A screenshot |
+| Disc `.iso` in `C:\p3fes`, repository unzipped there | A `launcher` folder inside `tools`, with `launch.bat` in it | A screenshot of the folder |
+
+## Part 2: set up from the launcher
+
+| Step | You should see | If not, send |
+|---|---|---|
+| Double-click `launch.bat` | A blue launcher window titled LAUNCHER, with SET UP as the first item | A screenshot of whatever opened |
+| Press SET UP | The SETUP screen with four steps: FIND YOUR DISC, GET THE TOOLS, BUILD THE GAME, PLAY | A screenshot |
+| Choose disc | A Windows file window (it may be behind the launcher). After choosing your USA disc, the first step says DONE. A wrong or changed disc is refused with a reason | The message shown and a screenshot |
+| Get the tools: START SETUP | A second black window opens and asks for your Ubuntu password once (typing shows nothing, which is normal) | Tell me if it asked more than once, or if no window appeared |
+| Build the game | The launcher shows a counter (about 337 pieces) that goes up, and the last file names. The black window sits quiet for long stretches | A screenshot of both windows |
+| Build finishes | The black window says Finished. The launcher says Ready and PLAY works | The last 30 lines of the black window |
+| If setup stops | Press SET UP again, then CONTINUE SETUP. It carries on where it stopped | A screenshot of the black window |
+
+## Part 3: play
+
+| Step | You should see | If not, send |
+|---|---|---|
+| PLAY with BROWSER selected | Only one browser opens (Settings > Display chooses which), with the title screen and the P3F logo | A screenshot of the page |
 | Press Start, choose a new game | The opening plays, and the buttons Backups, Autosave and Keys are at the bottom | A screenshot |
+| Save in the game, then open SAVES in the launcher | MEMORY CARD shows the time of your save. After a few minutes AUTOSAVES lists entries | A screenshot |
 
 ## What good looks like (reference run)
 One desktop, Windows 10 22H2, NVIDIA RTX 3060 Ti, 63 GB memory, Chrome 155, browser build at 3x resolution (1920x1536):
@@ -30,11 +45,11 @@ launcher (Settings > Display), 3x by default.
 0. What did the WebGPU line in `chrome://gpu` say, and what graphics card does the computer have?
 1. Which step took longest, and how long?
 2. Was any instruction unclear or did you have to guess? Which one?
-3. Did the install stop? If so, at which line (a message starting `STOPPED:` says where)?
+3. Did setup stop? If so, which step in the launcher, and what did the black window say (a message starting `STOPPED:` says where)?
 4. Did the game run smoothly at 60 frames per second (shown at the bottom of the page)?
 5. Anything that looked wrong in the picture or sounded wrong?
 
 ## Good to know
-- If the install stops, run the same command again: finished steps are skipped.
-- To stop the game server, press Ctrl+C in the Ubuntu window. Closing the browser tab does not stop it.
+- If setup stops, press CONTINUE SETUP in the launcher: finished steps are skipped.
+- Closing the launcher window closes the launcher. A game window or browser tab already open keeps running.
 - Screenshots of the game are fine to send to the project lead. They must not be posted publicly with the repository.

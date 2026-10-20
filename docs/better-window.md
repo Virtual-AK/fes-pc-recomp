@@ -50,3 +50,6 @@ Nothing here changes the processor-only drawing.
 
 ## Suggested order
 Try A now. If you want the PC window, try B. Report the frame rate and the `vulkaninfo` line either way.
+
+## WSL2 result on one PC (20 October 2026)
+Ubuntu (resolute, Mesa 26.0.8) under WSL2 with WSLg and an RTX 3060 Ti: `/dev/dxg`, `libd3d12` and the NVIDIA driver are present, but Vulkan lists only llvmpipe (no `dzn_icd.json`; Ubuntu's `mesa-vulkan-drivers` has no Dozen). OpenGL picks llvmpipe by default, but `GALLIUM_DRIVER=d3d12 glxinfo -B` names the card. The launcher therefore sets `GALLIUM_DRIVER=d3d12` and `WGPU_BACKEND=gl` for the PC window under WSLg. Untested: whether the window build can draw through wgpu's OpenGL backend. To go back to Vulkan, put `P3F_RENDER=vulkan` in `~/.p3fes-window-env` (other `KEY=VALUE` lines there are passed to the window).

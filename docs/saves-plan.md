@@ -16,7 +16,12 @@ So the memory card is the same file format on both sides and can be shared. Auto
 ## Done now (launcher 0.2)
 The launcher starts the PC window with `--memcard`, using `C:\p3fes\saves\Mcd001.ps2` (or `~/p3fes-saves` if that folder does not exist). Before this the PC window had no card, so in-game saving could not work from the launcher.
 
-## Plan to share the card
+## Done (launcher 0.2, patch 26)
+The browser side is written and tested here with a stand-in page (not yet with the real game): `tools/ps2web_cardsync_patch.py` (part of the installer) makes the game page load the card from the launcher folder at start, ask which to keep if the two differ (the other is backed up), and send the card to the folder after each in-game save. The launcher serves it at `http://127.0.0.1:8630/card` to the game page only (other websites get 403), keeps the newest 10 old copies in `saves\backups`, and refuses writes while the PC window is running (409). Settings > Memory Card shows the file. If the launcher is not running the browser game works as before.
+
+**Tested on a real PC (19 October 2026):** the start-up question appears when the browser card and the folder card differ; choosing the folder card loads it; a save made in the browser updates `C:\p3fes\saves\Mcd001.ps2` and the old file is kept in `backups`. Loading that browser save in the PC window worked, and saving again there worked (browser to PC window and back). Still to test: the cases with no browser card or no folder card, and autosave states across the two builds.
+
+## Plan to share the card (original plan)
 1. **One file on disk** is the master: `C:\p3fes\saves\Mcd001.ps2`. The PC window already uses it.
 2. **Browser build reads and writes the same file** through the launcher's server: a small patch to `web/shell.html` that, on start, fetches the card from the server and writes it into the browser's card folder, and, on every card save (the existing `ps2CardSaved` hook), sends it back. The launcher server (not `scripts/serve.py`, which only accepts VU1 uploads) serves `GET` and `PUT /card`, and keeps the last 10 copies as backups on disk.
 3. **Rule for the first start:** if the browser has a card and the disk file does not, copy the browser card to disk; if both exist and differ, ask which to keep (never silently overwrite).
