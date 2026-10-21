@@ -19,12 +19,17 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.2"
+LAUNCHER_VERSION = "0.10"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
 last_ping = [0.0]
 bye_time = [0.0]
+game_keep = [0.0]   # the browser game uses this server for card sync and autosave: stay alive while it is in use
+
+
+def keep_game_alive():
+    game_keep[0] = time.time() + 1800
 children = []
 serving = [None]   # which build our game server is serving
 MOD_NAME = "p3fesmod"
@@ -195,7 +200,7 @@ def theme_now(cfg):
 
 
 def mods_state():
-    return {"direct": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "check": load_cfg().get("mod_check"), "overlay": bool(overlay_path()), "files": lm_state()}
+    return {"direct": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "direct_on": direct_on(), "direct_win": bool(win_mod_exe()), "has_winexe": bool(win_exe()), "check": load_cfg().get("mod_check"), "overlay": bool(overlay_path()), "files": lm_state()}
 
 
 # ------------------------------------------------------------------ loose-file mods
@@ -498,7 +503,7 @@ def gb_view(q="", sort="new", page=0, refresh=False):
 GB_EXTS = (".zip", ".7z", ".rar")
 
 
-def gb_text(html, limit=1500):
+def gb_text(html, limit=30000):
     """A mod's description (HTML) as plain text."""
     from html.parser import HTMLParser
 
@@ -532,6 +537,32 @@ def gb_text(html, limit=1500):
     return txt[:limit] + ("…" if len(txt) > limit else "")
 
 
+def gb_full_desc(info):
+    """The whole description: the body text plus the extra sections GameBanana shows beneath it."""
+    parts = []
+    body = gb_text(info.get("_sText") or "", 60000)
+    short = gb_text(info.get("_sDescription") or "", 2000)
+    if short and short not in body:
+        parts.append(short)
+    if body:
+        parts.append(body)
+    ai = info.get("_aAdditionalInfo")
+    if isinstance(ai, dict):
+        for k, v in ai.items():
+            v = gb_text(v if isinstance(v, str) else json.dumps(v), 4000)
+            if v:
+                parts.append(str(k).strip("_").replace("_", " ").upper() + ": " + v)
+    cr = []
+    for g in (info.get("_aCredits") or []):
+        if isinstance(g, dict):
+            names = ", ".join(str(a.get("_sRole", "") + (" - " if a.get("_sRole") else "") + a.get("_sName", "")) for a in (g.get("_aAuthors") or []) if isinstance(a, dict))
+            if names:
+                cr.append(str(g.get("_sGroupName", "Credits")) + ": " + names)
+    if cr:
+        parts.append("\n".join(cr))
+    return "\n\n".join(parts) or "The author did not write a description."
+
+
 def gb_mod(mid):
     """What the preview screen shows: description, pictures and the files that can be installed."""
     info = gb_get("%s/Mod/%d/ProfilePage" % (GB_API, mid))
@@ -547,7 +578,7 @@ def gb_mod(mid):
                       "date": int(f.get("_tsDateAdded") or 0), "ok": name.lower().endswith(GB_EXTS) and bool(f.get("_sDownloadUrl"))})
     return {"ok": True, "id": mid, "name": str(info.get("_sName", "?"))[:90], "by": str((info.get("_aSubmitter") or {}).get("_sName", ""))[:40],
             "version": str(info.get("_sVersion", ""))[:20], "likes": int(info.get("_nLikeCount") or 0), "views": int(info.get("_nViewCount") or 0),
-            "desc": gb_text(info.get("_sText") or info.get("_sDescription") or ""), "images": imgs[:8], "files": files[:12]}
+            "desc": gb_full_desc(info), "images": imgs[:8], "files": files[:12]}
 
 
 gb_img_cache = {}
@@ -685,8 +716,8 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "keys": read_keys(),
-           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "keys": read_keys(),
+           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
         out["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(web)))
@@ -1210,6 +1241,37 @@ def win_exe():
     return None
 
 
+def win_mod_exe():
+    """The Direct Commands build of the Windows PC window (tools/p3fes_win_mod.bat makes it in C:\\p3fes\\winbuild\\build-mod), or None."""
+    base = win_exe()
+    if not base:
+        return None
+    p = os.path.join(os.path.dirname(os.path.dirname(base)), "build-mod", "ps2run.exe")
+    return p if os.path.isfile(p) else None
+
+
+def direct_on():
+    """Direct Commands is a toggle, on unless switched off (Mods > Direct Commands)."""
+    return load_cfg().get("direct_on", True) is not False
+
+
+def direct_available(mode):
+    """Is the Direct Commands build there for this way of playing?"""
+    if mode == "exe":
+        if win_exe():
+            return bool(win_mod_exe())
+        return os.path.exists(os.path.join(DIR, "build", "native-" + MOD_NAME, "ps2run"))
+    return os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html"))
+
+
+def active_win_exe():
+    """The PC window Play would start now: the Direct Commands build when the toggle is on and it is built."""
+    base = win_exe()
+    if not base:
+        return None
+    return win_mod_exe() if direct_on() and win_mod_exe() else base
+
+
 _AFS = {"key": None, "starts": [], "files": {}}
 
 
@@ -1373,6 +1435,24 @@ def voice_wav(afs, n):
     return wav
 
 
+def vol_get(cfg, key):
+    try:
+        return max(0, min(100, int(cfg.get(key, 100))))
+    except (TypeError, ValueError):
+        return 100
+
+
+def speedrun_file():
+    return os.path.join(saves_dir(), "speedrun_clock.txt")
+
+
+def speedrun_reset():
+    try:
+        os.remove(speedrun_file())
+    except OSError:
+        pass
+
+
 def dialog_log_path():
     """Where the PC window writes the dialogue log (ps2run_dialoglog_patch.py). Next to the memory card."""
     return os.path.join(saves_dir(), "dialog_log.tsv")
@@ -1476,7 +1556,7 @@ def pc_as_cfg():
 
 def pc_as_state():
     """The PC window's autosaves for the current build of ps2run.exe, newest first. 'older' counts other builds' files."""
-    exe = win_exe()
+    exe = active_win_exe()
     out = {"available": bool(exe), "list": [], "bytes": 0, "older": 0, "cfg": pc_as_cfg()}
     if not exe:
         return out
@@ -1506,11 +1586,16 @@ def pc_as_state():
     return out
 
 
-def play_windows(exe, resume=None):
-    """Start the native Windows window. Returns the same {ok, msg} as play()."""
+def play_windows(exe, resume=None, mod=False):
+    """Start the native Windows window. Returns the same {ok, msg} as play(). mod: the Direct Commands build (its own boot file)."""
     exe_dir = os.path.dirname(exe)
-    elf_src = os.path.join(DIR, "games", NAME, "disc", "SLUS_216.21")
-    elf = os.path.join(os.path.dirname(exe_dir), "SLUS_216.21")
+    elf_src = os.path.join(DIR, "games", MOD_NAME, "core.elf") if mod else os.path.join(DIR, "games", NAME, "disc", "SLUS_216.21")
+    elf = os.path.join(os.path.dirname(exe_dir), "core.elf" if mod else "SLUS_216.21")
+    if mod and os.path.isfile(elf_src) and (not os.path.isfile(elf) or os.path.getsize(elf) != os.path.getsize(elf_src)):
+        try:
+            shutil.copyfile(elf_src, elf)
+        except OSError as e:
+            return {"ok": False, "msg": "Could not copy the Direct Commands boot file next to the Windows program: %s" % e}
     if not os.path.isfile(elf):
         if not os.path.isfile(elf_src):
             return {"ok": False, "msg": "The game's boot file is missing. Run setup again."}
@@ -1538,6 +1623,14 @@ def play_windows(exe, resume=None):
     if wlog:   # the Log screen reads this file; a PS2_DIALOG_LOG line in ~/.p3fes-window-env still wins
         env["PS2_DIALOG_LOG"] = wlog
         names.append("PS2_DIALOG_LOG")
+    for key, var in (("vol_master", "PS2_VOL_MASTER"), ("vol_fx", "PS2_VOL_FX"), ("vol_music", "PS2_VOL_MUSIC"), ("vol_voice", "PS2_VOL_VOICE")):   # Settings > Audio
+        env[var] = str(vol_get(load_cfg(), key))
+        names.append(var)
+    if load_cfg().get("speedrun"):   # Settings > Speedrun: clock in the top left of the PC window (time kept in this file)
+        sr = to_win(speedrun_file())
+        if sr:
+            env["PS2_SPEEDRUN"] = sr
+            names.append("PS2_SPEEDRUN")
     try:   # research switches: lines like PS2_LOG_DISC=1 in ~/.p3fes-window-env (only PS2_ names are passed on)
         with open(os.path.expanduser("~/.p3fes-window-env")) as f:
             for ln in f:
@@ -1584,16 +1677,35 @@ def play_windows(exe, resume=None):
 
 
 def play(mode, resume=None, mod=False, pcresume=None):
+    """Start the game. Direct Commands (a separate build of the game) is used when its toggle is on and it is built for this way of
+    playing; a browser autosave resume always uses the normal build (a state only fits the build that made it)."""
+    note = ""
+    if not mod and direct_on() and not resume:
+        if direct_available(mode):
+            mod = True
+            note = " Direct Commands is on."
+        elif direct_available("browser" if mode == "exe" else "exe"):
+            note = " Direct Commands is on, but it is not built for the %s yet (see Mods > Direct Commands)." % ("PC window" if mode == "exe" else "browser")
+    r = play_inner(mode, resume, mod, pcresume)
+    if r.get("ok") and note:
+        r["msg"] = (r.get("msg") or "") + note
+    return r
+
+
+def play_inner(mode, resume=None, mod=False, pcresume=None):
     st = get_state()
     name = MOD_NAME if mod else NAME
     if st["state"] != "ready":
         return {"ok": False, "msg": "The game is not installed yet."}
-    if mod and not os.path.exists(os.path.join(DIR, "build", "web-" + name, "ps2web.html")):
+    if mod and mode != "exe" and not os.path.exists(os.path.join(DIR, "build", "web-" + name, "ps2web.html")):
         return {"ok": False, "msg": "That mod is not built on this computer yet."}
-    if pcresume and not (mode == "exe" and not mod and win_exe()):
+    if pcresume and not (mode == "exe" and win_exe()):
         return {"ok": False, "msg": "Resuming a PC window autosave needs the Windows PC window (build it first)."}
-    if mode == "exe" and not mod and win_exe():
-        return play_windows(win_exe(), pcresume or None)
+    if mode == "exe" and win_exe():
+        exe = win_mod_exe() if mod else win_exe()
+        if not exe:
+            return {"ok": False, "msg": "The Direct Commands build of the PC window is not built yet (see Mods > Direct Commands)."}
+        return play_windows(exe, pcresume or None, mod)
     if mode == "exe":
         exe = os.path.join(DIR, "build", "native-" + name, "ps2run")
         if not os.path.exists(exe):
@@ -1636,6 +1748,7 @@ def play(mode, resume=None, mod=False, pcresume=None):
     if resume:
         url += "&resume=%d" % resume
     how = win_open(url, prefer=pref)
+    keep_game_alive()
     return {"ok": True, "msg": "Opened in " + (how or "your browser") if how else "Open http://localhost:%d/ in Chrome or Edge." % GAME_PORT}
 
 
@@ -1746,6 +1859,8 @@ class H(BaseHTTPRequestHandler):
         self.autosave_http("DELETE", origin)
 
     def do_PUT(self):
+        if self.path == "/card" or self.path.startswith("/autosave"):
+            keep_game_alive()
         ok, origin = self.cors_ok()
         if self.path.startswith("/autosave") and ok:
             return self.autosave_http("PUT", origin)
@@ -1766,6 +1881,8 @@ class H(BaseHTTPRequestHandler):
         self.card_reply(200, b"ok", origin)
 
     def do_GET(self):
+        if self.path == "/card" or self.path.startswith("/autosave"):
+            keep_game_alive()
         if self.path.startswith("/autosave"):
             ok, origin = self.cors_ok()
             if not ok:
@@ -1809,7 +1926,7 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/ping":
             last_ping[0] = time.time()
             return self.send(200, {"ok": True})
-        p = "index.html" if self.path in ("/", "") else self.path.lstrip("/").split("?")[0]
+        p = "index.html" if self.path.split("?")[0] in ("/", "") else self.path.lstrip("/").split("?")[0]
         f = os.path.normpath(os.path.join(UI, p))
         if not f.startswith(UI) or not os.path.isfile(f):
             return self.send(404, {"error": "not found"})
@@ -1849,6 +1966,69 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if self.path == "/api/dialoglog/clear":
             return self.send(200, {"ok": dialog_log_clear()})
+        if self.path == "/api/direct":
+            c = load_cfg()
+            c["direct_on"] = bool(data.get("on"))
+            save_cfg(c)
+            return self.send(200, {"ok": True})
+        if self.path == "/api/steam/state":
+            return self.send(200, steam_state())
+        if self.path == "/api/steam/key":
+            c = load_cfg()
+            c["steamgriddb_key"] = str(data.get("key", "")).strip()
+            save_cfg(c)
+            return self.send(200, {"ok": True})
+        if self.path == "/api/steam/find":
+            try:
+                term = str(data.get("term") or STEAM_NAME)
+                r = sgdb_get("/search/autocomplete/" + urllib.parse.quote(term))
+                games = [{"id": g.get("id"), "name": g.get("name")} for g in (r.get("data") or [])[:8]]
+                if games:
+                    c = load_cfg()
+                    pick = next((g for g in games if "persona 3 fes" in (g["name"] or "").lower()), games[0])
+                    c["steamgriddb_game"], c["steamgriddb_name"] = pick["id"], pick["name"]
+                    save_cfg(c)
+                return self.send(200, {"ok": True, "games": games})
+            except ValueError as e:
+                return self.send(200, {"ok": False, "msg": str(e)})
+        if self.path == "/api/steam/art":
+            spec = ART_KINDS.get(data.get("kind"))
+            gid = load_cfg().get("steamgriddb_game")
+            if not spec or not gid:
+                return self.send(200, {"ok": False, "msg": "Find the game first."})
+            try:
+                q = {"mimes": spec.get("mimes", "image/png,image/jpeg"), "page": int(data.get("page") or 0)}   # logos and icons accept fewer picture types
+                q.update(spec["q"])
+                r = sgdb_get("/%s/game/%s" % (spec["path"], int(gid)), q)
+                items = [{"thumb": a.get("thumb"), "url": a.get("url"), "w": a.get("width"), "h": a.get("height"), "style": a.get("style"),
+                          "by": (a.get("author") or {}).get("name")} for a in (r.get("data") or []) if a.get("url") and not a.get("nsfw")]
+                return self.send(200, {"ok": True, "items": items})
+            except ValueError as e:
+                return self.send(200, {"ok": False, "msg": str(e)})
+        if self.path == "/api/steam/add":
+            return self.send(200, steam_add(data.get("choices") or {}))
+        if self.path == "/api/steam/remove":
+            return self.send(200, steam_remove())
+        if self.path == "/api/volume":
+            c = load_cfg()
+            which = data.get("which")
+            if which in ("master", "fx", "music", "voice"):
+                c["vol_" + which] = vol_get({"v": data.get("v", 100)}, "v")
+            save_cfg(c)
+            return self.send(200, {"ok": True, "v": c.get("vol_" + str(which))})
+        if self.path == "/api/speedrun":
+            c = load_cfg()
+            c["speedrun"] = bool(data.get("on"))
+            save_cfg(c)
+            return self.send(200, {"ok": True})
+        if self.path == "/api/speedrun/reset":
+            speedrun_reset()
+            return self.send(200, {"ok": True, "msg": "Clock set back to 0:00:00.00 (it starts from zero the next time the PC window opens)."})
+        if self.path == "/api/closeonplay":
+            c = load_cfg()
+            c["close_on_play"] = bool(data.get("on"))
+            save_cfg(c)
+            return self.send(200, {"ok": True})
         if self.path == "/api/widescreen":
             c = load_cfg()
             c["widescreen"] = bool(data.get("on"))
@@ -1929,7 +2109,7 @@ class H(BaseHTTPRequestHandler):
             pcr = str(data.get("pcresume") or "")
             return self.send(200, play(data.get("mode") or load_cfg().get("mode", "browser"), int(rid) if AS_ID.match(rid) else None, bool(data.get("mod")), pcr if PC_AS_RE.match(pcr) else None))
         if self.path == "/api/pcsave/delete":
-            name, exe = str(data.get("id") or ""), win_exe()
+            name, exe = str(data.get("id") or ""), active_win_exe()
             f = os.path.join(pc_as_dir(exe), name) if exe else ""
             if PC_AS_RE.match(name) and f and os.path.isfile(f):
                 try:
@@ -1962,12 +2142,319 @@ class H(BaseHTTPRequestHandler):
         self.send(404, {"error": "not found"})
 
 
+# ---- Steam shortcut and SteamGridDB artwork (Settings > Steam)
+SGDB_API = "https://www.steamgriddb.com/api/v2"
+STEAM_NAME = "Persona 3 FES"
+ART_KINDS = {   # what to ask SteamGridDB for, and the file name Steam looks for ({id} is the shortcut's number)
+    "portrait": {"path": "grids", "q": {"dimensions": "600x900"}, "file": "{id}p"},
+    "wide": {"path": "grids", "q": {"dimensions": "920x430,460x215"}, "file": "{id}"},
+    "hero": {"path": "heroes", "q": {}, "file": "{id}_hero"},
+    "logo": {"path": "logos", "q": {}, "mimes": "image/png", "file": "{id}_logo"},
+    "icon": {"path": "icons", "q": {}, "mimes": "image/png,image/vnd.microsoft.icon", "file": "{id}_icon"},
+}
+
+
+def sgdb_get(path, params=None, key=None):
+    """One call to the SteamGridDB API (needs the person's own free API key)."""
+    key = key or load_cfg().get("steamgriddb_key", "")
+    if not key:
+        raise ValueError("Paste your SteamGridDB API key first.")
+    url = SGDB_API + path + (("?" + urllib.parse.urlencode(params)) if params else "")
+    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0", "Authorization": "Bearer " + key, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise ValueError("SteamGridDB did not accept that API key.")
+        raise ValueError("SteamGridDB answered with an error (%s)." % e.code)
+    except Exception as e:
+        raise ValueError("Could not reach SteamGridDB: %s" % e)
+
+
+def steam_root():
+    """The Steam folder as a Linux path, from the Windows registry or the usual places."""
+    cands = []
+    try:
+        out = subprocess.run(["reg.exe", "query", r"HKCU\Software\Valve\Steam", "/v", "SteamPath"], capture_output=True, text=True, timeout=10).stdout
+        m = re.search(r"SteamPath\s+REG_SZ\s+(.+)", out)
+        if m:
+            p = subprocess.run(["wslpath", "-u", m.group(1).strip()], capture_output=True, text=True, timeout=5).stdout.strip()
+            if p:
+                cands.append(p)
+    except Exception:
+        pass
+    cands += ["/mnt/c/Program Files (x86)/Steam", "/mnt/c/Program Files/Steam"]
+    c = load_cfg().get("steam_dir")
+    if c:
+        cands.insert(0, c)
+    for p in cands:
+        if os.path.isdir(os.path.join(p, "userdata")):
+            return p
+    return None
+
+
+def steam_users(root):
+    """[(account number, userdata folder)], the most recently used account first."""
+    base = os.path.join(root, "userdata")
+    users = [(int(n), os.path.join(base, n)) for n in os.listdir(base) if n.isdigit() and n != "0" and os.path.isdir(os.path.join(base, n))]
+    recent = None
+    try:
+        txt = open(os.path.join(root, "config", "loginusers.vdf"), errors="replace").read()
+        for m in re.finditer(r'"(\d{17})"\s*\{(.*?)\}', txt, re.S):
+            if re.search(r'"MostRecent"\s*"1"', m.group(2)):
+                recent = int(m.group(1)) - 76561197960265728
+    except OSError:
+        pass
+    users.sort(key=lambda u: (u[0] != recent, u[0]))
+    return users
+
+
+def steam_running():
+    try:
+        out = subprocess.run(["tasklist.exe", "/FI", "IMAGENAME eq steam.exe", "/NH"], capture_output=True, text=True, timeout=10).stdout
+        return "steam.exe" in out.lower()
+    except Exception:
+        return False
+
+
+# Steam keeps shortcuts in a small binary file (shortcuts.vdf): nested lists of (type, name, value); 0 = list, 1 = text, 2 = number, 8 = end of list
+def vdf_parse(data, pos=0):
+    items = []
+    while pos < len(data):
+        t = data[pos]
+        pos += 1
+        if t == 8:
+            return items, pos
+        end = data.index(b"\x00", pos)
+        key = data[pos:end].decode("utf-8", "replace")
+        pos = end + 1
+        if t == 0:
+            val, pos = vdf_parse(data, pos)
+        elif t == 1:
+            end = data.index(b"\x00", pos)
+            val = data[pos:end].decode("utf-8", "replace")
+            pos = end + 1
+        elif t == 2:
+            val = struct.unpack_from("<I", data, pos)[0]
+            pos += 4
+        else:
+            raise ValueError("unknown entry type %d" % t)
+        items.append((t, key, val))
+    return items, pos
+
+
+def vdf_dump(items):
+    out = bytearray()
+    for t, key, val in items:
+        out += bytes([t]) + key.encode("utf-8") + b"\x00"
+        if t == 0:
+            out += vdf_dump(val)
+        elif t == 1:
+            out += val.encode("utf-8") + b"\x00"
+        else:
+            out += struct.pack("<I", val & 0xFFFFFFFF)
+    return bytes(out) + b"\x08"
+
+
+def steam_app_id(exe, name):
+    import zlib
+    return (zlib.crc32((exe + name).encode("utf-8")) & 0xFFFFFFFF) | 0x80000000
+
+
+def shortcut_entry(app_id, exe, start, icon):
+    return [(2, "appid", app_id), (1, "AppName", STEAM_NAME), (1, "Exe", exe), (1, "StartDir", start), (1, "icon", icon), (1, "ShortcutPath", ""),
+            (1, "LaunchOptions", ""), (2, "IsHidden", 0), (2, "AllowDesktopConfig", 1), (2, "AllowOverlay", 1), (2, "OpenVR", 0), (2, "Devkit", 0),
+            (1, "DevkitGameID", ""), (2, "DevkitOverrideAppID", 0), (2, "LastPlayTime", 0), (1, "FlatpakAppID", ""), (0, "tags", [])]
+
+
+def shortcuts_add(data, entry):
+    """shortcuts.vdf bytes (or None) with our entry added, or replaced when it is already there (matched by name). Returns the new bytes."""
+    root = vdf_parse(data)[0] if data else []
+    sc = next((v for t, k, v in root if k.lower() == "shortcuts" and t == 0), None)
+    if sc is None:
+        sc = []
+        root.append((0, "shortcuts", sc))
+    for i, (t, k, v) in enumerate(sc):
+        if t == 0 and any(kk == "AppName" and vv == STEAM_NAME for _, kk, vv in v):
+            sc[i] = (0, k, entry)
+            break
+    else:
+        nxt = max([int(k) for t, k, v in sc if k.isdigit()] + [-1]) + 1
+        sc.append((0, str(nxt), entry))
+    return vdf_dump(root)
+
+
+def shortcuts_remove(data):
+    root = vdf_parse(data)[0] if data else []
+    gone = None
+    for t, k, sc in root:
+        if t == 0 and k.lower() == "shortcuts":
+            keep = []
+            for it in sc:
+                if it[0] == 0 and any(kk == "AppName" and vv == STEAM_NAME for _, kk, vv in it[2]):
+                    gone = next((vv for _, kk, vv in it[2] if kk == "appid"), None)
+                else:
+                    keep.append(it)
+            sc[:] = [(0, str(n), it[2]) for n, it in enumerate(keep)]
+    return vdf_dump(root), gone
+
+
+def steam_launch_target():
+    """What the Steam shortcut starts: launch.bat next to this file (it opens the launcher, Play starts the game)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    bat = to_win(os.path.join(here, "launch.bat"))
+    return ('"%s"' % bat, bat.rsplit("\\", 1)[0] if bat and "\\" in bat else "") if bat else (None, None)
+
+
+def steam_state():
+    root = steam_root()
+    st = {"key_set": bool(load_cfg().get("steamgriddb_key")), "steam": bool(root), "running": False, "users": [], "added": False,
+          "game_id": load_cfg().get("steamgriddb_game"), "game_name": load_cfg().get("steamgriddb_name", "")}
+    if root:
+        st["running"] = steam_running()
+        users = steam_users(root)
+        st["users"] = [u[0] for u in users]
+        for _, ud in users[:1]:
+            try:
+                st["added"] = STEAM_NAME.encode() in open(os.path.join(ud, "config", "shortcuts.vdf"), "rb").read()
+            except OSError:
+                pass
+    return st
+
+
+def steam_download(url, dest):
+    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        blob = r.read(20 * 1024 * 1024)
+    with open(dest, "wb") as f:
+        f.write(blob)
+
+
+def steam_add(choices):
+    """Add (or update) the Persona 3 FES shortcut and the chosen artwork for the most recently used Steam account."""
+    root = steam_root()
+    if not root:
+        return {"ok": False, "msg": "Steam was not found on this computer."}
+    if steam_running():
+        return {"ok": False, "msg": "Close Steam completely first (right-click its tray icon > Exit), then try again. Steam would overwrite the change."}
+    users = steam_users(root)
+    if not users:
+        return {"ok": False, "msg": "No Steam account has signed in on this computer yet."}
+    exe, start = steam_launch_target()
+    if not exe:
+        return {"ok": False, "msg": "Could not work out the Windows path of launch.bat."}
+    app_id = steam_app_id(exe, STEAM_NAME)
+    _, ud = users[0]
+    cfgdir = os.path.join(ud, "config")
+    grid = os.path.join(cfgdir, "grid")
+    os.makedirs(grid, exist_ok=True)
+    done, failed, icon = [], [], ""
+    for kind, url in (choices or {}).items():
+        spec = ART_KINDS.get(kind)
+        if not spec or not isinstance(url, str) or not url.startswith("https://"):
+            continue
+        host = urllib.parse.urlparse(url).hostname or ""
+        if not host.endswith("steamgriddb.com"):
+            failed.append(kind)
+            continue
+        ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
+        ext = ext if ext in (".png", ".jpg", ".jpeg", ".ico", ".webp") else ".png"
+        dest = os.path.join(grid, spec["file"].format(id=app_id) + ext)
+        try:
+            steam_download(url, dest)
+            done.append(kind)
+            if kind == "icon":
+                icon = to_win(dest) or ""
+        except Exception:
+            failed.append(kind)
+    path = os.path.join(cfgdir, "shortcuts.vdf")
+    old = open(path, "rb").read() if os.path.exists(path) else b""
+    if old:
+        shutil.copy2(path, path + ".p3fes-backup")
+    try:
+        new = shortcuts_add(old, shortcut_entry(app_id, exe, start, icon))
+    except Exception as e:
+        return {"ok": False, "msg": "Steam's shortcut list could not be read (%s). Nothing was changed there; your old file is untouched." % e}
+    with open(path, "wb") as f:
+        f.write(new)
+    msg = "Added to Steam (account %d). Open Steam to see it in your library under Non-Steam games." % users[0][0]
+    if done:
+        msg += " Artwork: " + ", ".join(done) + "."
+    if failed:
+        msg += " Could not download: " + ", ".join(failed) + "."
+    return {"ok": True, "msg": msg}
+
+
+def steam_remove():
+    root = steam_root()
+    if not root:
+        return {"ok": False, "msg": "Steam was not found on this computer."}
+    if steam_running():
+        return {"ok": False, "msg": "Close Steam completely first, then try again."}
+    users = steam_users(root)
+    if not users:
+        return {"ok": False, "msg": "No Steam account found."}
+    cfgdir = os.path.join(users[0][1], "config")
+    path = os.path.join(cfgdir, "shortcuts.vdf")
+    if not os.path.exists(path):
+        return {"ok": True, "msg": "It was not in Steam."}
+    shutil.copy2(path, path + ".p3fes-backup")
+    new, app_id = shortcuts_remove(open(path, "rb").read())
+    with open(path, "wb") as f:
+        f.write(new)
+    if app_id is not None:
+        for g in glob.glob(os.path.join(cfgdir, "grid", "%d*" % app_id)):
+            try:
+                os.remove(g)
+            except OSError:
+                pass
+    return {"ok": True, "msg": "Removed from Steam, with the artwork this launcher added."}
+
+
+def playing_now():
+    """True while a game is running: the PC window (a process we started) or the browser game's server."""
+    try:
+        return any(c.poll() is None and "ps2run" in str(c.args[0]) for c in children) or port_open(GAME_PORT)
+    except Exception:
+        return False
+
+
+def win_clock():
+    """The Windows clock as ('YYYY-MM-DD', hour), or None. The Linux side may be on another time zone, so ask Windows."""
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", "Get-Date -Format yyyy-MM-dd-HH"],
+                           capture_output=True, text=True, timeout=20)
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})-(\d{2})$", r.stdout.strip())
+        return (m.group(1), int(m.group(2))) if m else None
+    except Exception:
+        return None
+
+
+def midnight_watch():
+    """The TV on the home screen shows a teaser for people who play at midnight: note the date when the game is running during the 00:00 hour."""
+    while True:
+        time.sleep(60)
+        if not playing_now():
+            continue
+        now = win_clock()
+        if now and now[1] == 0:
+            c = load_cfg()
+            if c.get("midnight_play") != now[0]:
+                c["midnight_play"] = now[0]
+                save_cfg(c)
+
+
 def watchdog():
     # Quit when the window says goodbye and does not come back within 10 seconds (a page reload comes back at once),
     # or after 30 minutes of silence (a hidden window slows its timers, so this must be long).
     while True:
         time.sleep(3)
         now = time.time()
+        if now < game_keep[0]:
+            continue   # a browser game is open: it still needs the card and autosave endpoints
+        if any(c.poll() is None and "ps2run" in str(c.args[0]) for c in children):
+            continue   # the PC window is running: keep watching for the midnight teaser
         if bye_time[0] and bye_time[0] > last_ping[0] and now - bye_time[0] > 10:
             os._exit(0)
         if last_ping[0] and now - last_ping[0] > 1800:
@@ -1992,6 +2479,7 @@ def main():
         return
     print("Launcher running at", url, "(closing its window stops it)")
     threading.Thread(target=watchdog, daemon=True).start()
+    threading.Thread(target=midnight_watch, daemon=True).start()
     if not a.no_window:
         how = win_open(url, app=True)
         if not how:

@@ -122,6 +122,32 @@ function view(s){
 }
 const badge=g=>g==='OK'?'#2BD07F':g==='NO'?'#FF6B78':'#8FA6C9';
 
+const TVFRAME=`<div style="position:relative;width:150px;height:124px;margin:0 auto"><svg width="150" height="124" viewBox="0 0 150 124" style="position:absolute;left:0;top:0;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35))"><path d="M55 30L38 6M95 30l17-24" stroke="var(--ink)" stroke-width="3" stroke-linecap="round" fill="none"/><rect x="8" y="26" width="134" height="92" rx="14" fill="var(--deep)" stroke="var(--acc)" stroke-width="3"/><rect x="20" y="36" width="110" height="72" rx="8" fill="#0B1A3F"/></svg><div id="tvslot" style="position:absolute;left:20px;top:36px;width:110px;height:72px;border-radius:8px;overflow:hidden"></div><svg width="150" height="124" viewBox="0 0 150 124" style="position:absolute;left:0;top:0"><rect x="20" y="36" width="110" height="72" rx="8" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/></svg></div>`;
+// The TV screen is one canvas that lives outside the page redraws, so its picture keeps moving. Normally it is static;
+// when the computer is playing at midnight it shows a short teaser instead (?midnight=1 in the address previews it).
+const tvCanvas=document.createElement('canvas');tvCanvas.width=220;tvCanvas.height=144;tvCanvas.style.cssText='width:110px;height:72px;display:block';
+const tvNoise=document.createElement('canvas');tvNoise.width=55;tvNoise.height=36;
+const tvT0=performance.now();
+function localDate(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isMidnight(){if(/[?&]midnight=1/.test(location.search))return true;const h=new Date().getHours();if(!S)return false;if(h===0&&S.playing)return true;return !!(S.midnight_date&&S.midnight_date===localDate()&&h<3);}
+function tvStatic(ctx,alpha){const n=tvNoise.getContext('2d'),im=n.createImageData(55,36),roll=((performance.now()/9)%60)-12;
+  for(let y=0;y<36;y++)for(let x=0;x<55;x++){const i=(y*55+x)*4,v=Math.random()*255,bar=Math.max(0,1-Math.abs(y-roll)/6)*60;im.data[i]=Math.min(255,v*.85+bar);im.data[i+1]=Math.min(255,v*.92+bar);im.data[i+2]=Math.min(255,v+bar);im.data[i+3]=255;}
+  n.putImageData(im,0,0);ctx.globalAlpha=alpha;ctx.imageSmoothingEnabled=false;ctx.drawImage(tvNoise,0,0,220,144);ctx.globalAlpha=1;}
+function tvText(ctx,lines,size,a){ctx.globalAlpha=a;ctx.font='800 '+size+'px Lexend,Segoe UI,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  const gl=Math.random()<.22?(Math.random()*6-3):0,y0=72-(lines.length-1)*size*.6;
+  lines.forEach((s,i)=>{const y=y0+i*size*1.2;if(gl){ctx.fillStyle='#ff3b55';ctx.fillText(s,110+gl+2,y);ctx.fillStyle='#35e0ff';ctx.fillText(s,110-gl-2,y);}ctx.fillStyle='#f4fbff';ctx.fillText(s,110,y);});ctx.globalAlpha=1;}
+function tvFrame(){if(!document.body.contains(tvCanvas))return;const ctx=tvCanvas.getContext('2d');
+  if(!isMidnight()){tvStatic(ctx,1);}else{
+    const t=((performance.now()-tvT0)/1000)%10;ctx.fillStyle='#02060f';ctx.fillRect(0,0,220,144);
+    const seg=(a,b)=>t>=a&&t<b?Math.min(1,(t-a)/.25,(b-t)/.25):0;
+    tvStatic(ctx,t<1||t>=8.4?(t<1?1-t*.3:Math.min(1,(t-8.4)*.6)):.12);
+    if(Math.random()>.07){
+      let a=seg(1.2,3.1);if(a>0)tvText(ctx,['MIDNIGHT','CHANNEL'],30,a);
+      a=seg(3.3,5.3);if(a>0)tvText(ctx,['PERSONA 4'],34,a);
+      a=seg(5.5,7.9);if(a>0)tvText(ctx,['THE RECOMP','IS COMING'],27,a);}
+  }
+  ctx.fillStyle='rgba(0,0,0,.18)';for(let y=0;y<144;y+=4)ctx.fillRect(0,y,220,2);}
+setInterval(tvFrame,83);
 function renderHome(){
   if(lost){C.innerHTML='<div class="a" style="left:0;top:340px;width:1280px;text-align:center;font-size:26px;font-weight:800">The launcher has stopped.<div style="font-size:16px;font-weight:600;margin-top:12px">Close this window and open launch.bat again.</div></div>';return;}
   if(!S){C.innerHTML='<div class="a" style="left:0;top:370px;width:1280px;text-align:center;font-size:24px;font-weight:800">Starting…</div>';return;}
@@ -143,6 +169,7 @@ function renderHome(){
     <div class="a hit" data-i="${i}" style="top:${y}px;height:44px"></div>`;
   });
   h+=`<div class="a cap" style="top:${top(sel)}px;height:44px">${sel===0?T.cap:''}</div>`;
+  h+=`<div class="a" style="left:905px;top:270px;width:190px;text-align:center;pointer-events:none;opacity:.92">${TVFRAME}<div style="font-size:11px;letter-spacing:3px;font-weight:800;margin-top:6px;color:var(--ink)">${isMidnight()?'MIDNIGHT CHANNEL':'TO BE CONTINUED'}</div></div>`;
   h+=`<div class="a sw" style="display:${ready?'flex':'none'}"><div class="l">PLAY IN</div><div class="b" data-m="browser" style="${on(!exe)}">BROWSER</div><div class="b" data-m="exe" style="${on(exe)}">PC WINDOW</div><div class="k">Q / E</div></div>`;
   h+=`<div class="a panel" style="left:112px;top:536px;width:540px;height:150px">
    <div style="font-size:22px;font-weight:800;color:var(--ink)">Persona 3 FES <span style="font-size:14px;font-weight:600">NTSC-U</span></div>
@@ -161,6 +188,7 @@ function renderHome(){
   <div class="a btns"><div class="btn" data-go="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><path d="M10 10l10 10M20 10l-10 10" stroke="#fff" stroke-width="3"/></svg>Select</div>
   <div class="btn" data-quit="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><circle cx="15" cy="15" r="6" fill="none" stroke="#FF6B78" stroke-width="3"/></svg>Close</div></div>`;
   C.innerHTML=h;
+  const slot=document.getElementById('tvslot');if(slot)slot.appendChild(tvCanvas);
 }
 
 /* ---------- Help and Settings screens ---------- */
@@ -168,6 +196,58 @@ let G=null,gq='',gs='new',gp=0,gload=false,gmsg='',D=null,dload=false,dfile=0,di
 async function gbOpen(id){D=null;dload=true;dfile=0;dimg=0;render();try{D=await api('/api/gb/mod',{id});if(D.ok){const f=D.files.find(x=>x.ok);dfile=f?f.id:0;}}catch(e){D={ok:false,err:'The launcher could not be reached.'};}dload=false;render();}
 async function gbLoad(refresh){gload=true;gmsg='';render();try{G=await api('/api/gb/view',{q:gq,sort:gs,page:gp,refresh:!!refresh});gp=G.page;}catch(e){G={ok:false,err:'The launcher could not be reached.',mods:[],total:0,page:0,pages:1};}gload=false;render();}
 let screen='home',astab='',msel=0,capture=null,reportText='',pend='';
+const CHANGES=[
+ {v:'0.10',d:'21 Oct 2026',t:'Add to Steam',i:[
+  'NEW  Settings > Steam: add Persona 3 FES to your Steam library as a Non-Steam game, with the artwork you pick from SteamGridDB (capsule, wide, hero, logo, icon). Needs a free SteamGridDB key.',
+  'FIXED  GameBanana mod descriptions were cut off after a short while; the whole text now shows.',
+  'FIXED  On a GameBanana mod page the whole page now scrolls (and keeps its place), and the BACK TO THE LIST and INSTALL buttons stay in view at the bottom.',
+  'FIXED  Logo and icon artwork now load in Settings > Steam (they only accept some picture types).',
+  'FIXED  Typing in a box (volume, Steam key) is no longer wiped by the screen refreshing.']},
+ {v:'0.9',d:'21 Oct 2026',t:'Moving static and a midnight teaser',i:[
+  'FIXED  The update log no longer jumps back to the top while you scroll it.',
+  'IMPROVED  The static on the home screen TV now moves.',
+  'NEW  Play at midnight and the TV shows a short teaser for the next project instead of static.']},
+ {v:'0.8',d:'21 Oct 2026',t:'Volume sliders',i:[
+  'IMPROVED  Volume rows in Settings > Audio now have a slider you can drag, and a MUTE button that sets the row to 0 (UNMUTE puts it back).']},
+ {v:'0.7',d:'21 Oct 2026',t:'Music and voice volume',i:[
+  'IMPROVED  Settings > Audio now has separate Music and Voices sliders (instead of one shared slider), next to Master and Effects.']},
+ {v:'0.6',d:'21 Oct 2026',t:'Effects volume',i:[
+  'NEW  Settings > Audio: separate volume for sound effects, and for music and voices together (they share one channel in the game for now).']},
+ {v:'0.5',d:'21 Oct 2026',t:'Audio settings',i:[
+  'NEW  Settings > Audio: master volume for the PC window, 0 to 100 percent. Use the buttons or type any value.']},
+ {v:'0.4',d:'21 Oct 2026',t:'Speedrun clock',i:[
+  'NEW  Speedrun clock for the PC window (Settings > Speedrun): real time in the top left corner, saved as you play so Resume carries on. F6 pauses, F7 sets it to zero.']},
+ {v:'0.3',d:'20 Oct 2026',t:'Log, mouse and a calmer start',i:[
+  'NEW  Log screen on Home: every line of dialogue the PC window shows, with the speaker and an icon. A crossed speaker means no voice. Click a speaker icon to hear the line again.',
+  'NEW  Mouse camera in the PC window, like the browser game: click the picture, move the mouse sideways to turn the camera. Esc gives the mouse back.',
+  'NEW  The PC window opens maximized, filling the screen like this launcher.',
+  'NEW  The launcher closes as soon as the game starts. Turn it off in Settings > Launcher.',
+  'NEW  This update log (Help > Update log).',
+  'IMPROVED  Direct Commands is now a switch (Mods > Direct Commands), on by default: Play uses it whenever it is built, in the browser and in the PC window. The PC window version is built once with tools\\p3fes_win_mod.bat.',
+  'NEW  A small TV on the home screen. Just a hint of what comes later; it does nothing yet.']},
+ {v:'0.2',d:'14 to 19 Oct 2026',t:'The native Windows PC window',i:[
+  'NEW  A native Windows PC window: no Ubuntu display program, about 60 frames per second on a graphics card.',
+  'NEW  Resolution setting that applies to the PC window (1x, 2x or 3x).',
+  'NEW  Widescreen option for the PC window (Settings > Display). The 3D view is widened; menus and the HUD stay 4:3 for now.',
+  'NEW  Fast-forward: Tab speeds the game up and Tab again turns it off (the sound is muted while it is on).',
+  'NEW  PC window autosave and resume, shared memory card with the browser game.',
+  'NEW  One-step Windows setup for friends (first version).',
+  'NEW  Key and controller settings; keys like PCSX2 (WASD, TFGH, IJKL).',
+  'NEW  About page with the creators and the project.',
+  'IMPROVED  The PC window no longer needs a display program to be started first.']},
+ {v:'0.1',d:'earlier',t:'The launcher itself',i:[
+  'NEW  Home screen in the game\'s own style, with the real state: Ready, Not installed, Building, Wrong disc.',
+  'NEW  Play in the browser or in a PC window, one switch.',
+  'NEW  Saves screen: autosaves, the shared memory card and backups.',
+  'NEW  Mods: file mods (folders, zip, 7z and rar, merged with a priority order), portrait mods, GameBanana browsing and install, direct commands.',
+  'NEW  Ten colour themes, and the Twelve theme for finishing The Journey.',
+  'NEW  Help with getting started, controls, troubleshooting and a copyable report.']}
+];
+function updateLog(){
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const rows=CHANGES.map(c=>`<div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.3);padding-top:8px"><div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:20px;font-weight:800;color:var(--acc)">${c.v}</span><span style="font-size:16px;font-weight:800;color:var(--ink)">${esc(c.t)}</span><span style="margin-left:auto;font-size:12px;letter-spacing:1px;opacity:.8;color:var(--ink)">${esc(c.d)}</span></div>`+c.i.map(x=>{const m=x.match(/^(NEW|IMPROVED|FIXED)\s+(.*)$/);return `<div style="display:flex;gap:8px;margin-top:5px;font-size:14px;line-height:1.35;color:var(--ink)"><span style="flex:none;width:74px;font-size:11px;font-weight:800;letter-spacing:1px;padding-top:2px;color:${m&&m[1]==='NEW'?'#2BD07F':'var(--acc)'}">${m?m[1]:''}</span><span>${esc(m?m[2]:x)}</span></div>`;}).join('')+`</div>`).join('');
+  return pnl(H1('UPDATE LOG')+P('You are on version '+(S?S.version:'')+'.',4)+`<div id="ulist" style="margin-top:2px;max-height:470px;overflow-y:auto;padding-right:6px">${rows}</div>`,'padding-bottom:14px');
+}
 let LG=null,lgScroll=null,lgStick=true;
 async function lgLoad(){try{LG=await api('/api/dialoglog');}catch(e){}if(screen==='log')render();}
 function openLog(){LG=null;lgScroll=null;lgStick=true;open_('log');lgLoad();}
@@ -179,13 +259,13 @@ const icoSpk=(on)=>`<svg width="26" height="26" viewBox="0 0 26 26" style="flex:
 const ROWL={cross:'CROSS · confirm',circle:'CIRCLE · cancel',square:'SQUARE',triangle:'TRIANGLE',l1:'L1',r1:'R1',l2:'L2',r2:'R2',start:'START',select:'SELECT'};
 const ROWS=Object.keys(ROWL);
 const MENUS={
- help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','VERSION'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.']},
+ help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','VERSION','UPDATE LOG'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.','Everything that has changed, newest first.']},
  log:{title:'LOG',sub:'WHAT WAS SAID',items:['DIALOGUE'],y:160,hint:['Lines shown so far. Click a speaker icon to hear the line.']},
  about:{title:'ABOUT',sub:'WHO MADE THIS',items:['THE CREATORS','THE PROJECT'],y:160,hint:['The two people behind this launcher and port.','What this is, and what it is built on.']},
  saves:{title:'SAVES',sub:'PICK UP WHERE YOU LEFT OFF',items:['AUTOSAVES','MEMORY CARD','BACKUPS'],y:160,hint:['Saves of the whole game.','The card both versions share.','Earlier copies of the card.']},
  mods:{title:'MODS',sub:'YOUR NORMAL GAME IS NEVER CHANGED',items:['DIRECT COMMANDS','FEMC PROTAGONIST','RELOAD STYLE PACK','FILE MODS','BROWSE GAMEBANANA','ADD A PATCH'],y:160,hint:['Control party members in battle.','Play as the female protagonist.','A look-alike menu pack idea.','Add mods that replace game files (text, images, sounds).','Find Persona 3 FES mods on GameBanana and add them.','Check a patch file against your disc.']},
  setup:{title:'SETUP',sub:'FIRST TIME ONLY',items:['FIND YOUR DISC','GET THE TOOLS','BUILD THE GAME','PLAY'],y:160,tag:1,hint:['Your own Persona 3 FES (USA) disc image.','Downloads what the build needs.','Turns your disc into a game that runs here.','Ready when the build is done.']},
- settings:{title:'SETTINGS',sub:'KEYS APPLY THE NEXT TIME THE GAME STARTS',items:['CONTROLS','CONTROLLER','AUTOSAVE','DISPLAY','THEME','MEMORY CARD'],y:150,hint:['Choose the keys for the PC window.','Controllers.','Automatic saves.','Which browser opens the game.','Colours of the launcher.','The card both versions share.']}
+ settings:{title:'SETTINGS',sub:'KEYS APPLY THE NEXT TIME THE GAME STARTS',items:['CONTROLS','CONTROLLER','AUTOSAVE','DISPLAY','THEME','MEMORY CARD','LAUNCHER','SPEEDRUN','AUDIO','STEAM'],y:150,hint:['Choose the keys for the PC window.','Controllers.','Automatic saves.','Which browser opens the game.','Colours of the launcher.','The card both versions share.','What the launcher does when you press Play.','A speedrun clock in the PC window.','Game volume for the PC window.','Add the game to your Steam library with artwork.']}
 };
 const pnl=(inner,extra='')=>`<div class="a panel" style="left:650px;top:150px;width:570px;${extra}">${inner}</div>`;
 const H1=t=>`<div class="sh" style="font-size:17px;font-weight:800;font-style:italic">${t}</div>`;
@@ -218,6 +298,7 @@ function body(){
       P('Built on PS2 Web Recomp by snuri00 (MIT licence), with SDL2 and wgpu-native. Not affiliated with or endorsed by Atlus or SEGA.',10)+P('Launcher '+(S?S.version:'')+'. Thank you to everyone who tested.',10),'padding-bottom:18px');
   }
   if(screen==='help'){
+    if(msel===4)return updateLog();
     if(msel===0)return pnl(H1('GETTING STARTED')+['Put your own Persona 3 FES (USA) disc image in C:\\p3fes.','Run the installer in Ubuntu (docs/install.md). It takes 10 minutes or more.','Open this launcher. Home says <b>Ready</b> when the game is built.','Press <b>PLAY</b>. Pick the browser or the PC window with Q and E.'].map((t,i)=>`<div style="display:flex;gap:14px;margin-top:12px;font-size:15px;line-height:1.45;color:var(--ink)"><div style="flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:var(--acc);font-weight:800;text-align:center;line-height:28px">${i+1}</div><div>${t}</div></div>`).join(''),'padding-bottom:18px');
     if(msel===1)return pnl(H1('DEFAULT KEYS')+`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:8px;font-size:15px;color:var(--ink)">`+ROWS.map(r=>`<div style="display:flex;justify-content:space-between"><span style="font-weight:600">${ROWL[r]}</span><b>${kd[r]||''}</b></div>`).join('')+`</div>`+P('Arrow keys are the D-pad. W A S D is the left stick and T F G H the right stick. F11 or ` toggles fullscreen. Change keys in Settings.',12),'padding-bottom:18px');
     if(msel===2)return pnl(H1('WHAT ARE YOU SEEING?')+[
@@ -232,9 +313,13 @@ function body(){
   if(screen==='mods'){
     const M=S.mods||{}, tag=(t,c)=>`<span style="float:right;font-size:12px;letter-spacing:1px;background:${c};color:#0B1A3F;border-radius:6px;padding:2px 8px">${t}</span>`, big=x=>`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${x}</div>`;
     if(msel===0){
-      const ok=S.state==='ready'&&M.direct, where=S.mode==='exe'?'PC window':'browser';
-      return pnl(H1('DIRECT COMMANDS')+tag(M.direct?'BUILT':'NOT BUILT',M.direct?'#2BD07F':'#8FA6C9')+big('Control party members')+P('Lets you control party members in battle. Works in the browser and the PC window.')+P('Needed one extra code entry point, which is added automatically.')+
-        (ok?btnx('PLAY WITH THIS MOD','playmod')+P('Opens in the '+where+', as chosen on Home. Your normal game stays as it was, and the memory card is shared.',8):P(S.state!=='ready'?'Finish setup first.':'This mod has not been built on this computer yet.',10)),'padding-bottom:18px');
+      const on=M.direct_on!==false, st=(b,t0)=>`<span style="font-size:12px;letter-spacing:1px;font-weight:800;margin-left:6px;color:${b?'#2BD07F':'#FF9A3C'}">${b?'BUILT':'NOT BUILT'}</span>`;
+      return pnl(H1('DIRECT COMMANDS')+tag(M.direct?'BUILT':'NOT BUILT',M.direct?'#2BD07F':'#8FA6C9')+big('Control party members')+P('Lets you control party members in battle. It is a separate build of the game, so your normal game is never changed, and the memory card is shared.')+
+        P('Use it whenever I press Play',10)+btnx('ON','dc:1',on)+btnx('OFF','dc:0',!on)+
+        `<div style="margin-top:12px;font-size:15px;line-height:1.7;color:var(--ink)">Browser game ${st(M.direct)}<br>PC window ${M.has_winexe?st(M.direct_win):'<span style="font-size:12px;letter-spacing:1px;font-weight:800;margin-left:6px;opacity:.8">PC WINDOW NOT BUILT</span>'}</div>`+
+        (M.has_winexe&&!M.direct_win&&M.direct?P('To add it to the PC window, build it once: in the <b>x64 Native Tools Command Prompt</b> run <b>tools\\p3fes_win_mod.bat</b> (about as long as the normal PC window). Until then the PC window starts the normal game.',10):'')+
+        (!M.direct?P(S.state!=='ready'?'Finish setup first.':'The mod is not built on this computer yet, so Play starts the normal game.',10):'')+
+        P('PC window autosaves are kept separately for each version, so Resume always loads into the version that made it.',8),'padding-bottom:18px');
     }
     if(msel===1)return pnl(H1('FEMC PROTAGONIST')+tag('IN DEVELOPMENT','var(--acc)')+big('Not available yet')+P('Play as the female protagonist from Persona 3 Portable. Choosing it will also switch the launcher to the pink menu theme.')+P('It is a community project that is still being made.')+`<div style="margin-top:12px;display:inline-block;border-radius:8px;background:rgba(255,255,255,.25);padding:8px 18px;font-size:15px;font-weight:800;color:var(--ink)">NOT AVAILABLE YET</div>`,'padding-bottom:18px');
     if(msel===2)return pnl(H1('RELOAD STYLE PACK')+tag('CONCEPT','#8FA6C9')+big('An idea for later')+P('A pack that changes portraits, music and menus to look like Persona 3 Reload, installed like any other mod.')+P('Nothing to install yet.'),'padding-bottom:18px');
@@ -255,14 +340,16 @@ function body(){
         const fmt=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
         if(dload||!D)return pnl(H1('BROWSE GAMEBANANA')+tag('PERSONA 3 FES','#8FA6C9')+P('<b>Loading the mod…</b>',10)+btnx('BACK TO THE LIST','gbb'),'padding-bottom:14px;top:110px');
         if(!D.ok)return pnl(H1('BROWSE GAMEBANANA')+P('<b>'+esc(D.err||'Could not load that mod.')+'</b>',10)+btnx('BACK TO THE LIST','gbb'),'padding-bottom:14px;top:110px');
-        const img=D.images.length?`<img src="/api/gb/img?u=${encodeURIComponent(D.images[Math.min(dimg,D.images.length-1)])}" style="display:block;max-width:100%;max-height:270px;margin:8px auto 0;border-radius:8px">`+(D.images.length>1?`<div style="margin-top:6px;text-align:center">${D.images.map((u,i)=>`<img data-act="gbm:${i}" src="/api/gb/img?u=${encodeURIComponent(u)}" style="height:38px;margin:0 3px;border-radius:5px;cursor:pointer;border:2px solid ${i===dimg?'var(--acc)':'transparent'}">`).join('')}</div>`:''):P('No pictures were posted for this mod.',8);
+        const img=D.images.length?`<img src="/api/gb/img?u=${encodeURIComponent(D.images[Math.min(dimg,D.images.length-1)])}" style="display:block;max-width:100%;max-height:230px;margin:8px auto 0;border-radius:8px">`+(D.images.length>1?`<div style="margin-top:6px;text-align:center">${D.images.map((u,i)=>`<img data-act="gbm:${i}" src="/api/gb/img?u=${encodeURIComponent(u)}" style="height:38px;margin:0 3px;border-radius:5px;cursor:pointer;border:2px solid ${i===dimg?'var(--acc)':'transparent'}">`).join('')}</div>`:''):P('No pictures were posted for this mod.',8);
         const files=D.files.map(f=>`<div ${f.ok?`data-act="gbf:${f.id}"`:''} style="padding:5px 8px;margin-top:4px;border-radius:7px;border:2px solid ${f.id===dfile&&f.ok?'var(--acc)':'transparent'};background:rgba(255,255,255,${f.ok?.28:.12});cursor:${f.ok?'pointer':'default'};color:var(--ink);opacity:${f.ok?1:.6}"><div style="font-size:14px;font-weight:800">${f.id===dfile&&f.ok?'&#9679; ':''}${esc(f.name)} <span style="font-weight:600">· ${fmt(f.size)}</span></div><div style="font-size:12px">${f.ok?esc(f.desc||'Archive that can be added'):'Not a .zip, .7z or .rar: cannot be added here'}</div></div>`).join('');
         const any=D.files.some(f=>f.ok);
-        return pnl(H1(esc(D.name))+tag(D.version?'VERSION '+esc(D.version):'PERSONA 3 FES','#8FA6C9')+
-          P('by '+esc(D.by)+' · '+D.likes+' likes · '+D.views+' views',2)+img+
-          `<div style="margin-top:8px;max-height:190px;overflow:auto;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.2);font-size:13px;line-height:1.4;color:var(--ink);white-space:pre-wrap">${esc(D.desc||'The author did not write a description.')}</div>`+
-          `<div style="margin-top:6px;max-height:170px;overflow:auto">${files||P('This mod has no files.')}</div>`+
-          (busyF?P('<b>'+esc(F.msg||'Working…')+'</b>',8):(any?btnx('INSTALL SELECTED FILE','gbi:'+D.id+':'+dfile):P('Nothing here can be installed through the launcher.',8))+btnx('BACK TO THE LIST','gbb')+(F.msg?P(esc(F.msg),6):'')),'padding-bottom:14px;top:90px');
+        const foot=(busyF?P('<b>'+esc(F.msg||'Working…')+'</b>',4):(any?btnx('INSTALL SELECTED FILE','gbi:'+D.id+':'+dfile):'')+btnx('BACK TO THE LIST','gbb')+(F.msg?P(esc(F.msg),4):''));
+        return pnl(`<div style="display:flex;flex-direction:column;height:100%">`+H1(esc(D.name))+tag(D.version?'VERSION '+esc(D.version):'PERSONA 3 FES','#8FA6C9')+
+          P('by '+esc(D.by)+' · '+D.likes+' likes · '+D.views+' views',2)+
+          `<div id="gbscroll" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px;padding-right:6px">`+img+
+          `<div id="gbdesc" style="margin-top:8px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.2);font-size:13px;line-height:1.4;color:var(--ink);white-space:pre-wrap">${esc(D.desc||'The author did not write a description.')}</div>`+
+          `<div style="margin-top:6px">${files||P('This mod has no files.')}${any?'':P('Nothing here can be installed through the launcher.',8)}</div></div>`+
+          `<div style="flex:none;padding-top:2px">${foot}</div></div>`,'padding-bottom:14px;top:90px;height:630px;box-sizing:border-box');
       }
       let body;
       if(gload||!G)body=P('<b>Loading the list from GameBanana…</b>',10);
@@ -343,6 +430,11 @@ function body(){
       `<div style="margin-top:12px;color:var(--ink);font-size:13px;line-height:1.6"><b>BLUE</b> the original. <b>PINK</b> ready for the female protagonist mod. <b>RELOAD</b> electric cyan. <b>MOON</b> indigo and gold. <b>DAWN</b> cream and peach. <b>SEAL</b> white and ice blue. <b>DAYBREAK</b> a sky gradient. <b>HORIZON</b> sunset over a dark sea. <b>CEREMONY</b> ivory and gold. <b>ECLIPSE</b> violet with a glowing moon. They are only colours, no art from the game.</div>`+
       `<div style="margin-top:10px">${sw('#1B8CF2','#06173F','#F2A94E')}${sw('#F2619F','#3A0A28','#FFD36B')}${sw('#0BB5E8','#02101F','#EAFDFF')}${sw('#2B2F66','#FFE082','#FFE082')}${sw('#FFD9A0','#2A2F55','#9FC6F2')}${sw('#BFDDF5','#16304F','#C9D6E3')}${sw('#7FA8E8','#23284F','#F7B6A1')}${sw('#E8708A','#10143A','#FFB45A')}${sw('#F6EBCF','#3A2F1A','#D4A93E')}${sw('#2A1740','#FFD36B','#FFD36B')}${S&&S.journey?sw('#1E7A5C','#02100B','#F5ECC8'):''}</div>`+
       `<div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.3);padding-top:4px">${H1('THE JOURNEY')}`+(S&&S.journey?P('Unlocked: the TWELVE theme and a gold badge on the home screen.')+btnx('LOCK IT AGAIN','jy:0'):P('Reached the end of The Journey? Unlock a special green theme and a gold badge. It is on your honour for now.')+btnx('I FINISHED THE JOURNEY','jy:1'))+`</div>`,'padding-bottom:18px');}
+  if(msel===9){return steamPanel();}
+  if(msel===8){const rows=[['master','MASTER'],['music','MUSIC'],['voice','VOICES'],['fx','EFFECTS']].map(([w,l])=>{const v=S&&S['vol_'+w]!=null?S['vol_'+w]:100;const bt='background:var(--deep);border-radius:8px;padding:6px 12px;font-size:16px;font-weight:800;color:var(--acc);cursor:pointer';return `<div style="display:flex;align-items:center;margin-top:12px"><div style="width:84px;font-size:14px;font-weight:800;color:var(--ink)">${l}</div>`+`<input type="range" data-sl="${w}" min="0" max="100" step="1" value="${v}" style="width:140px;accent-color:var(--acc);cursor:pointer">`+`<div data-act="vl:${w}:-5" style="${bt};margin-left:8px">−</div>`+`<input id="vl-${w}" data-w="${w}" type="number" min="0" max="100" step="1" value="${v}" style="width:60px;margin:0 6px;padding:6px 6px;font-size:16px;font-weight:800;text-align:center;border:2px solid var(--acc);border-radius:8px;background:var(--deep);color:var(--acc)">`+`<div data-act="vl:${w}:5" style="${bt}">+</div><div style="margin:0 8px;font-size:15px;color:var(--ink)">%</div>`+`<div data-act="vm:${w}" style="${bt};font-size:13px;${v===0?'border:2px solid var(--acc);padding:4px 10px':''}">${v===0?'UNMUTE':'MUTE'}</div></div>`;}).join('');
+  const stale=S&&S.version&&S.version!==CHANGES[0].v;return pnl(H1('VOLUME')+(stale?`<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--deep);color:var(--acc);font-size:14px;font-weight:800">The launcher program is version ${S.version} but this screen is ${CHANGES[0].v}. Changes here will not be saved until p3fes_launcher.py in C:\\p3fes\\launcher is replaced with the new one and the launcher is restarted (pkill -f p3fes_launcher in Ubuntu).</div>`:'')+P('Drag a slider, type a value and press Enter, or use the buttons (steps of 5). MUTE sets a slider to 0 and UNMUTE puts it back. Applies the next time the game starts.',8)+rows+P('Music: the background music. Voices: the spoken lines. Effects: footsteps, menu clicks and the other sound effects. Master changes everything at once. PC window only.',14),'padding-bottom:18px');}
+  if(msel===7){const on=!!(S&&S.speedrun);return pnl(H1('SPEEDRUN CLOCK')+P('Shows a clock in the top left corner of the PC window: real time as H:MM:SS.cc. It is saved as you play, so closing the game and pressing Resume carries on from where it stopped.',8)+btnx('CLOCK ON','sr:1',on)+btnx('CLOCK OFF','sr:0',!on)+btnx('RESET TO ZERO','srr',false)+P('In the game window: F6 pauses and continues, F7 sets it to zero. The clock is a see-through window over the picture, so capture the screen or the game with OBS (Display Capture works; some Window Capture modes miss it). PC window only.',12),'padding-bottom:18px');}
+  if(msel===6){const on=!S||S.close_on_play!==false;return pnl(H1('WHEN YOU PRESS PLAY')+P('Close the launcher as soon as the game starts (the browser or the PC window). Turn this off to keep the launcher open next to the game, for example to read the Log.',8)+btnx('CLOSE THE LAUNCHER','cp:1',on)+btnx('KEEP IT OPEN','cp:0',!on)+P('With the browser game, saves still sync in the background for a while after the launcher closes. Open the launcher again any time.',12),'padding-bottom:18px');}
   const c=S&&S.card?S.card:{};
   return pnl(H1('SHARED MEMORY CARD')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${c.exists?'Saved '+c.modified:'No card yet'}</div>`+P('The PC window and the browser game use this one file, so a save made in either is there in the other.')+`<div style="font:13px/1.5 ui-monospace,Consolas,monospace;margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.2);border-radius:8px;color:var(--ink);word-break:break-all">${c.dir||''}\\Mcd001.ps2</div>`+P((c.backups||0)+' earlier copies kept (the newest 10).',8)+btnx('OPEN FOLDER','openfolder')+(S&&S.has_web&&!S.card_sync?P('<b>The browser game cannot use it yet.</b> Rebuild it once: run the installer again, or <code>scripts/build_web.sh p3fes</code> in the game folder.',10):''),'padding-bottom:18px');
 }
@@ -359,12 +451,42 @@ function renderMenu(){
   <div class="a btns"><div class="btn" data-back="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><circle cx="15" cy="15" r="6" fill="none" stroke="#FF6B78" stroke-width="3"/></svg>Back</div></div>`;
   C.innerHTML=h;
 }
+// ---- Steam (Settings > Steam)
+let ST={s:null,busy:false,kind:'portrait',items:null,page:0,apiPage:0,sel:{},loading:false,msg:''};
+const ST_KINDS=[['portrait','CAPSULE'],['wide','WIDE'],['hero','HERO'],['logo','LOGO'],['icon','ICON']];
+async function stRefresh(){try{ST.s=await api('/api/steam/state',{});}catch(e){}render();}
+async function stArt(more){if(!more){ST.items=null;ST.page=0;ST.apiPage=0;}else ST.apiPage++;ST.loading=true;render();
+  try{const r=await api('/api/steam/art',{kind:ST.kind,page:ST.apiPage});ST.loading=false;if(r.ok){ST.items=(more&&ST.items?ST.items:[]).concat(r.items);ST.msg=r.items.length||more?'':'Nothing found for this kind yet.';}else{ST.items=ST.items||[];ST.msg=r.msg||'';}}
+  catch(e){ST.loading=false;ST.items=ST.items||[];ST.msg='Could not ask the launcher.';}render();}
+async function stFind(){ST.msg='Looking for the game on SteamGridDB…';render();try{const r=await api('/api/steam/find',{});if(!r.ok)ST.msg=r.msg||'';else if(!r.games.length)ST.msg='SteamGridDB has no game with that name.';else ST.msg='';}catch(e){ST.msg='Could not ask the launcher.';}await stRefresh();if(ST.s&&ST.s.game_id)stArt(false);}
+function steamPanel(){
+  if(!ST.s){if(!ST.busy){ST.busy=true;stRefresh().then(()=>{ST.busy=false;const s=ST.s;if(s&&s.key_set&&s.game_id&&!ST.items&&!ST.loading)stArt(false);else if(s&&s.key_set&&!s.game_id&&!ST.msg)stFind();});}return pnl(H1('STEAM')+P('Looking for Steam…',8));}
+  const s=ST.s,esc=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  let b=H1('ADD TO STEAM')+P('Adds Persona 3 FES to your Steam library (Non-Steam games) with artwork you pick from SteamGridDB. The shortcut opens this launcher; press Play there.',6);
+  if(!s.steam)return pnl(b+P('Steam was not found on this computer, so there is nothing to add to.',10),'padding-bottom:18px');
+  if(!s.key_set)return pnl(b+P('First you need a free SteamGridDB key: sign in at steamgriddb.com, open Preferences, then API, and copy your key. Paste it here:',10)+`<div style="margin-top:10px"><input id="sgkey" type="password" placeholder="SteamGridDB API key" style="width:340px;padding:8px 10px;font-size:15px;border:2px solid var(--acc);border-radius:8px;background:var(--deep);color:var(--acc)"></div>`+btnx('SAVE KEY','stkey',false),'padding-bottom:18px');
+  b+=`<div style="margin-top:6px;font-size:14px;color:var(--ink)">Game on SteamGridDB: <b>${s.game_id?esc(s.game_name)+' (#'+esc(s.game_id)+')':'not found yet'}</b>${s.added?' · already in Steam (adding again updates it)':''}</div>`;
+  if(!s.game_id)return pnl(b+(ST.msg?P(esc(ST.msg),8):'')+btnx('FIND PERSONA 3 FES','stfind',false)+btnx('CHANGE KEY','stkeyx',false),'padding-bottom:18px');
+  const tabs=ST_KINDS.map(([k,l])=>`<div data-act="stk:${k}" style="display:inline-block;margin:8px 6px 0 0;border:2px solid ${ST.kind===k?'var(--acc)':'transparent'};background:var(--deep);border-radius:8px;padding:5px 11px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer">${l}${ST.sel[k]?' ✓':''}</div>`).join('');
+  const dim={portrait:[80,120],wide:[128,60],hero:[150,48],logo:[110,48],icon:[64,64]}[ST.kind];
+  let grid;
+  if(ST.loading&&!ST.items)grid=P('Loading…',8);
+  else{const per=8,all=ST.items||[],start=ST.page*per,part=all.slice(start,start+per);
+    grid=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-height:${dim[1]+10}px">`+part.map((a,i)=>`<div data-act="stp:${start+i}" title="${esc(a.w)}x${esc(a.h)} by ${esc(a.by)}" style="border:3px solid ${ST.sel[ST.kind]===a.url?'var(--acc)':'transparent'};border-radius:6px;background:rgba(0,0,0,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;width:${dim[0]}px;height:${dim[1]}px"><img src="${esc(a.thumb||a.url)}" style="max-width:${dim[0]}px;max-height:${dim[1]}px"></div>`).join('')+`</div>`
+    +`<div style="margin-top:8px;font-size:13px;color:var(--ink)">${all.length?`${start+1}–${Math.min(all.length,start+per)} of ${all.length}`:''} <span data-act="stpg:-1" style="cursor:pointer;font-weight:800;color:var(--acc);padding:0 8px">◀</span><span data-act="stpg:1" style="cursor:pointer;font-weight:800;color:var(--acc);padding:0 8px">▶</span><span data-act="stmore" style="cursor:pointer;font-weight:800;color:var(--acc);padding:0 8px">LOAD MORE</span></div>`;}
+  const chosen=ST_KINDS.filter(([k])=>ST.sel[k]).map(([k,l])=>l.toLowerCase()).join(', ')||'nothing yet';
+  b+=tabs+grid+(ST.msg?P(esc(ST.msg),6):'')+P('Chosen: '+chosen+(s.running?' · <b>Steam is running: close it completely before adding.</b>':''),6)+btnx('ADD TO STEAM','stadd',false)+btnx('REMOVE FROM STEAM','strm',false)+btnx('CHANGE KEY','stkeyx',false);
+  return pnl(b,'padding-bottom:16px');
+}
+const keepScroll={};
 function render(){
+  for(const id of ['ulist','gbscroll','gbdesc']){const e0=document.getElementById(id);keepScroll[id]=e0?e0.scrollTop:0;}   // these lists keep their place when the screen redraws
   const el=document.getElementById('lglist');
   if(el){lgScroll=el.scrollTop;lgStick=el.scrollHeight-el.scrollTop-el.clientHeight<24;}
   if(screen==='home'||lost||!S) renderHome(); else renderMenu();
   const l2=document.getElementById('lglist');
   if(l2){l2.scrollTop=(lgStick||lgScroll===null)?l2.scrollHeight:lgScroll;}
+  for(const id of ['ulist','gbscroll','gbdesc']){const e1=document.getElementById(id);if(e1)e1.scrollTop=keepScroll[id]||0;}
 }
 const SDLKEY=e=>{const c=e.code;
   if(/^Key[A-Z]$/.test(c))return c[3]; if(/^Digit[0-9]$/.test(c))return c[5]; if(/^Numpad[0-9]$/.test(c))return 'Keypad '+c[6];
@@ -385,26 +507,27 @@ async function report(){
 function open_(sc){screen=sc;msel=0;capture=null;reportText='';pend='';render();}
 function back(){screen='home';capture=null;reportText='';pend='';render();}
 function say(m){note=m;clearTimeout(noteT);render();noteT=setTimeout(()=>{note='';render();},4500);}
+function afterPlay(r){if(r&&r.ok&&S&&S.close_on_play!==false)setTimeout(()=>{try{window.close();}catch(e){}},250);}
 async function api(p,b){const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{});return r.json();}
 let lost=false;
 function applyTheme(){document.documentElement.setAttribute('data-theme',(S&&S.theme)||'blue');}
-async function refresh(){try{S=await api('/api/state');lost=false;}catch(e){lost=true;if(!S)S=null;}applyTheme();render();}
+async function refresh(){try{S=await api('/api/state');lost=false;}catch(e){lost=true;if(!S)S=null;}applyTheme();if(document.activeElement&&document.activeElement.tagName==='INPUT')return;render();}
 async function setMode(m){if(!S||S.state!=='ready')return;await api('/api/mode',{mode:m});S.mode=m;render();}
 async function go(){
   if(!S||busy)return;
   if(sel===0){
-    if(S.state==='ready'){busy=true;say('Starting…');const r=await api('/api/play',{mode:S.mode});busy=false;say(r.msg||'');}
+    if(S.state==='ready'){busy=true;say('Starting…');const r=await api('/api/play',{mode:S.mode});busy=false;say(r.msg||'');afterPlay(r);}
     else{open_('setup');msel=Math.max(0,setupSteps().indexOf('NOW'));render();}
   }else if(sel===1){
     const PL=S&&S.pc_autosaves&&S.pc_autosaves.available?S.pc_autosaves.list:null;
     if(S.mode==='exe'&&PL){
       if(!PL.length)say('No PC window autosaves yet. Play in the PC window first.');
-      else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'exe',pcresume:PL[0].id});busy=false;say(r.msg||'');}
+      else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'exe',pcresume:PL[0].id});busy=false;say(r.msg||'');afterPlay(r);}
       return;
     }
     const L=S&&S.autosaves?S.autosaves.list:[];
     if(!L.length)say('No autosaves yet. Play in the browser first.');
-    else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'browser',resume:String(L[0].id)});busy=false;say(r.msg||'');}
+    else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'browser',resume:String(L[0].id)});busy=false;say(r.msg||'');afterPlay(r);}
   }else if(sel===2)open_('mods');else if(sel===3)open_('settings');else if(sel===6)open_('help');else if(sel===7)open_('about');else if(sel===4)open_('saves');else if(sel===5)openLog();
   else say(ITEMS[sel][0]+ITEMS[sel].slice(1).toLowerCase()+' is not built yet.');
 }
@@ -414,7 +537,7 @@ C.addEventListener('click',e=>{
   if(t.dataset.mi!==undefined){msel=+t.dataset.mi;capture=null;reportText='';pend='';render();}
   else if(t.dataset.back)back();
   else if(t.dataset.key){capture=t.dataset.key;render();}
-  else if(t.dataset.act){const a=t.dataset.act;if(a==='lgclear'){api('/api/dialoglog/clear',{}).then(()=>{lgLoad();say('Log cleared.');});}else if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('ast:')){astab=a.slice(4);render();}else if(a.startsWith('rp:')){busy=true;say('Starting…');api('/api/play',{mode:'exe',pcresume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');});}else if(a.startsWith('dp:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/pcsave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('pe:')||a.startsWith('pk:')||a.startsWith('pc:')){const v=a.slice(3),c=S.pc_autosaves.cfg;if(a[1]==='e')c.every=+v;else if(a[1]==='k')c.keep=+v;else c.card=v==='1';api('/api/pcautosave',{every:String(c.every),keep:String(c.keep),card:c.card});render();}else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('ws:')){S.widescreen=a==='ws:1';api('/api/widescreen',{on:S.widescreen});render();}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
+  else if(t.dataset.act){const a=t.dataset.act;if(a==='stkey'){const k=(document.getElementById('sgkey')||{}).value||'';if(k.trim()){api('/api/steam/key',{key:k.trim()}).then(()=>{ST={s:null,busy:false,kind:'portrait',items:null,page:0,apiPage:0,sel:{},loading:false,msg:''};render();});}else say('Paste the key first.');}else if(a==='stkeyx'){api('/api/steam/key',{key:''}).then(()=>{ST.s=null;ST.items=null;render();});}else if(a==='stfind'){stFind();}else if(a.startsWith('stk:')){ST.kind=a.slice(4);stArt(false);}else if(a.startsWith('stp:')){const it=(ST.items||[])[+a.slice(4)];if(it){ST.sel[ST.kind]=ST.sel[ST.kind]===it.url?null:it.url;render();}}else if(a.startsWith('stpg:')){const n=Math.ceil(((ST.items||[]).length)/8);ST.page=Math.max(0,Math.min(Math.max(0,n-1),ST.page+(+a.slice(5))));render();}else if(a==='stmore'){stArt(true);}else if(a==='stadd'){const ch={};ST_KINDS.forEach(([k])=>{if(ST.sel[k])ch[k]=ST.sel[k];});say('Adding to Steam…');api('/api/steam/add',{choices:ch}).then(r=>{say(r.msg||'');stRefresh();});}else if(a==='strm'){api('/api/steam/remove',{}).then(r=>{say(r.msg||'');stRefresh();});}else if(a.startsWith('vm:')){const w=a.slice(3),cur=S['vol_'+w]!=null?S['vol_'+w]:100;S.vprev=S.vprev||{};if(cur>0){S.vprev[w]=cur;volSet(w,0);}else volSet(w,S.vprev[w]||100);}else if(a.startsWith('vl:')){const q=a.split(':');volSet(q[1],(S['vol_'+q[1]]!=null?S['vol_'+q[1]]:100)+(+q[2]));}else if(a.startsWith('sr:')){S.speedrun=a==='sr:1';api('/api/speedrun',{on:S.speedrun});render();}else if(a==='srr'){api('/api/speedrun/reset',{}).then(r=>say(r.msg||''));}else if(a.startsWith('dc:')){S.mods.direct_on=a==='dc:1';api('/api/direct',{on:S.mods.direct_on});render();}else if(a.startsWith('cp:')){S.close_on_play=a==='cp:1';api('/api/closeonplay',{on:S.close_on_play});render();}else if(a==='lgclear'){api('/api/dialoglog/clear',{}).then(()=>{lgLoad();say('Log cleared.');});}else if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('ast:')){astab=a.slice(4);render();}else if(a.startsWith('rp:')){busy=true;say('Starting…');api('/api/play',{mode:'exe',pcresume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a.startsWith('dp:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/pcsave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('pe:')||a.startsWith('pk:')||a.startsWith('pc:')){const v=a.slice(3),c=S.pc_autosaves.cfg;if(a[1]==='e')c.every=+v;else if(a[1]==='k')c.keep=+v;else c.card=v==='1';api('/api/pcautosave',{every:String(c.every),keep:String(c.keep),card:c.card});render();}else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('ws:')){S.widescreen=a==='ws:1';api('/api/widescreen',{on:S.widescreen});render();}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
   else if(t.dataset.i!==undefined){sel=+t.dataset.i;render();go();}
   else if(t.dataset.m)setMode(t.dataset.m);
   else if(t.dataset.go)go();
@@ -429,7 +552,12 @@ C.addEventListener('mouseover',e=>{
 });
 C.addEventListener('mouseleave',()=>{hv=-1;const b=document.getElementById('hvb');if(b)b.style.opacity=0;});
 C.addEventListener('mouseout',e=>{ if(e.target.closest('[data-mi]')&&!(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('[data-mi]'))){hv=-1;const b=document.getElementById('hvb');if(b)b.style.opacity=0;}});
+function volSet(w,v){S['vol_'+w]=Math.max(0,Math.min(100,isNaN(v)?100:v));api('/api/volume',{which:w,v:S['vol_'+w]}).then(r=>{if(r&&r.v!==undefined&&r.v!==S['vol_'+w]){S['vol_'+w]=r.v;render();}});render();}
+function volCommit(el){if(!el||!el.dataset.w)return;const n=parseInt(el.value,10);volSet(el.dataset.w,isNaN(n)?(S['vol_'+el.dataset.w]!=null?S['vol_'+el.dataset.w]:100):n);}
+addEventListener('input',e=>{const el=e.target;if(el&&el.dataset&&el.dataset.sl){const n=document.getElementById('vl-'+el.dataset.sl);if(n)n.value=el.value;}});
+addEventListener('change',e=>{const el=e.target;if(el&&el.dataset&&el.dataset.sl)volSet(el.dataset.sl,parseInt(el.value,10));});
 addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT'){if(e.key==='Enter')volCommit(e.target);return;}
   if(screen!=='home'&&S){
     if(capture){e.preventDefault();if(e.key==='Escape'){capture=null;render();return;}const k=SDLKEY(e);if(!k){say('That key cannot be used. Try another.');return;}const r=capture;capture=null;setKey(r,k);return;}
     const n=MENUS[screen].items.length;

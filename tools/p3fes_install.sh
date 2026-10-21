@@ -102,6 +102,11 @@ ps2run_turbo_patch.py
 ps2run_probe_patch.py
 ps2run_disclog_patch.py
 ps2run_dialoglog_patch.py
+ps2run_mouselook_patch.py
+ps2run_speedrun_patch.py
+ps2run_audio_patch.py
+ps2run_audio2_patch.py
+ps2run_audiosrc_patch.py
 ps2web_cardbackup_patch.py
 ps2web_controls_patch.py
 ps2web_keyremap_patch.py
