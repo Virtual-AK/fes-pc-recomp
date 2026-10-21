@@ -37,3 +37,21 @@ Things to know:
   any moment, with a short hitch while the state is written. The page waits for the file to end with the state's closing
   marker before it stores it.
 - States are stored in the browser only. They contain game data, so they never belong in the repository or in a bug report.
+
+## PC window
+
+`python3 tools/ps2run_autosave_patch.py` in the project folder, after `ps2run_window_savestate_patch.py` (the installer does this), then rebuild the PC window. The launcher starts it with these switches, so nothing else is needed:
+
+- `--autosave DIR`: turns autosaving on. States are written to `DIR` as `timer_<date>-<time>.state` (every N minutes), `card_...` (8 seconds after each in-game save) and `manual_...` (F5 in the window). A state is written as `.part` and renamed when complete, so a crash never leaves a half file.
+- `--autosave-every MIN` (default 2, 0 = off), `--autosave-keep N` (default 3 of each kind), `--autosave-card 0|1`.
+- `--load-state FILE` (already there) resumes from one.
+
+The launcher keeps each build of `ps2run.exe` in its own folder, `C:\p3fes\saves\pc-autosaves\<build>`, because a state only fits the build that made it. After a rebuild the old states are listed as "from an older build" and cannot be resumed.
+
+In the launcher: **Saves, Autosaves** has a PC WINDOW tab with Resume and Delete; **Resume** on the main menu resumes the newest PC autosave when the PC window is the chosen version (the E key); **Settings, Autosave** sets the interval, the number kept and the after-game-save switch (applies the next time the PC window starts).
+
+Things to know:
+- The memory card is not part of a state; a resumed game uses the card as it is now (same as the browser).
+- A save writes the whole machine to disk in one go on the emulation thread: expect a short hitch each time, and tens of MB per file.
+- Browser states and PC window states are separate and cannot be loaded into each other.
+- Tested on a real PC (20 October 2026): timer saves, F5 saves, the Saves list and Resume all work.

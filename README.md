@@ -2,23 +2,23 @@
 
 A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC-U, serial SLUS-21621) natively on PC and in the browser, with no emulator. The goals are higher resolutions, higher frame rates and easy mod support.
 
-**Status: research and tooling.** Nothing here runs the game yet. The tools read, unpack, convert and (for text) edit and repack the game's data from your own disc, and the file formats are documented.
+**Status: playable, with testing still going.** The game runs from your own disc in the browser and in a native Windows window, and a launcher handles setup, saves, mods and the dialogue Log. The tools in this repo also read, unpack, convert and (for text) edit and repack the game's data, and the file formats are documented. Nothing from the game is included here.
 
 <!-- progress:start -->
-**Overall progress: about 77%** (rough estimate by the maintainers; the game already starts and plays in the browser and in a PC window, and most of what is left is testing and polish)
+**Overall progress: about 82%** (rough estimate by the maintainers; the game starts and plays in the browser and in a native Windows window, and most of what is left is testing and polish)
 
-`███████████████░░░░░` 77%
+`████████████████░░░░` 82%
 
 | Phase | Progress | |
 | --- | --- | --- |
 | 0. Research and tooling | `█████████████████░░░` | 85% |
 | 1. Pick the approach, prototype | `████████████████████` | 100% |
-| 2. Runtime layer (files, audio, video, input, saves) | `██████████████████░░` | 90% |
-| 3. Graphics (GS and vector units to a modern API) | `█████████████████░░░` | 85% |
-| 4. Playable desktop build, QA | `████░░░░░░░░░░░░░░░░` | 20% |
-| 5. Browser build and mod tooling | `████████████████░░░░` | 80% |
+| 2. Runtime layer (files, audio, video, input, saves) | `██████████████████░░` | 92% |
+| 3. Graphics (GS and vector units to a modern API) | `██████████████████░░` | 88% |
+| 4. Playable desktop build, QA | `███████░░░░░░░░░░░░░` | 35% |
+| 5. Browser build and mod tooling | `██████████████████░░` | 90% |
 
-Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. Phase 4 (testing the whole game) has only just started, and phase 5 has the browser build with card backups, autosave, key and controller settings, and a first mod route (patch files baked into a separate recompiled copy), and a one-command installer ([docs/install.md](docs/install.md)) tried on a fresh copy (browser build, title screen to the first Tartarus floor); the PC window from a fresh install is still untested. Since then the launcher gained loose-file mods (folders, zip, 7z and rar, merged Aemulus-style with a priority order), browsing and previewing GameBanana mods before installing, battle and menu portrait mods, and ten colour themes, one of them (Twelve) unlocked by saying you finished The Journey (automatic detection from the memory card is on hold until before and after card copies exist). The PC window is still slow: about 25 fps through VcXsrv on WSL1, and no better on WSL2 with WSLg, because Ubuntu has no Vulkan driver for the graphics card there (see [docs/better-window.md](docs/better-window.md)). The next step for it is a native Windows build, to be scoped first; the browser build runs at 60 fps meanwhile. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. The native Windows PC window now exists (it runs at 60 fps on the graphics card, with a resolution setting, a widescreen option, fast-forward on Tab, autosave and resume), which moved phases 3 and 4 forward; phase 4 (testing the whole game, and a clean-PC test of the one-step Windows setup) is still the biggest gap. Phase 5 has the browser build with card backups, autosave, key and controller settings, a one-command installer ([docs/install.md](docs/install.md)), and the launcher: loose-file mods (folders, zip, 7z and rar, merged Aemulus-style with a priority order), browsing and previewing GameBanana mods before installing, battle and menu portrait mods, ten colour themes (one, Twelve, unlocked by saying you finished The Journey; automatic detection from the memory card is on hold until before and after card copies exist), and a dialogue Log that lists every line shown with its speaker and a clickable speaker icon that replays the voice clip ([docs/log-plan.md](docs/log-plan.md)). Not done: a Log key inside the game window, widescreen for the menus and HUD (only the 3D view is widened), and frame rates other than 60. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
 <!-- progress:end -->
 
 | Area | State |
@@ -89,6 +89,23 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `p3fes_primdiff.py` | Compares two `PS2_TRACE_PRIM` files (for example PC runner vs browser) shape by shape, ignoring frame numbers; shows the first difference. |
 | `p3fes_wavstat.py` | Summarises a WAV written by `PS2_DUMP_AUDIO`: length, peak, loudness per second, silent seconds. Numbers only. |
 | `p3fes_ppm2png.py` | Turns raw `.ppm` pictures (frames, texture dumps) into `.png` files Windows can open. Pictures stay on your PC. |
+| `ps2run_windows_patch.py` | Makes the PS2 Web Recomp runner build and run natively on Windows (clang-cl): Windows surface for the graphics, a 64 MB emulation thread, Windows memory/CPU readouts, CMake changes. Safe to run twice. Run it in the `ps2-web-recomp` folder. |
+| `windows-diagnostics/` | Eleven measurement patches and a report script used to find why the Windows window dipped (thread load readout, sampling profiler, per-stage timings, wake-up experiments). Not needed to build or play; kept so the finding can be repeated. See `docs/windows-diagnostics.md`. |
+| `p3fes_vu_compile.sh` | Compiles the VU1 programs recorded while playing the Windows PC window (`PS2_VU_RECORD`) into code for it, so the slow interpreter is used less. Run with `wsl bash /mnt/c/p3fes/winbuild/p3fes_vu_compile.sh`, then rebuild the game. |
+| `ps2recomp_vubranch_patch.py` | Part 3 of the half-drawn cut-in portrait fix: the program compiler `vurecomp` (ahead-of-time VU1 code) now also lets a branch after an integer ALU instruction read the old register value. Run in the `ps2-web-recomp` folder, rebuild `vurecomp`, compile the programs again. The installer applies it. |
+| `build_win.bat` | Builds the runtime and the generated game with clang-cl and Ninja on Windows (`build_win.bat runtime`, then `build_win.bat game`). Expects the folder layout in `docs/windows-native-plan.md`. The generated game code comes from your own disc and is never shared. |
+| `p3fes_win_setup.bat` | One-step setup of the native Windows PC window for friends: installs Visual Studio Build Tools (clang, CMake), downloads SDL2 and wgpu-native, prepares `C:\p3fes\winbuild` from the Ubuntu install and builds `ps2run.exe`. Safe to run again. Details in `docs/windows-friends-setup.md`. Not yet run on a clean PC. |
+| `p3fes_win_prepare.sh` | The Ubuntu half of that setup: copies the patched source, applies `ps2run_windows_patch.py`, copies the generated game code (changed files only). |
+| `p3fes_win_record.bat` | Starts the PC window in recording mode (`PS2_VU_RECORD`) so missing VU1 programs are saved while you play; then run `p3fes_vu_compile.sh` and `build_win.bat game`. |
+| `ps2run_autosave_patch.py` | Autosave for the PC window: `--autosave DIR`, `--autosave-every`, `--autosave-keep`, `--autosave-card`, F5 to save now; works with `--load-state` for resume. The launcher uses it (Saves, Settings and Resume). See `docs/autosave.md`. Run after `ps2run_window_savestate_patch.py`; the installer does. |
+| `ps2run_overlay_patch.py` | File mods for the PC window: `--overlay mods.ovl` lays the launcher's mod overlay over the disc as the game reads it (no copy of the disc). The launcher passes it when `C:\p3fes\mods\active.ovl` exists. See `docs/mod-folder-plan.md`. The installer applies it. |
+| `ps2run_widescreen_patch.py` | Widescreen (experimental) for the PC window: `PS2_ASPECT=16:9` shows the picture at 16:9, `PS2_PATCH` rewrites game data values (the x field of view). The launcher sets both from Settings → Widescreen. See `docs/widescreen.md`. The installer applies it. |
+| `ps2run_turbo_patch.py` | Turbo for the PC window: Tab turns the frame limiter off and on (sound muted while on). See `docs/fast-forward.md`. The installer applies it. |
+| `ps2run_probe_patch.py`, `p3fes_ramfind.py` | Research tools: F7 dumps the game's memory, `PS2_WATCH` logs changes; `p3fes_ramfind.py` compares dumps from different situations (dialogue, choice menu, walking). See `docs/fast-forward.md`. |
+| `p3fes_ramgrep.py` | Finds a known phrase in a memory dump whatever the text encoding is (research for the dialogue Log). See `docs/log-plan.md`. |
+| `ps2run_disclog_patch.py` | Research: with `PS2_LOG_DISC=1` the runner logs every disc read with its frame (to find the voice clips). See `docs/log-plan.md`. The installer applies it. |
+| `ps2run_dialoglog_patch.py` | The dialogue Log: the PC window writes every dialogue page shown (speaker, voice clip, text, recent disc reads) to `dialog_log.tsv`; the launcher's LOG screen shows it and replays voice clips. See `docs/log-plan.md` and `docs/launcher.md`. The installer applies it. |
+| `p3fes_cvmmap.py`, `p3fes_afsinfo.py` | Research: name the files inside DATA.CVM for a disc log, and show what a voice archive (`SOUND/V*.AFS`) holds. See `docs/log-plan.md`. |
 | `ps2run_trace_patch.py` | Adds an opt-in texture and transfer trace (`PS2_TRACE_TEX=from,to`) to the PS2 Web Recomp graphics source, tagged with frame numbers; for finding the cause of picture faults. Steps 2 to 5 below build on it and are run in order in the same folder. |
 | `ps2run_trace_patch2.py` | Second trace step: bytes each GS upload really received, and how many were non-zero. |
 | `ps2run_trace_patch3.py` | Third trace step: `PS2_DUMP_TEX=frame,folder` writes each texture set in that frame as a grey picture of its palette indices (local use only). |
