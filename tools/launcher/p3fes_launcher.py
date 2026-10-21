@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.10"
+LAUNCHER_VERSION = "0.21"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -189,7 +189,7 @@ def pieces_done():
         return 0
 
 
-THEMES_ALL = ("blue", "pink", "reload", "moon", "dawn", "seal", "daybreak", "horizon", "ceremony", "eclipse", "twelve")
+THEMES_ALL = ("blue", "pink", "reload", "moon", "dawn", "seal", "daybreak", "horizon", "ceremony", "eclipse", "golden", "twelve")
 
 
 def theme_now(cfg):
@@ -716,7 +716,7 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "keys": read_keys(),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", ""), "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "keys": read_keys(),
            "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
@@ -758,12 +758,14 @@ def port_open(port):
         s.close()
 
 
-def win_open(url, app=False, prefer=None):
+def win_open(url, app=False, prefer=None, size=None):
     """Open a URL in Windows (from WSL). Prefers Edge, then Chrome, then the default browser."""
     # cmd.exe treats & as "run another command", so escape it. Unescaped, the URL was cut at the first &,
     # the leftover failed, and the loop then opened every browser in turn.
     cu = url.replace("&", "^&")
     flag = ["--app=" + cu, "--start-maximized"] if app else [cu]
+    if app and size:
+        flag = ["--app=" + cu, "--window-size=%d,%d" % size]
     order = ["msedge", "chrome"]
     if prefer in order:
         order.remove(prefer)
@@ -784,6 +786,183 @@ def win_open(url, app=False, prefer=None):
         except Exception:
             pass
     return None
+
+
+GUIDE_SITES = {   # where the Guides screen may send you: a search on each site, nothing is copied into the launcher
+    "wiki": "https://megamitensei.fandom.com/wiki/Special:Search?query=",
+    "faqs": "https://gamefaqs.gamespot.com/search?game=",
+    "web": "https://duckduckgo.com/?q=",
+}
+
+
+def guide_url(src, q):
+    """The search page for a guide topic, or None if the source is not one of ours."""
+    base = GUIDE_SITES.get(src)
+    q = " ".join(str(q or "").split())[:120]
+    if not base or not q:
+        return None
+    return base + urllib.parse.quote_plus(q)
+
+
+UPDATE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPDATE_BACKUP = os.path.expanduser("~/.p3fes-launcher-backup")
+
+
+def update_repo_ok(r):
+    return bool(re.match(r"^[A-Za-z0-9_.-]{1,60}/[A-Za-z0-9_.-]{1,100}$", str(r or "")))
+
+
+def ver_tuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", str(v)))
+
+
+def update_parse_version(src):
+    m = re.search(r'^LAUNCHER_VERSION\s*=\s*"([^"]+)"', src, re.M)
+    return m.group(1) if m else ""
+
+
+def update_http(url, limit):
+    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher-updater"})
+    with urllib.request.urlopen(req, timeout=40) as r:
+        data = r.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError("The download was larger than expected.")
+    return data
+
+
+def update_check():
+    repo = load_cfg().get("update_repo", "")
+    out = {"ok": True, "configured": bool(repo), "repo": repo, "current": LAUNCHER_VERSION, "latest": "", "newer": False}
+    if not repo:
+        return out
+    if not update_repo_ok(repo):
+        return {"ok": False, "configured": True, "repo": repo, "current": LAUNCHER_VERSION, "msg": "The update source must look like owner/name."}
+    last = ""
+    for branch in ("main", "master"):
+        try:
+            src = update_http("https://raw.githubusercontent.com/%s/%s/tools/launcher/p3fes_launcher.py" % (repo, branch), 8 * 1024 * 1024).decode("utf-8", "replace")
+            v = update_parse_version(src)
+            if v:
+                out.update(latest=v, branch=branch, newer=ver_tuple(v) > ver_tuple(LAUNCHER_VERSION))
+                return out
+        except Exception as e:
+            last = str(e)[:100]
+    return {"ok": False, "configured": True, "repo": repo, "current": LAUNCHER_VERSION, "msg": "Could not read the latest version from %s (%s)." % (repo, last or "no launcher file found")}
+
+
+def update_apply(zip_bytes, dest_dir, backup_dir, current):
+    """Install the launcher files from a repository zip: only the launcher .py and its ui folder, checked before anything is replaced."""
+    zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    names = [n for n in zf.namelist() if not n.endswith("/")]
+    root = names[0].split("/")[0] if names else ""
+    want = {}
+    for n in names:
+        rel = n[len(root) + 1:] if n.startswith(root + "/") else ""
+        if not rel or ".." in rel.split("/") or rel.startswith("/"):
+            continue
+        if rel == "tools/launcher/p3fes_launcher.py":
+            want[rel] = (n, os.path.join(dest_dir, "p3fes_launcher.py"))
+        elif rel.startswith("tools/launcher/ui/"):
+            want[rel] = (n, os.path.join(dest_dir, "ui", rel[len("tools/launcher/ui/"):]))
+    if "tools/launcher/p3fes_launcher.py" not in want:
+        raise ValueError("The download does not contain the launcher.")
+    newpy = zf.read(want["tools/launcher/p3fes_launcher.py"][0])
+    compile(newpy.decode("utf-8"), "p3fes_launcher.py", "exec")   # refuse a file that does not even parse
+    ver = update_parse_version(newpy.decode("utf-8"))
+    if not ver:
+        raise ValueError("The downloaded launcher has no version.")
+    bdir = os.path.join(backup_dir, current)
+    os.makedirs(bdir, exist_ok=True)
+    cur_py = os.path.join(dest_dir, "p3fes_launcher.py")
+    if os.path.isfile(cur_py):
+        shutil.copy2(cur_py, os.path.join(bdir, "p3fes_launcher.py"))
+    cur_ui = os.path.join(dest_dir, "ui")
+    if os.path.isdir(cur_ui):
+        shutil.copytree(cur_ui, os.path.join(bdir, "ui"), dirs_exist_ok=True)
+    n_files = 0
+    for rel, (full, dst) in sorted(want.items(), key=lambda kv: kv[0] == "tools/launcher/p3fes_launcher.py"):   # the .py goes last
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        tmp = dst + ".new"
+        with open(tmp, "wb") as f:
+            f.write(zf.read(full))
+        os.replace(tmp, dst)
+        n_files += 1
+    return ver, n_files
+
+
+def update_install():
+    chk = update_check()
+    if not chk.get("ok"):
+        return chk
+    if not chk.get("newer"):
+        return {"ok": True, "installed": False, "msg": "You already have the latest version (%s)." % LAUNCHER_VERSION}
+    try:
+        data = update_http("https://codeload.github.com/%s/zip/refs/heads/%s" % (chk["repo"], chk["branch"]), 60 * 1024 * 1024)
+        ver, n = update_apply(data, UPDATE_DIR, UPDATE_BACKUP, LAUNCHER_VERSION)
+    except Exception as e:
+        return {"ok": False, "msg": "The update did not install (%s). Nothing was changed." % str(e)[:120]}
+    return {"ok": True, "installed": True, "version": ver, "msg": "Updated to %s (%d files). Restart the launcher to use it. The old version is kept in %s." % (ver, n, os.path.join(UPDATE_BACKUP, LAUNCHER_VERSION))}
+
+
+GUIDES_DIR = os.path.expanduser("~/.p3fes-guides")   # wiki pages the player saved for offline reading
+WIKI_BASES = {"mt": "https://megamitensei.fandom.com/wiki/", "sm": "https://shin-megami-tensei-persona.fandom.com/wiki/"}
+GUIDE_TOOLS = {"fusion": "https://aqiu384.github.io/megaten-fusion-tool/p3f/personas"}   # community tools the Guides screen can open
+
+
+def guide_scrub(html):
+    """Defence in depth for saved pages (the viewer is also sandboxed): no scripts, frames or event handlers."""
+    html = re.sub(r"(?is)<script\b.*?</script\s*>", "", str(html))
+    html = re.sub(r"(?is)<(iframe|object|embed|form|style)\b.*?(</\1\s*>|/>)", "", html)
+    html = re.sub(r"(?i)\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", "", html)
+    html = re.sub(r"(?i)javascript:", "", html)
+    return html[:3 * 1024 * 1024]
+
+
+def guide_slug(title):
+    return re.sub(r"[^a-z0-9]+", "-", str(title).lower()).strip("-")[:80] or "page"
+
+
+def guide_list():
+    out = []
+    try:
+        for f in sorted(glob.glob(os.path.join(GUIDES_DIR, "*.json"))):
+            try:
+                d = json.load(open(f, encoding="utf-8"))
+                out.append({"slug": os.path.basename(f)[:-5], "title": str(d.get("title", ""))[:120], "saved": str(d.get("saved", ""))})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    out.sort(key=lambda x: x["title"].lower())
+    return out
+
+
+def guide_save(title, html, wiki="mt"):
+    title = " ".join(str(title or "").split())[:120]
+    if not title or not html:
+        return {"ok": False, "msg": "Nothing to save."}
+    os.makedirs(GUIDES_DIR, exist_ok=True)
+    slug = guide_slug(title)
+    with open(os.path.join(GUIDES_DIR, slug + ".json"), "w", encoding="utf-8") as f:
+        json.dump({"title": title, "wiki": wiki if wiki in WIKI_BASES else "mt", "saved": time.strftime("%Y-%m-%d"), "html": guide_scrub(html)}, f)
+    return {"ok": True, "slug": slug, "msg": "Saved for offline reading."}
+
+
+def guide_get(slug):
+    slug = re.sub(r"[^a-z0-9-]", "", str(slug))
+    f = os.path.join(GUIDES_DIR, slug + ".json")
+    if not slug or not os.path.isfile(f):
+        return {"ok": False, "msg": "That page is not saved."}
+    d = json.load(open(f, encoding="utf-8"))
+    return {"ok": True, "title": d.get("title", ""), "html": guide_scrub(d.get("html", "")), "saved": d.get("saved", ""), "wiki": d.get("wiki", "mt")}
+
+
+def guide_delete(slug):
+    slug = re.sub(r"[^a-z0-9-]", "", str(slug))
+    f = os.path.join(GUIDES_DIR, slug + ".json")
+    if slug and os.path.isfile(f):
+        os.remove(f)
+    return {"ok": True}
 
 
 MAXIMIZE_PS = r"""
@@ -1904,6 +2083,11 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, data, ct)
             except Exception:
                 return self.send(404, {"error": "no image"})
+        if self.path == "/api/guide/list":
+            return self.send(200, {"ok": True, "pages": guide_list()})
+        if self.path.startswith("/api/guide/get?"):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            return self.send(200, guide_get(q.get("slug", [""])[0]))
         if self.path == "/api/state":
             last_ping[0] = time.time()
             return self.send(200, get_state())
@@ -2097,6 +2281,37 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": ok, "msg": msg})
         if self.path == "/api/setup/start":
             return self.send(200, start_setup())
+        if self.path == "/api/update/check":
+            return self.send(200, update_check())
+        if self.path == "/api/update/install":
+            return self.send(200, update_install())
+        if self.path == "/api/update/repo":
+            r = str(data.get("repo") or "").strip().replace("https://github.com/", "").strip("/")
+            if r and not update_repo_ok(r):
+                return self.send(200, {"ok": False, "msg": "That does not look like owner/name, for example myname/persona3-pc."})
+            c = load_cfg()
+            c["update_repo"] = r
+            save_cfg(c)
+            return self.send(200, {"ok": True, "repo": r})
+        if self.path == "/api/update/restart":
+            self.send(200, {"ok": True})
+            threading.Timer(0.6, lambda: os.execv(sys.executable, [sys.executable] + sys.argv)).start()
+            return
+        if self.path == "/api/guide/save":
+            return self.send(200, guide_save(data.get("title"), data.get("html"), str(data.get("wiki") or "mt")))
+        if self.path == "/api/guide/delete":
+            return self.send(200, guide_delete(data.get("slug")))
+        if self.path == "/api/guide":
+            if data.get("tool"):
+                u = GUIDE_TOOLS.get(str(data.get("tool")))
+            elif data.get("title"):
+                u = WIKI_BASES.get(str(data.get("wiki") or "mt"), WIKI_BASES["mt"]) + urllib.parse.quote(str(data.get("title")).replace(" ", "_")[:150], safe="_:()'!,-.")
+            else:
+                u = guide_url(data.get("src"), data.get("q"))
+            if not u:
+                return self.send(200, {"ok": False, "msg": "Type what you want to look up first."})
+            how = win_open(u, app=True, prefer=load_cfg().get("browser", "msedge"), size=(1100, 800))
+            return self.send(200, {"ok": bool(how), "msg": "Opened in a guide window." if how else "Could not open a browser window."})
         if self.path == "/api/openfolder":
             try:
                 w = subprocess.run(["wslpath", "-w", saves_dir()], capture_output=True, text=True, timeout=5).stdout.strip()

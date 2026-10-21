@@ -20,6 +20,13 @@ html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
 :root[data-theme=eclipse]{--ground:#02030A;--a1:#2A1740;--a2:#150C2A;--a3:#080514;--deep:#020208;--shadow:#000;--ink:#F3ECFF;--track:#1A1033;--p1:rgba(190,150,255,.2);--p2:rgba(120,80,200,.15);--b1:rgba(200,160,255,.3);--b2:rgba(200,160,255,.1);--btn:rgba(170,130,240,.25);--ring:rgba(255,214,110,.5);--ring2:rgba(255,214,110,.45);--moon:rgba(255,214,110,.95);--sub:rgba(243,236,255,.85);--stripe:#FFD36B;--stripeEdge:#B8861F;--acc:#FFD36B;--tt:#FFD98A;--tts:#1A0F33;--ttg:rgba(255,200,90,.7)}
 :root[data-theme=eclipse] .curve{background:radial-gradient(circle at 70% 30%,#3A2060 0,#150C2A 50%,#05030F 100%)!important}
 :root[data-theme=eclipse] .moon{filter:drop-shadow(0 0 22px rgba(255,214,110,.9)) drop-shadow(0 0 60px rgba(255,190,80,.5))}
+:root[data-theme=golden]{--fg:#141000;--shadow:rgba(255,255,255,.7);--selsh:#000;--ground:#0A0A0A;--a1:#FFF27A;--a2:#FFD800;--a3:#F2A900;--deep:#0F0E08;--ink:#1A1400;--track:#2A2400;--p1:rgba(255,255,255,.6);--p2:rgba(255,236,120,.35);--b1:rgba(255,255,255,.7);--b2:rgba(255,236,120,.28);--btn:rgba(255,255,255,.5);--ring:rgba(255,216,0,.45);--ring2:rgba(255,216,0,.5);--moon:rgba(255,255,255,.98);--sub:rgba(20,16,0,.85);--stripe:#0F0E08;--stripeEdge:#FFD800;--acc:#FFE600;--tt:#0F0E08;--tts:#FFFFFF;--ttg:rgba(255,255,255,.75)}
+:root[data-theme=golden] .curve{background:radial-gradient(circle at 28% 66%,#FFF27A 0,#FFD800 46%,#F2A900 100%)!important}
+:root[data-theme=golden] #c::before{background-image:repeating-linear-gradient(118deg,rgba(15,14,8,.08) 0 16px,transparent 16px 40px)!important;background-size:auto!important;opacity:1!important}
+:root[data-theme=golden] #c::after{content:'';position:absolute;left:84px;top:0;width:1196px;height:800px;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.06) 0 2px,transparent 2px 5px);z-index:50}
+:root[data-theme=golden] .moon{filter:drop-shadow(0 0 3px #0F0E08) drop-shadow(0 0 3px #0F0E08) drop-shadow(0 0 20px rgba(255,255,255,.7))}
+:root[data-theme=golden] .stripe{background:repeating-linear-gradient(135deg,#0F0E08 0 14px,#1E1C10 14px 28px)}
+:root[data-theme=golden] .badge{background:#0F0E08;color:#FFE600;box-shadow:0 0 18px rgba(255,230,0,.7)}
 :root[data-theme=twelve]{--ground:#03120D;--a1:#1E7A5C;--a2:#0F4A39;--a3:#072A20;--deep:#02100B;--shadow:#000;--ink:#EEF7E8;--track:#0B3226;--p1:rgba(140,230,190,.22);--p2:rgba(70,170,130,.15);--b1:rgba(150,235,200,.3);--b2:rgba(150,235,200,.1);--btn:rgba(120,220,175,.24);--ring:transparent;--ring2:transparent;--moon:rgba(245,236,200,.85);--sub:rgba(238,247,232,.85);--stripe:#F1EAD2;--stripeEdge:#B8AC78;--acc:#F5ECC8;--tt:#F5ECC8;--tts:#06231A;--ttg:rgba(245,236,200,.5)}
 :root[data-theme=twelve] .curve{background:radial-gradient(circle at 70% 30%,#14614A 0,#0A3A2D 45%,#031610 100%)!important}
 :root[data-theme=twelve] .ticks{display:none}
@@ -71,12 +78,15 @@ html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
 .why .rw .n{width:92px;font-size:16px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow)}
 .why .rw .v{flex-grow:1;font-size:15px;font-weight:600;color:var(--ink)}
 .why .rw .g{min-width:42px;text-align:center;color:var(--ink);border-radius:6px;padding:3px 8px;font-size:14px;font-weight:800}
+#gv{position:absolute;left:132px;top:166px;width:1046px;height:538px;overflow:auto;background:#fff;color:#111;border-radius:8px;z-index:20;padding:14px 20px;font:15px/1.55 'Segoe UI',sans-serif;user-select:text}
+#gv img{max-width:100%;height:auto}#gv table{border-collapse:collapse;display:block;overflow:auto;max-width:100%}#gv td,#gv th{border:1px solid #ccc;padding:4px 6px;font-size:14px;vertical-align:top}#gv th{background:#f1f1f1}
+#gv h1,#gv h2,#gv h3{border-bottom:1px solid #ddd;padding-bottom:3px;margin:.8em 0 .4em}#gv a[data-wt]{color:#0645ad;cursor:pointer;text-decoration:underline}#gv a[data-ext]{color:#555}#gv .cc{margin-top:26px;padding-top:8px;border-top:1px solid #ccc;font-size:12px;color:#555}
 </style></head><body>
 <div id="fit"><div id="c"></div></div>
 <script>
 const $=s=>document.querySelector(s);
 const C=document.getElementById('c');
-const ITEMS=['PLAY','RESUME','MODS','SETTINGS','SAVES','LOG','HELP','ABOUT'];
+const ITEMS=['PLAY','RESUME','MODS','SETTINGS','SAVES','EXTRA','HELP','ABOUT'];
 const GOLD='linear-gradient(90deg,#FF9A3C,#FFD08A)',RED='linear-gradient(90deg,#FF6B78,#FFB3BA)',VIO='linear-gradient(90deg,#7A5CFF,#C9B8FF)';
 let S=null,sel=0,note='',noteT=0,busy=false,hv=-1;
 
@@ -197,6 +207,40 @@ async function gbOpen(id){D=null;dload=true;dfile=0;dimg=0;render();try{D=await 
 async function gbLoad(refresh){gload=true;gmsg='';render();try{G=await api('/api/gb/view',{q:gq,sort:gs,page:gp,refresh:!!refresh});gp=G.page;}catch(e){G={ok:false,err:'The launcher could not be reached.',mods:[],total:0,page:0,pages:1};}gload=false;render();}
 let screen='home',astab='',msel=0,capture=null,reportText='',pend='';
 const CHANGES=[
+ {v:'0.21',d:'21 Oct 2026',t:'Updates from the launcher',i:[
+  'NEW  Help > Version checks whether you have the latest launcher and can update it with one button. Enter the project\'s GitHub address (owner/name) once. The old files are backed up first.']},
+ {v:'0.20',d:'21 Oct 2026',t:'Guides: class answers and fusion shortcut',i:[
+  'NEW  Guides > School answers now lists Pop Quiz dates and answers from the Shin Megami Tensei Persona Wiki.',
+  'IMPROVED  The Fusion Calculator opens straight on the Persona 3 FES page.']},
+ {v:'0.19',d:'21 Oct 2026',t:'Guide fixes',i:[
+  'FIXED  School answers no longer lists pages from other games. When the wiki has no page for class answers, buttons offer the same search on GameFAQs or the web in a window.']},
+ {v:'0.18',d:'21 Oct 2026',t:'Guides: fusion calculator and topic fixes',i:[
+  'NEW  Guides > Fusion lists the Persona 3 FES Fusion Calculator (Megaten Fusion Tool, made by the community) and opens it inside the launcher. Needs internet.',
+  'IMPROVED  Tactics and Shuffle Time now sit under Tartarus instead of Daily planner. The Persona 3 game page no longer shows up in results.',
+  'IMPROVED  School answers searches several ways and looks for pages about exams and class questions; if the wiki has none it says so.']},
+ {v:'0.17',d:'21 Oct 2026',t:'Tighter guide topics',i:[
+  'IMPROVED  Guide topic buttons now rank by page name and category, drop loose matches when enough on-topic pages exist, and leave out songs, albums and merchandise.']},
+ {v:'0.16',d:'21 Oct 2026',t:'Better guide results and pictures',i:[
+  'FIXED  Pictures now show on guide pages.',
+  'IMPROVED  Guide results leave out the manga, live action, stage plays, anthologies and other games, and put pages whose names match your topic first.']},
+ {v:'0.15',d:'21 Oct 2026',t:'Guide pages and results',i:[
+  'FIXED  Guide pages are now drawn directly in the launcher (they came up blank before).',
+  'IMPROVED  Guide searches leave out Portable, Reload, The Night Before, the stage play and other non-FES pages. Each result shows what the wiki filed it under.']},
+ {v:'0.14',d:'21 Oct 2026',t:'Guide fixes',i:[
+  'FIXED  The list of guide results and of saved pages no longer jumps back to the top while you scroll.',
+  'IMPROVED  Guide searches now only list Persona 3 pages (not Persona 4, 5 and other games).',
+  'FIXED  Guide pages that showed up blank.']},
+ {v:'0.13',d:'21 Oct 2026',t:'Guides you can save',i:[
+  'IMPROVED  Extra > Guides now searches the Megami Tensei Wiki right inside the launcher and shows the pages there. SAVE OFFLINE keeps a page on your computer so you can read it without internet.',
+  'IMPROVED  GameFAQs and web search open in their own window (those sites do not allow being shown inside the launcher).']},
+ {v:'0.12',d:'21 Oct 2026',t:'Guides inside the launcher',i:[
+  'IMPROVED  Extra > Guides now shows the wiki, GameFAQs and web search pages right inside the launcher (plain pages, no ads or scripts). OPEN IN A WINDOW still gives you the full site.',
+  'FIXED  The moon in the Golden theme is now easy to see.']},
+ {v:'0.11',d:'21 Oct 2026',t:'Guides, Extra and the Golden theme',i:[
+  'NEW  Extra > Guides: look up enemies and bosses, social link answers, the daily planner, school answers, fusion or Tartarus on the Megami Tensei wiki, GameFAQs or the web, in a window next to the launcher. Or search for anything you like.',
+  'NEW  Golden theme (yellow and black with TV lines), the launcher look for the next project. Settings > Theme.',
+  'NEW  About > Playtesters and Bug reporters (placeholders for now).',
+  'IMPROVED  The Log menu is now called Extra, and the Update log moved there from Help.']},
  {v:'0.10',d:'21 Oct 2026',t:'Add to Steam',i:[
   'NEW  Settings > Steam: add Persona 3 FES to your Steam library as a Non-Steam game, with the artwork you pick from SteamGridDB (capsule, wide, hero, logo, icon). Needs a free SteamGridDB key.',
   'FIXED  GameBanana mod descriptions were cut off after a short while; the whole text now shows.',
@@ -222,7 +266,7 @@ const CHANGES=[
   'NEW  Mouse camera in the PC window, like the browser game: click the picture, move the mouse sideways to turn the camera. Esc gives the mouse back.',
   'NEW  The PC window opens maximized, filling the screen like this launcher.',
   'NEW  The launcher closes as soon as the game starts. Turn it off in Settings > Launcher.',
-  'NEW  This update log (Help > Update log).',
+  'NEW  This update log (Extra > Update log).',
   'IMPROVED  Direct Commands is now a switch (Mods > Direct Commands), on by default: Play uses it whenever it is built, in the browser and in the PC window. The PC window version is built once with tools\\p3fes_win_mod.bat.',
   'NEW  A small TV on the home screen. Just a hint of what comes later; it does nothing yet.']},
  {v:'0.2',d:'14 to 19 Oct 2026',t:'The native Windows PC window',i:[
@@ -248,8 +292,158 @@ function updateLog(){
   const rows=CHANGES.map(c=>`<div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.3);padding-top:8px"><div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:20px;font-weight:800;color:var(--acc)">${c.v}</span><span style="font-size:16px;font-weight:800;color:var(--ink)">${esc(c.t)}</span><span style="margin-left:auto;font-size:12px;letter-spacing:1px;opacity:.8;color:var(--ink)">${esc(c.d)}</span></div>`+c.i.map(x=>{const m=x.match(/^(NEW|IMPROVED|FIXED)\s+(.*)$/);return `<div style="display:flex;gap:8px;margin-top:5px;font-size:14px;line-height:1.35;color:var(--ink)"><span style="flex:none;width:74px;font-size:11px;font-weight:800;letter-spacing:1px;padding-top:2px;color:${m&&m[1]==='NEW'?'#2BD07F':'var(--acc)'}">${m?m[1]:''}</span><span>${esc(m?m[2]:x)}</span></div>`;}).join('')+`</div>`).join('');
   return pnl(H1('UPDATE LOG')+P('You are on version '+(S?S.version:'')+'.',4)+`<div id="ulist" style="margin-top:2px;max-height:470px;overflow-y:auto;padding-right:6px">${rows}</div>`,'padding-bottom:14px');
 }
+const UP={s:null,busy:false,msg:'',edit:false,done:false};
+async function upCheck(){UP.busy=true;UP.msg='';render();try{UP.s=await api('/api/update/check',{});}catch(e){UP.s={ok:false,msg:'The launcher could not be reached.'};}UP.busy=false;render();}
+async function upInstall(){UP.busy=true;UP.msg='Downloading…';render();try{const r=await api('/api/update/install',{});UP.msg=r.msg||'';UP.done=!!r.installed;if(r.installed&&UP.s){UP.s.newer=false;}}catch(e){UP.msg='The update failed.';}UP.busy=false;render();}
+function upPanel(){
+  const repo=S&&S.update_repo||'', b=(t0,a)=>btnx(t0,a).replace('margin:12px 10px 0 0','margin:6px 10px 0 0');
+  let h=H1('UPDATES');
+  if(!repo||UP.edit){
+    h+=P('Where do updates come from? Enter the project\'s GitHub address, like <b>owner/name</b>.',4)+`<div style="display:flex;gap:10px;align-items:center;margin-top:6px"><input id="uprepo" value="${(repo||'').replace(/"/g,'&quot;')}" placeholder="owner/name" style="flex:1;font:inherit;font-size:15px;padding:7px 10px;border-radius:8px;border:2px solid var(--deep);background:rgba(255,255,255,.8);color:#111">${b('SAVE','uprs')}</div>`;
+    return h+(UP.msg?P('<b>'+UP.msg.replace(/</g,'&lt;')+'</b>',6):'');
+  }
+  if(UP.s===null&&!UP.busy)setTimeout(upCheck,0);
+  const s=UP.s||{};
+  if(UP.busy)h+=P('<b>'+(UP.msg||'Checking…')+'</b>',6);
+  else if(UP.done)h+=P('<b>'+UP.msg.replace(/</g,'&lt;')+'</b>',6)+b('RESTART THE LAUNCHER','upr');
+  else if(s.ok===false)h+=P('<b>'+String(s.msg||'Could not check.').replace(/</g,'&lt;')+'</b>',6)+b('TRY AGAIN','upc');
+  else if(s.newer)h+=P('<b>Version '+s.latest+' is available</b> (you have '+s.current+'). It replaces the launcher files; your saves, settings and the game are not touched.',6)+b('UPDATE NOW','upi')+b('CHECK AGAIN','upc');
+  else h+=P('<b>You have the latest version</b> ('+s.current+').',6)+b('CHECK AGAIN','upc');
+  if(UP.msg&&!UP.busy&&!UP.done)h+=P(UP.msg.replace(/</g,'&lt;'),4);
+  return h+`<div style="font-size:12px;opacity:.8;margin-top:4px;color:var(--ink)">Source: ${repo.replace(/</g,'&lt;')} · ${b('CHANGE','upe').replace(/margin:6px 10px 0 0/,'margin:0 0 0 4px').replace(/padding:8px 18px;font-size:15px/,'padding:2px 10px;font-size:12px')}</div>`;
+}
+const WIKIS={mt:{api:'https://megamitensei.fandom.com/api.php',page:'https://megamitensei.fandom.com/wiki/',name:'Megami Tensei Wiki'},sm:{api:'https://shin-megami-tensei-persona.fandom.com/api.php',page:'https://shin-megami-tensei-persona.fandom.com/wiki/',name:'Shin Megami Tensei Persona Wiki'}};
+const GD={wk:'mt',fq:'',kind:'wiki',tool:'',info:'',q:'',mode:'home',last:'',title:'',res:null,saved:null,html:'',rev:0,doc:'',msg:'',slug:'',offline:false,pend:''};
+const GD_TOPICS=[
+ ['ENEMIES AND BOSSES','shadow boss','shadow|boss|enem|weak','shadows|bosses',{}],
+ ['SOCIAL LINKS','social link','social link|arcana','social link',{}],
+ ['DAILY PLANNER','calendar','calendar|day|daily|schedule|activit|full moon','mechanics|calendar',{drop:['Tactics','Shuffle Time']}],
+ ['SCHOOL ANSWERS','exam','exam|class|school|question|answer|academ|test|lesson','',{qs:['exam answers','class questions answers','academics','school classroom questions'],strict:true,extra:[{title:'Pop Quiz dates and answers',snippet:'Class questions and the answers, by date.',cats:'Class answers · Shin Megami Tensei Persona Wiki',wk:'sm'}],fq:'Persona 3 FES class questions and exam answers',pins:['Academics','Academics/Persona 3','Exams','Exams/Persona 3','Exam','Examinations','Class','Classes','Classroom','Classroom/Persona 3','Class Questions','Class Questions/Persona 3','Classroom Answers','School Answers','Answers/Persona 3','Test Answers','Exam Answers','School life','School Life/Persona 3','Midterms','Final Exams','Lessons','Quiz','Questions/Persona 3']}],
+ ['FUSION','fusion','fusion|velvet|compendium','mechanics|personas|persona list',{tool:'fusion',pins:['Fusion','Fusion/Persona 3','Persona Fusion','Velvet Room','Velvet Room/Persona 3','Igor']}],
+ ['TARTARUS','Tartarus','tartarus|block|floor|tower','tartarus|locations',{add:['Tactics','Shuffle Time']}]];
+const GD_TOOLS={fusion:{title:'Persona 3 FES Fusion Calculator',url:'https://aqiu384.github.io/megaten-fusion-tool/p3f/personas',note:'Megaten Fusion Tool by aqiu384 and contributors. Needs internet.'}};
+const escH=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function wapi(params,wk){const u=WIKIS[wk||'mt'].api+'?'+new URLSearchParams(Object.assign({format:'json',formatversion:'2',origin:'*'},params));const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+async function gdSaved(){try{const r=await api('/api/guide/list');GD.saved=r.pages||[];}catch(e){GD.saved=[];}render();}
+async function gdCats(titles){
+  const cat={};
+  for(let i=0;i<titles.length;i+=40){
+    const c=await wapi({action:'query',prop:'categories',titles:titles.slice(i,i+40).join('|'),cllimit:'max',redirects:'1'});
+    ((c.query&&c.query.pages)||[]).forEach(p=>{if(!p.missing)cat[p.title]=(p.categories||[]).map(x=>x.title.replace(/^Category:/,''));});
+  }
+  return cat;
+}
+async function gdSearch(q,kw,kc,opt){
+  opt=opt||{};q=(q||'').trim();if(!q){say('Type what you want to look up first.');return;}
+  GD.last=q;GD.mode='load';GD.msg='';render();
+  const pre=s=>/persona\s*3/i.test(s)?s:'Persona 3 '+s;
+  try{
+    const seen={},all=[];
+    for(const qq of (opt.qs||[q])){
+      const r=await wapi({action:'query',list:'search',srsearch:pre(qq),srlimit:'40',srnamespace:'0'});
+      ((r.query&&r.query.search)||[]).forEach(x=>{if(!seen[x.title]){seen[x.title]=1;all.push(x);}});
+    }
+    const pins=[];   // pages we expect to exist for this topic: keep the ones that do
+    if(opt.pins){const c0=await gdCats(opt.pins);Object.keys(c0).forEach(tt=>{if(!seen[tt]){seen[tt]=1;pins.push({title:tt,snippet:'',pin:1});}});opt.pc=c0;}
+    const cat=await gdCats(all.map(x=>x.title).concat(pins.map(x=>x.title)).concat(opt.add||[]));
+    const MEDIA=/manga|anthology|live action|stage|movie|drama|novel|soundtrack|weird masquerade|night before|persona q|metaphor|mobile|game and watch|songs?\b|albums?|merchandise|music|\bcd\b|track list/i;
+    const VER=/portable|reload|dancing|arena/i, OTHER=/persona [245]\b|persona 5|metaphor|devil survivor|raidou/i;
+    const cs=x=>cat[x.title]||[];
+    const isP3=x=>{const c=cs(x);
+      if(MEDIA.test(x.title)||c.some(n=>MEDIA.test(n))||c.some(n=>/^games?$/i.test(n)))return false;
+      if(VER.test(x.title)&&!c.some(n=>/persona 3 fes/i.test(n)))return false;
+      if(c.some(n=>/persona 3 fes/i.test(n)))return true;
+      const p3=c.filter(n=>/persona 3/i.test(n));
+      return p3.length>0&&p3.some(n=>!VER.test(n))&&!c.some(n=>OTHER.test(n));};
+    const kr=kw?new RegExp(kw,'i'):null, kcr=kc?new RegExp(kc,'i'):null;
+    const mk=x=>{x.cats=cs(x).join(', ');return x;};
+    let main=all.map(mk).filter(isP3);
+    if(!main.length&&!opt.strict){GD.msg='No Persona 3 pages matched, showing everything the wiki found.';main=all.map(mk);}
+    if(opt.strict)main=main.filter(x=>kr&&kr.test(x.title));
+    const subpage=x=>/\//.test(x.title)&&!/social link/i.test(q);
+    const score=x=>{if(kr&&kr.test(x.title))return x.title.toLowerCase().startsWith(q.toLowerCase())?-1:0;return(kcr&&kcr.test(x.cats||'')?1:2)+(subpage(x)?.5:0);};
+    let ranked=main.map((x,i)=>[score(x),i,x]).sort((p,q2)=>p[0]-q2[0]||p[1]-q2[1]);
+    if(kr&&ranked.filter(p=>p[0]<2).length>=4)ranked=ranked.filter(p=>p[0]<2);
+    let list=pins.map(mk).filter(isP3).concat(ranked.map(p=>p[2]));   // pinned pages must pass the same Persona 3 check
+    if(opt.drop)list=list.filter(x=>!opt.drop.includes(x.title));
+    (opt.add||[]).forEach(tt=>{if(cat[tt]&&!list.some(x=>x.title===tt))list.push(mk({title:tt,snippet:''}));});
+    (opt.extra||[]).slice().reverse().forEach(x=>list.unshift(Object.assign({},x)));
+    if(opt.tool&&GD_TOOLS[opt.tool])list.unshift({title:GD_TOOLS[opt.tool].title,snippet:GD_TOOLS[opt.tool].note,cats:'Tool from the community · opens inside the launcher',tool:opt.tool});
+    GD.res=list.slice(0,20);GD.fq=opt.fq||'';
+    if(!GD.res.length)GD.msg=opt.strict?'The wiki has no page for this that the launcher could find. Try GAMEFAQS IN A WINDOW with the same words.':'Nothing found. Try other words.';
+  }catch(e){GD.res=[];GD.msg='Could not reach the wiki ('+e.message+'). You can still open saved pages, or use the buttons that open a window.';}
+  GD.mode='results';render();
+}
+function gdClean(html){
+  const d=new DOMParser().parseFromString('<body>'+html,'text/html');
+  d.querySelectorAll('noscript').forEach(n=>{const imgs=[...n.querySelectorAll('img')];if(imgs.length){const pv=n.previousElementSibling;if(pv&&pv.tagName==='IMG')pv.remove();n.replaceWith(...imgs);}else n.remove();});
+  d.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base,svg,math,.mw-editsection,.toc,#toc').forEach(e=>e.remove());
+  d.querySelectorAll('*').forEach(e=>{[...e.attributes].forEach(a=>{if(/^on/i.test(a.name)||a.name==='srcset'||a.name==='style'||a.name==='class'||a.name==='id')e.removeAttribute(a.name);});});
+  d.querySelectorAll('img').forEach(i=>{const ds=i.getAttribute('data-src');if(ds){i.setAttribute('src',ds);}let s=i.getAttribute('src')||'';if(s.startsWith('//'))s='https:'+s;if(s.startsWith('data:'))i.remove();else{i.setAttribute('src',s);i.setAttribute('referrerpolicy','no-referrer');}i.removeAttribute('data-src');i.removeAttribute('loading');});
+  d.querySelectorAll('a').forEach(a=>{const h=a.getAttribute('href')||'';a.removeAttribute('href');a.removeAttribute('target');
+    const m=h.match(/^(?:https?:\/\/[a-z0-9-]+\.fandom\.com)?\/wiki\/([^#?]+)/);
+    if(m&&!/:/.test(decodeURIComponent(m[1]))){a.setAttribute('data-wt',decodeURIComponent(m[1]).replace(/_/g,' '));}
+    else if(/^https?:/.test(h)){a.setAttribute('data-ext',h);}});
+  return d.body.innerHTML;
+}
+function gdShell(title,html,note){return '<h1 style="margin-top:0">'+escH(title)+'</h1>'+html+'<div class="cc">'+note+'</div>';}
+async function gdPage(title,wk){
+  GD.wk=wk||GD.wk||'mt';GD.mode='load';GD.msg='';render();
+  try{
+    const r=await wapi({action:'parse',page:title,prop:'text',redirects:'1',disableeditsection:'1',disabletoc:'1'},GD.wk);
+    if(!r.parse)throw new Error((r.error&&r.error.info)||'no such page');
+    const raw=typeof r.parse.text==='string'?r.parse.text:((r.parse.text&&r.parse.text['*'])||'');
+    GD.kind='wiki';GD.title=r.parse.title;GD.html=gdClean(raw);GD.offline=false;GD.slug='';
+    const plain=GD.html.replace(/<[^>]*>/g,'').trim().length;
+    GD.info=plain+' characters of text';
+    if(plain<20)GD.html='<p><b>The wiki sent a page with no readable text</b> ('+raw.length+' characters received). Try OPEN IN A WINDOW.</p>';
+    GD.doc=gdShell(GD.title,GD.html,'Text from the <b>'+WIKIS[GD.wk].name+'</b> (Fandom), available under CC BY-SA 3.0. The authors are listed in the page history: '+escH(WIKIS[GD.wk].page+GD.title.replace(/ /g,'_')));
+    GD.rev++;GD.mode='page';
+  }catch(e){GD.mode='results';GD.msg='Could not open that page ('+e.message+').';}
+  render();
+}
+async function gdOpenSaved(slug){
+  const r=await api('/api/guide/get?slug='+encodeURIComponent(slug));
+  if(!r.ok){say(r.msg||'');return;}
+  GD.wk=WIKIS[r.wiki]?r.wiki:'mt';GD.kind='wiki';GD.title=r.title;GD.html=gdClean(r.html);GD.offline=true;GD.slug=slug;
+  GD.doc=gdShell(r.title,r.html,'Saved '+escH(r.saved)+' from the <b>'+WIKIS[GD.wk].name+'</b> (Fandom), available under CC BY-SA 3.0. The authors are listed in the page history: '+escH(WIKIS[GD.wk].page+r.title.replace(/ /g,'_')));
+  GD.rev++;GD.mode='page';render();
+}
+function gdTool(k){GD.kind='tool';GD.tool=k;GD.title=GD_TOOLS[k].title;GD.info='';GD.offline=false;GD.slug='';GD.mode='page';GD.rev++;render();}
+function gvSync(){
+  let fx=document.getElementById('gvx');
+  const onx=screen==='log'&&msel===2&&GD.mode==='page'&&GD.kind==='tool';
+  if(!fx){if(onx){fx=document.createElement('iframe');fx.id='gvx';fx.setAttribute('sandbox','allow-scripts allow-same-origin allow-popups allow-forms');fx.style.cssText='position:absolute;left:132px;top:166px;width:1046px;height:538px;border:0;border-radius:8px;background:#fff;z-index:20';document.getElementById('fit').appendChild(fx);}}
+  if(fx){fx.style.display=onx?'block':'none';if(onx&&fx.dataset.rev!==String(GD.rev)){fx.dataset.rev=String(GD.rev);fx.src=GD_TOOLS[GD.tool].url;}}
+
+  let f=document.getElementById('gv');
+  const on=screen==='log'&&msel===2&&GD.mode==='page'&&GD.kind!=='tool';
+  if(!f){if(!on)return;f=document.createElement('div');f.id='gv';f.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a');if(!a)return;e.preventDefault();const w=a.getAttribute('data-wt');if(w)gdPage(w);else if(a.getAttribute('data-ext'))say('That link leaves the wiki. Use OPEN IN A WINDOW to follow it on the site.');});document.getElementById('fit').appendChild(f);}
+  f.style.display=on?'block':'none';
+  if(on&&f.dataset.rev!==String(GD.rev)){f.dataset.rev=String(GD.rev);f.innerHTML=GD.doc;f.scrollTop=0;}
+}
+function gdWindow(src,q){api('/api/guide',src==='title'?{title:q}:{src,q}).then(r=>say(r.msg||''));}
+function guidesPanel(){
+  if(GD.mode==='page'){
+    const sv=GD.saved&&GD.saved.some(x=>x.slug===GD.slug||x.title===GD.title);
+    return pnl(`<div style="display:flex;align-items:center;gap:12px"><div style="flex:1">${H1('GUIDE'+(GD.offline?' · SAVED COPY':''))}<div style="font-size:13px;color:var(--ink)">${escH(GD.title)}${GD.info&&!GD.offline?' · '+escH(GD.info):''}</div></div>${btnx('BACK','gdx').replace('margin:12px 10px 0 0','margin:0')}${sv||GD.kind==='tool'?'':btnx('SAVE OFFLINE','gdsv').replace('margin:12px 10px 0 0','margin:0')}${btnx('OPEN IN A WINDOW','gdw').replace('margin:12px 10px 0 0','margin:0')}</div>`,'left:110px;width:1090px;top:84px;height:640px;background:linear-gradient(180deg,var(--a1),var(--a2));z-index:10');
+  }
+  if(GD.mode==='load')return pnl(H1('GUIDES')+P('<b>Loading…</b>',10)+btnx('BACK','gdx'),'padding-bottom:14px');
+  if(GD.mode==='results'){
+    const rows=(GD.res||[]).map((x,i)=>`<div data-act="gdp:${i}" style="cursor:pointer;padding:7px 8px;margin-top:6px;border-radius:8px;background:rgba(255,255,255,.28)"><div style="font-weight:800;color:var(--ink)">${escH(x.title)}</div><div style="font-size:11px;color:var(--ink);opacity:.7">${escH(x.cats||'')}</div><div style="font-size:12px;color:var(--ink);opacity:.85">${escH(String(x.snippet||'').replace(/<[^>]*>/g,'').replace(/&quot;/g,'"').replace(/&amp;/g,'&')).slice(0,150)}</div></div>`).join('');
+    return pnl(H1('RESULTS')+P(escH(GD.last),2)+(GD.msg?P('<b>'+escH(GD.msg)+'</b>',8):'')+(!GD.res.length&&GD.fq?btnx('GAMEFAQS IN A WINDOW','gdfq:faqs')+btnx('WEB IN A WINDOW','gdfq:web'):'')+`<div id="gdres" style="max-height:450px;overflow-y:auto;padding-right:6px">${rows}</div>`+btnx('BACK TO GUIDES','gdx'),'padding-bottom:14px');
+  }
+  if(GD.saved===null)setTimeout(gdSaved,0);
+  const sv=(GD.saved||[]).map(x=>{const rm=GD.pend==='gdrm:'+x.slug;return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;font-weight:700;color:var(--ink)">${escH(x.title)}</div>${btnx('OPEN','gdo:'+x.slug).replace('margin:12px 10px 0 0','margin:0')}${btnx(rm?'SURE?':'DELETE','gdrm:'+x.slug,rm).replace('margin:12px 10px 0 0','margin:0')}</div>`;}).join('');
+  return pnl(H1('GUIDES')+P('Search the Megami Tensei Wiki right here, and save pages to read offline. GameFAQs and web search open in their own window.',4)+
+    `<div style="margin-top:2px">`+GD_TOPICS.map((x,i)=>btnx(x[0],'gdt:'+i)).join('')+`</div>`+
+    `<div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.3);padding-top:8px"><div style="display:flex;gap:10px;align-items:center"><input id="gdq" value="${escH(GD.q)}" placeholder="for example: Yukari social link" style="flex:1;font:inherit;font-size:15px;padding:7px 10px;border-radius:8px;border:2px solid var(--deep);background:rgba(255,255,255,.8);color:#111">${btnx('SEARCH WIKI','gdgo').replace('margin:12px 10px 0 0','margin:0')}</div>`+
+    `<div style="margin-top:2px">${btnx('GAMEFAQS IN A WINDOW','gdf')}${btnx('WEB IN A WINDOW','gdb')}</div></div>`+
+    `<div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.3);padding-top:6px">${H1('SAVED FOR OFFLINE')}<div id="gdsv" style="max-height:150px;overflow-y:auto;padding-right:6px">${sv}</div>${sv?'':P('Nothing saved yet. Open a wiki page and press SAVE OFFLINE.',4)}</div>`+
+    P('Spoilers: guides cover the whole game. Look up only what you need.',8),'padding-bottom:16px');
+}
 let LG=null,lgScroll=null,lgStick=true;
-async function lgLoad(){try{LG=await api('/api/dialoglog');}catch(e){}if(screen==='log')render();}
+async function lgLoad(){try{LG=await api('/api/dialoglog');}catch(e){}if(screen==='log'&&msel===0)render();}
 function openLog(){LG=null;lgScroll=null;lgStick=true;open_('log');lgLoad();}
 const SPK={3:'Yukari Takeba',5:'Mitsuru Kirijo',6:'Junpei Iori',8:'Akihiko Sanada',12:'Shuji Ikutsuki','-1':''};
 let VA=null;
@@ -259,9 +453,9 @@ const icoSpk=(on)=>`<svg width="26" height="26" viewBox="0 0 26 26" style="flex:
 const ROWL={cross:'CROSS · confirm',circle:'CIRCLE · cancel',square:'SQUARE',triangle:'TRIANGLE',l1:'L1',r1:'R1',l2:'L2',r2:'R2',start:'START',select:'SELECT'};
 const ROWS=Object.keys(ROWL);
 const MENUS={
- help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','VERSION','UPDATE LOG'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.','Everything that has changed, newest first.']},
- log:{title:'LOG',sub:'WHAT WAS SAID',items:['DIALOGUE'],y:160,hint:['Lines shown so far. Click a speaker icon to hear the line.']},
- about:{title:'ABOUT',sub:'WHO MADE THIS',items:['THE CREATORS','THE PROJECT'],y:160,hint:['The two people behind this launcher and port.','What this is, and what it is built on.']},
+ help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','VERSION'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.']},
+ log:{title:'EXTRA',sub:'MORE TO LOOK AT',items:['DIALOGUE LOG','UPDATE LOG','GUIDES'],y:160,hint:['Lines shown so far. Click a speaker icon to hear the line.','Everything that has changed, newest first.','Look up enemies, social links, exams and more.']},
+ about:{title:'ABOUT',sub:'WHO MADE THIS',items:['THE CREATORS','THE PROJECT','PLAYTESTERS','BUG REPORTERS'],y:160,hint:['The two people behind this launcher and port.','What this is, and what it is built on.','The people who tried it early.','The people who found problems for us.']},
  saves:{title:'SAVES',sub:'PICK UP WHERE YOU LEFT OFF',items:['AUTOSAVES','MEMORY CARD','BACKUPS'],y:160,hint:['Saves of the whole game.','The card both versions share.','Earlier copies of the card.']},
  mods:{title:'MODS',sub:'YOUR NORMAL GAME IS NEVER CHANGED',items:['DIRECT COMMANDS','FEMC PROTAGONIST','RELOAD STYLE PACK','FILE MODS','BROWSE GAMEBANANA','ADD A PATCH'],y:160,hint:['Control party members in battle.','Play as the female protagonist.','A look-alike menu pack idea.','Add mods that replace game files (text, images, sounds).','Find Persona 3 FES mods on GameBanana and add them.','Check a patch file against your disc.']},
  setup:{title:'SETUP',sub:'FIRST TIME ONLY',items:['FIND YOUR DISC','GET THE TOOLS','BUILD THE GAME','PLAY'],y:160,tag:1,hint:['Your own Persona 3 FES (USA) disc image.','Downloads what the build needs.','Turns your disc into a game that runs here.','Ready when the build is done.']},
@@ -279,6 +473,8 @@ function setupSteps(){
 function body(){
   const k=S?S.keys:{}, kd=S?S.key_defaults:{};
   if(screen==='log'){
+    if(msel===1)return updateLog();
+    if(msel===2)return guidesPanel();
     if(!LG)return pnl(H1('DIALOGUE LOG')+P('Loading…'));
     const E=LG.entries||[];
     if(!E.length)return pnl(H1('DIALOGUE LOG')+P(LG.have_file?'Nothing has been said yet in the last session. Play in the PC window, then come back here.':'No log yet. It is written while you play in the PC window (this needs the PC window built with the dialogue log patch).')+P('The log keeps lines from every play session. A speaker icon means the line has a voice; a crossed icon means it has none.',10));
@@ -294,11 +490,12 @@ function body(){
   if(screen==='about'){
     const who=(av,sg,name,role)=>`<div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-top:1px solid rgba(255,255,255,.3)"><img src="img/${av}" alt="" style="width:168px;height:168px;object-fit:contain;flex:none"><div style="flex:1;min-width:0"><img src="img/${sg}" alt="${name}" style="display:block;width:100%;height:112px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(120,190,255,.9)) drop-shadow(0 1px 2px rgba(4,10,36,.5))"><div style="font-size:14px;line-height:1.4;margin-top:6px;color:var(--ink)"><b>${name}</b> · ${role}</div></div></div>`;
     if(msel===0)return pnl(H1('CREATED BY')+`<div style="margin-top:6px">`+who('virtualak-avatar.png','virtualak-signature.png','VirtualAK','Idea, testing and direction.')+who('claude-avatar.png','claude-signature.png','Claude','Code, tools and documentation. An AI model made by Anthropic.')+`</div>`,'padding-bottom:12px');
+    if(msel===2)return pnl(H1('PLAYTESTERS')+`<span style="float:right;font-size:12px;letter-spacing:1px;background:var(--acc);color:#0B1A3F;border-radius:6px;padding:2px 10px;font-weight:800">COMING SOON</span><div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Thank you</div>`+P('The people who played early builds and told us how it went will be listed here.')+P('Names to be added.',10),'padding-bottom:18px');
+    if(msel===3)return pnl(H1('BUG REPORTERS')+`<span style="float:right;font-size:12px;letter-spacing:1px;background:var(--acc);color:#0B1A3F;border-radius:6px;padding:2px 10px;font-weight:800">COMING SOON</span><div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Thank you</div>`+P('The people who found problems and sent us a report will be listed here.')+P('Names to be added.',10),'padding-bottom:18px');
     return pnl(H1('PERSONA 3 FES ON PC')+P('A community project that runs Persona 3 FES (USA) in your browser and in its own window, from your own disc. Nothing from the game is included or shared: everything is made on your computer from your own copy, and your disc is never changed.',8)+
       P('Built on PS2 Web Recomp by snuri00 (MIT licence), with SDL2 and wgpu-native. Not affiliated with or endorsed by Atlus or SEGA.',10)+P('Launcher '+(S?S.version:'')+'. Thank you to everyone who tested.',10),'padding-bottom:18px');
   }
   if(screen==='help'){
-    if(msel===4)return updateLog();
     if(msel===0)return pnl(H1('GETTING STARTED')+['Put your own Persona 3 FES (USA) disc image in C:\\p3fes.','Run the installer in Ubuntu (docs/install.md). It takes 10 minutes or more.','Open this launcher. Home says <b>Ready</b> when the game is built.','Press <b>PLAY</b>. Pick the browser or the PC window with Q and E.'].map((t,i)=>`<div style="display:flex;gap:14px;margin-top:12px;font-size:15px;line-height:1.45;color:var(--ink)"><div style="flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:var(--acc);font-weight:800;text-align:center;line-height:28px">${i+1}</div><div>${t}</div></div>`).join(''),'padding-bottom:18px');
     if(msel===1)return pnl(H1('DEFAULT KEYS')+`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:8px;font-size:15px;color:var(--ink)">`+ROWS.map(r=>`<div style="display:flex;justify-content:space-between"><span style="font-weight:600">${ROWL[r]}</span><b>${kd[r]||''}</b></div>`).join('')+`</div>`+P('Arrow keys are the D-pad. W A S D is the left stick and T F G H the right stick. F11 or ` toggles fullscreen. Change keys in Settings.',12),'padding-bottom:18px');
     if(msel===2)return pnl(H1('WHAT ARE YOU SEEING?')+[
@@ -308,7 +505,7 @@ function body(){
       ['The PC window does not open','Start VcXsrv first (docs/windows-build.md), then press Play again.'],
       ['The game is slow in the browser','It needs WebGPU. Use Chrome or Edge, and check chrome://gpu.']
     ].map(([q,a])=>`<div style="border-top:1px solid rgba(255,255,255,.3);margin-top:10px;padding-top:8px"><div style="font-size:16px;font-weight:800;color:var(--ink)">${q}</div>${P(a,2)}</div>`).join(''),'padding-bottom:16px');
-    return pnl(H1('ABOUT')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Launcher ${S?S.version:''}</div>`+P('For Persona 3 FES (USA, NTSC-U). Your disc and your saves stay on your computer.')+btnx('COPY A REPORT','report')+P('The report has version numbers and the checks Home shows. It never includes your disc or your saves.',10)+(reportText?`<pre style="margin:10px 0 0;padding:10px;background:var(--deep);border-radius:8px;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:#fff">${reportText.replace(/</g,'&lt;')}</pre>`:''),'padding-bottom:18px');
+    return pnl(H1('ABOUT')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Launcher ${S?S.version:''}</div>`+P('For Persona 3 FES (USA, NTSC-U). Your disc and your saves stay on your computer.')+`<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.3);padding-top:4px">${upPanel()}</div><div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.3)"></div>`+btnx('COPY A REPORT','report')+P('The report has version numbers and the checks Home shows. It never includes your disc or your saves.',10)+(reportText?`<pre style="margin:10px 0 0;padding:10px;background:var(--deep);border-radius:8px;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:#fff">${reportText.replace(/</g,'&lt;')}</pre>`:''),'padding-bottom:18px');
   }
   if(screen==='mods'){
     const M=S.mods||{}, tag=(t,c)=>`<span style="float:right;font-size:12px;letter-spacing:1px;background:${c};color:#0B1A3F;border-radius:6px;padding:2px 8px">${t}</span>`, big=x=>`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${x}</div>`;
@@ -426,9 +623,9 @@ function body(){
     return pnl(H1('BROWSER FOR THE GAME')+P('The browser game needs WebGPU. Edge and Chrome have it; Firefox may not.')+o('msedge','EDGE')+o('chrome','CHROME')+o('default','SYSTEM DEFAULT')+`<div style="margin-top:14px">${H1('RESOLUTION')}</div>`+P('Sharper picture needs a stronger graphics card. 3x ran at 60 frames per second on an RTX 3060 Ti.',4)+r('1','1x · 640×512')+r('2','2x · 1280×1024')+r('3','3x · 1920×1536')+`<div style="margin-top:14px">${H1('WIDESCREEN · PC WINDOW')}</div>`+P('Shows the picture at 16:9 and widens the 3D view to match. Experimental: menus and portraits may look stretched. Needs a PC window built with the widescreen patch.',4)+btnx('ON','ws:1',S&&S.widescreen)+btnx('OFF','ws:0',!(S&&S.widescreen))+P('Fullscreen: F11 in the PC window, the ` key in the browser.',10),'padding-bottom:18px');}
   if(msel===4){const th=S&&S.theme?S.theme:'blue', t=(v,n)=>btnx(n,'th:'+v,th===v),
       sw=(a,b,c)=>`<span style="white-space:nowrap;display:inline-block;margin-bottom:6px"><span style="display:inline-block;width:26px;height:26px;border-radius:6px;background:${a};margin-right:4px;border:2px solid ${b}"></span><span style="display:inline-block;width:26px;height:26px;border-radius:6px;background:${c};margin-right:12px"></span></span>`;
-    return pnl(H1('THEME')+P('Changes the colours of this launcher only. The game is not affected.')+t('blue','BLUE')+t('pink','PINK')+t('reload','RELOAD')+t('moon','MOON')+t('dawn','DAWN')+t('seal','SEAL')+t('daybreak','DAYBREAK')+t('horizon','HORIZON')+t('ceremony','CEREMONY')+t('eclipse','ECLIPSE')+(S&&S.journey?t('twelve','TWELVE'):'')+
-      `<div style="margin-top:12px;color:var(--ink);font-size:13px;line-height:1.6"><b>BLUE</b> the original. <b>PINK</b> ready for the female protagonist mod. <b>RELOAD</b> electric cyan. <b>MOON</b> indigo and gold. <b>DAWN</b> cream and peach. <b>SEAL</b> white and ice blue. <b>DAYBREAK</b> a sky gradient. <b>HORIZON</b> sunset over a dark sea. <b>CEREMONY</b> ivory and gold. <b>ECLIPSE</b> violet with a glowing moon. They are only colours, no art from the game.</div>`+
-      `<div style="margin-top:10px">${sw('#1B8CF2','#06173F','#F2A94E')}${sw('#F2619F','#3A0A28','#FFD36B')}${sw('#0BB5E8','#02101F','#EAFDFF')}${sw('#2B2F66','#FFE082','#FFE082')}${sw('#FFD9A0','#2A2F55','#9FC6F2')}${sw('#BFDDF5','#16304F','#C9D6E3')}${sw('#7FA8E8','#23284F','#F7B6A1')}${sw('#E8708A','#10143A','#FFB45A')}${sw('#F6EBCF','#3A2F1A','#D4A93E')}${sw('#2A1740','#FFD36B','#FFD36B')}${S&&S.journey?sw('#1E7A5C','#02100B','#F5ECC8'):''}</div>`+
+    return pnl(H1('THEME')+P('Changes the colours of this launcher only. The game is not affected.')+t('blue','BLUE')+t('pink','PINK')+t('reload','RELOAD')+t('moon','MOON')+t('dawn','DAWN')+t('seal','SEAL')+t('daybreak','DAYBREAK')+t('horizon','HORIZON')+t('ceremony','CEREMONY')+t('eclipse','ECLIPSE')+t('golden','GOLDEN')+(S&&S.journey?t('twelve','TWELVE'):'')+
+      `<div style="margin-top:12px;color:var(--ink);font-size:13px;line-height:1.6"><b>BLUE</b> the original. <b>PINK</b> ready for the female protagonist mod. <b>RELOAD</b> electric cyan. <b>MOON</b> indigo and gold. <b>DAWN</b> cream and peach. <b>SEAL</b> white and ice blue. <b>DAYBREAK</b> a sky gradient. <b>HORIZON</b> sunset over a dark sea. <b>CEREMONY</b> ivory and gold. <b>ECLIPSE</b> violet with a glowing moon. <b>GOLDEN</b> yellow and black with TV lines, made ready for the next project. They are only colours, no art from the game.</div>`+
+      `<div style="margin-top:10px">${sw('#1B8CF2','#06173F','#F2A94E')}${sw('#F2619F','#3A0A28','#FFD36B')}${sw('#0BB5E8','#02101F','#EAFDFF')}${sw('#2B2F66','#FFE082','#FFE082')}${sw('#FFD9A0','#2A2F55','#9FC6F2')}${sw('#BFDDF5','#16304F','#C9D6E3')}${sw('#7FA8E8','#23284F','#F7B6A1')}${sw('#E8708A','#10143A','#FFB45A')}${sw('#F6EBCF','#3A2F1A','#D4A93E')}${sw('#2A1740','#FFD36B','#FFD36B')}${sw('#FFD800','#0F0E08','#FFFFFF')}${S&&S.journey?sw('#1E7A5C','#02100B','#F5ECC8'):''}</div>`+
       `<div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.3);padding-top:4px">${H1('THE JOURNEY')}`+(S&&S.journey?P('Unlocked: the TWELVE theme and a gold badge on the home screen.')+btnx('LOCK IT AGAIN','jy:0'):P('Reached the end of The Journey? Unlock a special green theme and a gold badge. It is on your honour for now.')+btnx('I FINISHED THE JOURNEY','jy:1'))+`</div>`,'padding-bottom:18px');}
   if(msel===9){return steamPanel();}
   if(msel===8){const rows=[['master','MASTER'],['music','MUSIC'],['voice','VOICES'],['fx','EFFECTS']].map(([w,l])=>{const v=S&&S['vol_'+w]!=null?S['vol_'+w]:100;const bt='background:var(--deep);border-radius:8px;padding:6px 12px;font-size:16px;font-weight:800;color:var(--acc);cursor:pointer';return `<div style="display:flex;align-items:center;margin-top:12px"><div style="width:84px;font-size:14px;font-weight:800;color:var(--ink)">${l}</div>`+`<input type="range" data-sl="${w}" min="0" max="100" step="1" value="${v}" style="width:140px;accent-color:var(--acc);cursor:pointer">`+`<div data-act="vl:${w}:-5" style="${bt};margin-left:8px">−</div>`+`<input id="vl-${w}" data-w="${w}" type="number" min="0" max="100" step="1" value="${v}" style="width:60px;margin:0 6px;padding:6px 6px;font-size:16px;font-weight:800;text-align:center;border:2px solid var(--acc);border-radius:8px;background:var(--deep);color:var(--acc)">`+`<div data-act="vl:${w}:5" style="${bt}">+</div><div style="margin:0 8px;font-size:15px;color:var(--ink)">%</div>`+`<div data-act="vm:${w}" style="${bt};font-size:13px;${v===0?'border:2px solid var(--acc);padding:4px 10px':''}">${v===0?'UNMUTE':'MUTE'}</div></div>`;}).join('');
@@ -480,13 +677,14 @@ function steamPanel(){
 }
 const keepScroll={};
 function render(){
-  for(const id of ['ulist','gbscroll','gbdesc']){const e0=document.getElementById(id);keepScroll[id]=e0?e0.scrollTop:0;}   // these lists keep their place when the screen redraws
+  for(const id of ['ulist','gbscroll','gbdesc','gdres','gdsv']){const e0=document.getElementById(id);keepScroll[id]=e0?e0.scrollTop:0;}   // these lists keep their place when the screen redraws
   const el=document.getElementById('lglist');
   if(el){lgScroll=el.scrollTop;lgStick=el.scrollHeight-el.scrollTop-el.clientHeight<24;}
   if(screen==='home'||lost||!S) renderHome(); else renderMenu();
   const l2=document.getElementById('lglist');
   if(l2){l2.scrollTop=(lgStick||lgScroll===null)?l2.scrollHeight:lgScroll;}
-  for(const id of ['ulist','gbscroll','gbdesc']){const e1=document.getElementById(id);if(e1)e1.scrollTop=keepScroll[id]||0;}
+  gvSync();
+  for(const id of ['ulist','gbscroll','gbdesc','gdres','gdsv']){const e1=document.getElementById(id);if(e1)e1.scrollTop=keepScroll[id]||0;}
 }
 const SDLKEY=e=>{const c=e.code;
   if(/^Key[A-Z]$/.test(c))return c[3]; if(/^Digit[0-9]$/.test(c))return c[5]; if(/^Numpad[0-9]$/.test(c))return 'Keypad '+c[6];
@@ -504,7 +702,7 @@ async function report(){
   try{await navigator.clipboard.writeText(r.text);say('Report copied. Paste it into your message.');}
   catch(e){reportText=r.text;say('Could not copy. The report is shown here instead.');}
 }
-function open_(sc){screen=sc;msel=0;capture=null;reportText='';pend='';render();}
+function open_(sc){GD.mode='home';GD.pend='';screen=sc;msel=0;capture=null;reportText='';pend='';render();}
 function back(){screen='home';capture=null;reportText='';pend='';render();}
 function say(m){note=m;clearTimeout(noteT);render();noteT=setTimeout(()=>{note='';render();},4500);}
 function afterPlay(r){if(r&&r.ok&&S&&S.close_on_play!==false)setTimeout(()=>{try{window.close();}catch(e){}},250);}
@@ -537,7 +735,7 @@ C.addEventListener('click',e=>{
   if(t.dataset.mi!==undefined){msel=+t.dataset.mi;capture=null;reportText='';pend='';render();}
   else if(t.dataset.back)back();
   else if(t.dataset.key){capture=t.dataset.key;render();}
-  else if(t.dataset.act){const a=t.dataset.act;if(a==='stkey'){const k=(document.getElementById('sgkey')||{}).value||'';if(k.trim()){api('/api/steam/key',{key:k.trim()}).then(()=>{ST={s:null,busy:false,kind:'portrait',items:null,page:0,apiPage:0,sel:{},loading:false,msg:''};render();});}else say('Paste the key first.');}else if(a==='stkeyx'){api('/api/steam/key',{key:''}).then(()=>{ST.s=null;ST.items=null;render();});}else if(a==='stfind'){stFind();}else if(a.startsWith('stk:')){ST.kind=a.slice(4);stArt(false);}else if(a.startsWith('stp:')){const it=(ST.items||[])[+a.slice(4)];if(it){ST.sel[ST.kind]=ST.sel[ST.kind]===it.url?null:it.url;render();}}else if(a.startsWith('stpg:')){const n=Math.ceil(((ST.items||[]).length)/8);ST.page=Math.max(0,Math.min(Math.max(0,n-1),ST.page+(+a.slice(5))));render();}else if(a==='stmore'){stArt(true);}else if(a==='stadd'){const ch={};ST_KINDS.forEach(([k])=>{if(ST.sel[k])ch[k]=ST.sel[k];});say('Adding to Steam…');api('/api/steam/add',{choices:ch}).then(r=>{say(r.msg||'');stRefresh();});}else if(a==='strm'){api('/api/steam/remove',{}).then(r=>{say(r.msg||'');stRefresh();});}else if(a.startsWith('vm:')){const w=a.slice(3),cur=S['vol_'+w]!=null?S['vol_'+w]:100;S.vprev=S.vprev||{};if(cur>0){S.vprev[w]=cur;volSet(w,0);}else volSet(w,S.vprev[w]||100);}else if(a.startsWith('vl:')){const q=a.split(':');volSet(q[1],(S['vol_'+q[1]]!=null?S['vol_'+q[1]]:100)+(+q[2]));}else if(a.startsWith('sr:')){S.speedrun=a==='sr:1';api('/api/speedrun',{on:S.speedrun});render();}else if(a==='srr'){api('/api/speedrun/reset',{}).then(r=>say(r.msg||''));}else if(a.startsWith('dc:')){S.mods.direct_on=a==='dc:1';api('/api/direct',{on:S.mods.direct_on});render();}else if(a.startsWith('cp:')){S.close_on_play=a==='cp:1';api('/api/closeonplay',{on:S.close_on_play});render();}else if(a==='lgclear'){api('/api/dialoglog/clear',{}).then(()=>{lgLoad();say('Log cleared.');});}else if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('ast:')){astab=a.slice(4);render();}else if(a.startsWith('rp:')){busy=true;say('Starting…');api('/api/play',{mode:'exe',pcresume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a.startsWith('dp:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/pcsave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('pe:')||a.startsWith('pk:')||a.startsWith('pc:')){const v=a.slice(3),c=S.pc_autosaves.cfg;if(a[1]==='e')c.every=+v;else if(a[1]==='k')c.keep=+v;else c.card=v==='1';api('/api/pcautosave',{every:String(c.every),keep:String(c.keep),card:c.card});render();}else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('ws:')){S.widescreen=a==='ws:1';api('/api/widescreen',{on:S.widescreen});render();}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
+  else if(t.dataset.act){const a=t.dataset.act;if(a==='stkey'){const k=(document.getElementById('sgkey')||{}).value||'';if(k.trim()){api('/api/steam/key',{key:k.trim()}).then(()=>{ST={s:null,busy:false,kind:'portrait',items:null,page:0,apiPage:0,sel:{},loading:false,msg:''};render();});}else say('Paste the key first.');}else if(a==='stkeyx'){api('/api/steam/key',{key:''}).then(()=>{ST.s=null;ST.items=null;render();});}else if(a==='stfind'){stFind();}else if(a.startsWith('stk:')){ST.kind=a.slice(4);stArt(false);}else if(a.startsWith('stp:')){const it=(ST.items||[])[+a.slice(4)];if(it){ST.sel[ST.kind]=ST.sel[ST.kind]===it.url?null:it.url;render();}}else if(a.startsWith('stpg:')){const n=Math.ceil(((ST.items||[]).length)/8);ST.page=Math.max(0,Math.min(Math.max(0,n-1),ST.page+(+a.slice(5))));render();}else if(a==='stmore'){stArt(true);}else if(a==='stadd'){const ch={};ST_KINDS.forEach(([k])=>{if(ST.sel[k])ch[k]=ST.sel[k];});say('Adding to Steam…');api('/api/steam/add',{choices:ch}).then(r=>{say(r.msg||'');stRefresh();});}else if(a==='strm'){api('/api/steam/remove',{}).then(r=>{say(r.msg||'');stRefresh();});}else if(a.startsWith('vm:')){const w=a.slice(3),cur=S['vol_'+w]!=null?S['vol_'+w]:100;S.vprev=S.vprev||{};if(cur>0){S.vprev[w]=cur;volSet(w,0);}else volSet(w,S.vprev[w]||100);}else if(a.startsWith('vl:')){const q=a.split(':');volSet(q[1],(S['vol_'+q[1]]!=null?S['vol_'+q[1]]:100)+(+q[2]));}else if(a.startsWith('sr:')){S.speedrun=a==='sr:1';api('/api/speedrun',{on:S.speedrun});render();}else if(a==='srr'){api('/api/speedrun/reset',{}).then(r=>say(r.msg||''));}else if(a.startsWith('dc:')){S.mods.direct_on=a==='dc:1';api('/api/direct',{on:S.mods.direct_on});render();}else if(a.startsWith('cp:')){S.close_on_play=a==='cp:1';api('/api/closeonplay',{on:S.close_on_play});render();}else if(a==='lgclear'){api('/api/dialoglog/clear',{}).then(()=>{lgLoad();say('Log cleared.');});}else if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('ast:')){astab=a.slice(4);render();}else if(a.startsWith('rp:')){busy=true;say('Starting…');api('/api/play',{mode:'exe',pcresume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a.startsWith('dp:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/pcsave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('pe:')||a.startsWith('pk:')||a.startsWith('pc:')){const v=a.slice(3),c=S.pc_autosaves.cfg;if(a[1]==='e')c.every=+v;else if(a[1]==='k')c.keep=+v;else c.card=v==='1';api('/api/pcautosave',{every:String(c.every),keep:String(c.keep),card:c.card});render();}else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');afterPlay(r);});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a==='upc'){upCheck();}else if(a==='upi'){upInstall();}else if(a==='upe'){UP.edit=true;render();}else if(a==='uprs'){const e=document.getElementById('uprepo');api('/api/update/repo',{repo:e?e.value:''}).then(r=>{if(r.ok){UP.edit=false;UP.s=null;UP.msg='';S.update_repo=r.repo;}else UP.msg=r.msg;render();});}else if(a==='upr'){UP.busy=true;UP.msg='Restarting…';render();api('/api/update/restart',{}).catch(()=>{});setTimeout(()=>location.reload(),3000);}else if(a==='gdx'){GD.mode=GD.mode==='page'&&GD.res&&!GD.offline?'results':'home';render();}else if(a.startsWith('gdt:')){(()=>{const tp=GD_TOPICS[+a.slice(4)];gdSearch(tp[1],tp[2],tp[3],Object.assign({},tp[4]));})();}else if(a==='gdgo'){const e=document.getElementById('gdq');GD.q=e?e.value:GD.q;gdSearch(GD.q);}else if(a.startsWith('gdp:')){const x=(GD.res||[])[+a.slice(4)];if(x&&x.tool)gdTool(x.tool);else if(x)gdPage(x.title,x.wk||'mt');}else if(a==='gdsv'){say('Saving…');api('/api/guide/save',{title:GD.title,html:GD.html,wiki:GD.wk}).then(r=>{say(r.msg||'');gdSaved();});}else if(a==='gdw'){say('Opening the page…');if(GD.kind==='tool')api('/api/guide',{tool:GD.tool}).then(r=>say(r.msg||''));else api('/api/guide',{title:GD.title,wiki:GD.wk}).then(r=>say(r.msg||''));}else if(a.startsWith('gdfq:')){say('Opening…');gdWindow(a.slice(5),GD.fq);}else if(a.startsWith('gdo:')){gdOpenSaved(a.slice(4));}else if(a.startsWith('gdrm:')){if(GD.pend!==a){GD.pend=a;render();}else{GD.pend='';api('/api/guide/delete',{slug:a.slice(5)}).then(()=>gdSaved());}}else if(a==='gdf'||a==='gdb'){const e=document.getElementById('gdq');GD.q=e?e.value:GD.q;if(!GD.q.trim()){say('Type what you want to look up first.');}else{say('Opening…');gdWindow(a==='gdf'?'faqs':'web',/persona\s*3/i.test(GD.q)?GD.q:'Persona 3 FES '+GD.q);}}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('ws:')){S.widescreen=a==='ws:1';api('/api/widescreen',{on:S.widescreen});render();}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
   else if(t.dataset.i!==undefined){sel=+t.dataset.i;render();go();}
   else if(t.dataset.m)setMode(t.dataset.m);
   else if(t.dataset.go)go();
@@ -557,7 +755,7 @@ function volCommit(el){if(!el||!el.dataset.w)return;const n=parseInt(el.value,10
 addEventListener('input',e=>{const el=e.target;if(el&&el.dataset&&el.dataset.sl){const n=document.getElementById('vl-'+el.dataset.sl);if(n)n.value=el.value;}});
 addEventListener('change',e=>{const el=e.target;if(el&&el.dataset&&el.dataset.sl)volSet(el.dataset.sl,parseInt(el.value,10));});
 addEventListener('keydown',e=>{
-  if(e.target&&e.target.tagName==='INPUT'){if(e.key==='Enter')volCommit(e.target);return;}
+  if(e.target&&e.target.tagName==='INPUT'){if(e.key==='Enter'){if(e.target.id==='gdq'){GD.q=e.target.value;gdSearch(GD.q);}else if(e.target.id==='uprepo'){document.querySelector('[data-act=uprs]').click();}else volCommit(e.target);}return;}
   if(screen!=='home'&&S){
     if(capture){e.preventDefault();if(e.key==='Escape'){capture=null;render();return;}const k=SDLKEY(e);if(!k){say('That key cannot be used. Try another.');return;}const r=capture;capture=null;setKey(r,k);return;}
     const n=MENUS[screen].items.length;
@@ -573,5 +771,5 @@ addEventListener('keydown',e=>{
   else if(e.key==='Escape')window.close();
 });
 addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/bye');}catch(e){}});
-refresh();setInterval(refresh,3000);setInterval(()=>{if(screen==='log')lgLoad();},2000);
+refresh();setInterval(refresh,3000);setInterval(()=>{if(screen==='log'&&msel===0)lgLoad();},2000);
 </script></body></html>
