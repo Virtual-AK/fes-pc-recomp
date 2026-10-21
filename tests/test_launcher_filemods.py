@@ -110,3 +110,60 @@ def test_twelve_theme_needs_journey_unlock():
     assert L.theme_now({"theme": "twelve"}) == "blue"
     assert L.theme_now({"theme": "twelve", "journey": True}) == "twelve"
     assert L.theme_now({"theme": "eclipse"}) == "eclipse"
+
+
+def test_windows_pc_window_command():
+    import tempfile, subprocess, types
+    import p3fes_launcher as L
+    with tempfile.TemporaryDirectory() as d:
+        b = os.path.join(d, "winbuild", "build"); os.makedirs(b)
+        exe = os.path.join(b, "ps2run.exe"); open(exe, "w").write("x")
+        os.environ["P3F_WINEXE"] = exe
+        assert L.win_exe() == exe
+        os.environ["P3F_WINEXE"] = os.path.join(d, "nope.exe")
+        assert L.win_exe() in (None, "/mnt/c/p3fes/winbuild/build/ps2run.exe")
+        os.environ["P3F_WINEXE"] = exe
+        gdir = os.path.join(d, "games", L.NAME, "disc"); os.makedirs(gdir)
+        open(os.path.join(gdir, "SLUS_216.21"), "wb").write(b"ELF")
+        saves = os.path.join(d, "saves"); os.makedirs(saves)
+        old = (L.DIR, L.to_win, L.win_disc, L.saves_dir, subprocess.Popen)
+        got = {}
+        try:
+            L.DIR = d
+            L.to_win = lambda p: "W:" + p
+            L.win_disc = lambda: "W:disc.iso"
+            L.saves_dir = lambda: saves
+            subprocess.Popen = lambda cmd, **kw: got.update(cmd=cmd, kw=kw) or types.SimpleNamespace(args=cmd, poll=lambda: 0)
+            r = L.play_windows(exe)
+        finally:
+            L.DIR, L.to_win, L.win_disc, L.saves_dir, subprocess.Popen = old
+        assert r["ok"], r
+        assert os.path.isfile(os.path.join(d, "winbuild", "SLUS_216.21"))
+        c = got["cmd"]
+        assert c[0] == exe and "--window" in c and c[c.index("--disc") + 1] == "W:disc.iso"
+        assert c[c.index("--memcard") + 1].endswith("Mcd001.ps2")
+        assert "PS2_KEYS/p" in got["kw"]["env"]["WSLENV"]
+
+test_twelve_theme_needs_journey_unlock()
+test_windows_pc_window_command()
+print("ok   twelve theme needs the journey unlock; the launcher builds the Windows PC window command")
+
+
+def _maximize_test():
+    import subprocess, types
+    import p3fes_launcher as L
+    got = {}
+    old = subprocess.run
+    try:
+        subprocess.run = lambda cmd, **kw: got.update(cmd=cmd) or types.SimpleNamespace(returncode=0, stdout="")
+        L.maximize_launcher()
+    finally:
+        subprocess.run = old
+    import base64
+    assert got["cmd"][0] == "powershell.exe" and "-EncodedCommand" in got["cmd"]
+    script = base64.b64decode(got["cmd"][-1]).decode("utf-16-le")
+    assert "ShowWindow" in script and 'StartsWith("Launcher")' in script and "Chrome_WidgetWin" in script
+
+
+_maximize_test()
+print("ok   launcher asks Windows to maximize its own window after opening it")
