@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.21"
+LAUNCHER_VERSION = "0.22"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -716,7 +716,7 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", ""), "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "keys": read_keys(),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "keys": read_keys(),
            "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
@@ -804,6 +804,7 @@ def guide_url(src, q):
     return base + urllib.parse.quote_plus(q)
 
 
+DEFAULT_UPDATE_REPO = "Virtual-AK/fes-pc-recomp"   # where updates come from unless the player enters another address
 UPDATE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPDATE_BACKUP = os.path.expanduser("~/.p3fes-launcher-backup")
 
@@ -831,7 +832,7 @@ def update_http(url, limit):
 
 
 def update_check():
-    repo = load_cfg().get("update_repo", "")
+    repo = load_cfg().get("update_repo", "") or DEFAULT_UPDATE_REPO
     out = {"ok": True, "configured": bool(repo), "repo": repo, "current": LAUNCHER_VERSION, "latest": "", "newer": False}
     if not repo:
         return out

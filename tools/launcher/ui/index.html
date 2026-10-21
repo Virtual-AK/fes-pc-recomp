@@ -207,6 +207,8 @@ async function gbOpen(id){D=null;dload=true;dfile=0;dimg=0;render();try{D=await 
 async function gbLoad(refresh){gload=true;gmsg='';render();try{G=await api('/api/gb/view',{q:gq,sort:gs,page:gp,refresh:!!refresh});gp=G.page;}catch(e){G={ok:false,err:'The launcher could not be reached.',mods:[],total:0,page:0,pages:1};}gload=false;render();}
 let screen='home',astab='',msel=0,capture=null,reportText='',pend='';
 const CHANGES=[
+ {v:'0.22',d:'21 Oct 2026',t:'Update source set',i:[
+  'IMPROVED  Help > Version now checks the project\'s own GitHub repository by default (Virtual-AK/fes-pc-recomp). You can still change the source there.']},
  {v:'0.21',d:'21 Oct 2026',t:'Updates from the launcher',i:[
   'NEW  Help > Version checks whether you have the latest launcher and can update it with one button. Enter the project\'s GitHub address (owner/name) once. The old files are backed up first.']},
  {v:'0.20',d:'21 Oct 2026',t:'Guides: class answers and fusion shortcut',i:[
