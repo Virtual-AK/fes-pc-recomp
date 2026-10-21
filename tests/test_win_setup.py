@@ -48,7 +48,7 @@ try:
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
-for name in ("p3fes_win_setup.bat", "p3fes_win_record.bat", "build_win.bat"):
+for name in ("p3fes_win_setup.bat", "p3fes_win_record.bat", "build_win.bat", "p3fes_win_mod.bat"):
     b = open(os.path.join(T, name), "rb").read()
     assert b.count(b"\r\n") == b.count(b"\n"), name + " needs Windows line endings (labels and goto break otherwise)"
 setup = open(os.path.join(T, "p3fes_win_setup.bat")).read()
@@ -58,5 +58,6 @@ for need in ("SDL2-devel-2.32.2-VC.zip", "wgpu-windows-x86_64-msvc-release.zip",
 for gone in ("p3fes_win_record.bat", "p3fes_vu_compile.sh", "ps2recomp_vubranch_patch.py", "build_win.bat"):
     assert os.path.exists(os.path.join(T, gone)), gone
 assert "PS2_WGPU_DIR" in open(os.path.join(T, "build_win.bat")).read()
+assert "build-mod" in open(os.path.join(T, "build_win.bat")).read() and "build_win.bat\" game mod" in open(os.path.join(T, "p3fes_win_mod.bat")).read()
 assert "PS2_VU_RECORD" in open(os.path.join(T, "p3fes_win_record.bat")).read()
 print("ok Windows setup for friends: Ubuntu half copies source and generated code correctly, batch files well formed")
