@@ -53,3 +53,8 @@ right = none
 The runner prints `[keys] reading keys.txt` at start and a line for any name or key it does not understand. A key given
 to two rows does both things; the runner prints a warning. The window keys (F6 save state, F11 fullscreen and the others)
 are not remappable.
+
+## Mouse look in the PC window
+Click the game picture to capture the mouse, then move it sideways: it turns the camera (right stick, and it taps L1 or R1, which is what
+Persona 3 uses in Tartarus). Esc, or switching to another window, gives the mouse back. This is the same as the browser build. The PC
+window also opens maximized; put `PS2_NO_MAXIMIZE=1` in `~/.p3fes-window-env` if you prefer the small window. F11 toggles real full screen.

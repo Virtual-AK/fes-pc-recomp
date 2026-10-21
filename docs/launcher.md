@@ -75,3 +75,69 @@ and an icon: a speaker for a line that has a voice, a crossed speaker for one th
 speaker icon to hear that line again; the clip is read from your own disc and decoded on the spot, nothing is stored. CLEAR LOG empties
 the list. It needs the PC window built with `ps2run_dialoglog_patch.py` (the installer applies it); the log is written to
 `saves\dialog_log.tsv`. Speakers the launcher does not know yet show as "Speaker N". See [log-plan.md](log-plan.md) for how it works.
+
+## Close on Play, update log and the TV (0.3)
+- **Close the launcher on Play:** by default the launcher window closes as soon as the game starts, for the browser and the PC window. Turn it off
+  in Settings > Launcher (the choice is remembered). For the browser game the launcher's background server keeps running for up to 30 minutes
+  after the last save so the memory card and autosaves stay in sync; opening the launcher again just opens a window onto it.
+- **Update log:** Help > Update log lists what changed in each version (same text as [changelog.md](changelog.md)).
+- **TV icon:** a small static TV with "To be continued" on the home screen. It does nothing; it is a teaser for what comes after this project.
+
+## Direct Commands switch (0.3)
+Mods > Direct Commands is now a switch, on by default. While it is on, Play (and Resume in the PC window) starts the Direct Commands build of the
+game whenever it is built for the way you are playing, otherwise the normal game, with a note saying so. The browser version comes from the
+mod build in Ubuntu. The PC window version is a second build of the Windows program: run `tools\p3fes_win_mod.bat` once from the
+"x64 Native Tools Command Prompt for VS 2022" (it copies only the mod's generated game code, shares the recorded graphics code with the normal
+build and compiles into `C:\p3fes\winbuild\build-mod`). The launcher finds it by itself. A browser Resume always uses the normal build, and PC window
+autosaves are kept separately per build, so a state is never loaded into the wrong one.
+
+## Speedrun clock (0.4)
+Settings > Speedrun switches on a clock in the top left corner of the PC window (real time, H:MM:SS.cc, off by default). The game draws through
+the graphics card, so the clock is a small see-through, click-through window that sits over the picture and follows the game window (moved,
+resized, maximized, full screen); it hides when the game window is minimized. OBS: Display Capture shows it, some Window Capture modes do not.
+The time is saved once a second in `C:\p3fes\saves\speedrun_clock.txt` and read back at start, so a run continues through Resume.
+In the game window F6 pauses and continues, F7 sets it back to zero (Settings > Speedrun > Reset also does it, for the next start).
+The clock starts counting when the window opens (the game does not tell us where a New Game begins); press F7 at the moment your run starts.
+Browser game: no clock yet. The change is in `tools/ps2run_speedrun_patch.py`.
+
+## Audio (0.5)
+Settings > Audio sets the master volume of the PC window (0 to 100 percent: type any value and press Enter or SET, or use minus and plus in steps of 5; default 100). It applies when the game
+starts (`PS2_VOL_MASTER`, handled by `tools/ps2run_audio_patch.py` in the sound chip mixer).
+Separate Music / Voices / Effects volumes need the game's sounds told apart. The same patch has a research switch: put `PS2_AUDIO_PROBE=1` in
+`~/.p3fes-window-env`, play, and `~/.p3fes-window.log` gets one `[audio]` line per second with the loudness of each sound chip's streamed input and
+of each of its voices. Playing music only, then a voice line, then an effect shows which carries what.
+
+## Effects and stream volume (0.6)
+Settings > Audio now has three rows: Master, Effects and Music and voices (type 0 to 100 and press Enter, or minus / plus in steps of 5).
+From the audio probe: the music arrives through the first sound chip's streamed input, sound effects are ordinary sound voices on both chips.
+So `PS2_VOL_FX` scales the sound voices and `PS2_VOL_STREAM` the streamed input (`tools/ps2run_audio2_patch.py`, applied after `ps2run_audio_patch.py`).
+Voice lines are probably in the streamed input too, mixed with the music before the sound chip sees them. The probe (`PS2_AUDIO_PROBE=1`) now also logs
+`[adma]` lines with the memory areas the stream is read from; if music and voices come from different areas they can be split into two sliders.
+
+## Music and voice volume (0.7)
+The audio probe showed that music and voice lines are mixed into one stream before the sound chip, so Settings > Audio now turns them down where
+they can be told apart: on the disc. Music is the ADX files in BGM.CVM, voice lines are the ADX clips in the SOUND/V*.AFS archives in DATA.CVM. Every ADX
+block starts with a 16-bit scale and the decoded sound is proportional to it, so `tools/ps2run_audiosrc_patch.py` multiplies it by `PS2_VOL_MUSIC` /
+`PS2_VOL_VOICE` (0 to 100) as the disc is read. At 100 nothing is touched. Four rows now: Master, Music, Voices, Effects. If a sound is on the wrong
+slider (for example a battle voice that follows Effects or Music), tell us which one; the probe (`PS2_AUDIO_PROBE=1`) and the disc log show where it comes from.
+
+## Volume sliders (0.8)
+Each row in Settings > Audio has a slider (drag it; the number box follows while dragging and the value is saved when you let go), the number box
+(type and press Enter), minus / plus buttons (steps of 5) and a MUTE button. MUTE sets the row to 0 and remembers the old value; the same button, now
+UNMUTE, puts it back (100 if the launcher was restarted in between).
+
+## Update log scroll, moving static, midnight teaser (0.9)
+The launcher redraws its screens every few seconds, which put the update log back at the top; it now keeps its scroll position. The TV on the home screen
+is one canvas that lives outside those redraws, so its static keeps moving. Midnight: while a game is running (the PC window, or the browser game's server)
+the launcher asks Windows for the time once a minute (`midnight_watch` in `p3fes_launcher.py`) and, if it is in the 00:00 hour, remembers the date in its settings
+file (`midnight_play`). The TV then shows a short text teaser (about 10 seconds, looping) instead of static: while the launcher is open in the 00:00 hour with
+a game running, and until 03:00 on a date that was recorded. The label under the TV changes to MIDNIGHT CHANNEL. The teaser is only text drawn by the launcher, no game art.
+To preview it at any time, add `?midnight=1` to the launcher's address (open http://127.0.0.1:8630/?midnight=1 in a browser).
+
+## Add to Steam (0.10)
+Settings > Steam adds Persona 3 FES to your Steam library as a Non-Steam game, with artwork you choose from SteamGridDB, the way some other emulator launchers do.
+- You need a free SteamGridDB API key (steamgriddb.com, sign in, Preferences, API). It is saved in the launcher's settings file in your Ubuntu home folder (plain text), and only sent to steamgriddb.com.
+- The launcher finds the game on SteamGridDB (Persona 3 FES), then shows the artwork people have made in five groups: capsule (600x900), wide capsule (920x430), hero, logo and icon. Click one picture in each group you want (click again to unpick); LOAD MORE fetches more. Thumbnails come straight from SteamGridDB, nothing from the game is used.
+- ADD TO STEAM writes the shortcut and downloads the chosen pictures into your Steam folder (`userdata/<account>/config`, `shortcuts.vdf` and `grid`) for the account that signed in most recently. Steam must be closed completely first, because it rewrites that file when it quits. A copy of the old file is kept next to it as `shortcuts.vdf.p3fes-backup`.
+- The shortcut starts `launch.bat` (next to `p3fes_launcher.py`), so Steam opens the launcher and you press Play there. Adding again replaces the shortcut and artwork. REMOVE FROM STEAM takes out the shortcut and the artwork this launcher added.
+- Only links on steamgriddb.com are downloaded. Code: `steam_*`, `shortcuts_*`, `vdf_*` and `sgdb_get` in `p3fes_launcher.py`; test: `tests/test_steam.py`. Not yet tried against the real SteamGridDB service or Steam (only against a pretend Steam folder).
