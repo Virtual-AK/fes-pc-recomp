@@ -47,5 +47,5 @@ assert c['ok'] and c['newer'] and c['latest'] == '99.0' and c['branch'] == 'main
 L.update_http = lambda url, limit: b'LAUNCHER_VERSION = "0.0"\n'
 assert not L.update_check()['newer']
 L.load_cfg = lambda: {}
-assert L.update_check()['configured'] is False
+assert L.update_check()['repo'] == 'Virtual-AK/fes-pc-recomp'
 print('ok update: version compare, safe install of launcher files only, backup, broken downloads refused')
