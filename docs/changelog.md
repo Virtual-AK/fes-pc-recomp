@@ -1,5 +1,50 @@
 # Update log
-Newest first. The launcher shows the same list under Help > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
+Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
+
+## 0.21 · 21 Oct 2026 · Updates from the launcher
+- **NEW** Help > Version checks whether you have the latest launcher and can update it with one button. Enter the project's GitHub address (owner/name) once. The old files are backed up first.
+
+## 0.20 · 21 Oct 2026 · Guides: class answers and fusion shortcut
+- **NEW** Guides > School answers now lists Pop Quiz dates and answers from the Shin Megami Tensei Persona Wiki.
+- **IMPROVED** The Fusion Calculator opens straight on the Persona 3 FES page.
+
+## 0.19 · 21 Oct 2026 · Guide fixes
+- **FIXED** School answers no longer lists pages from other games. When the wiki has no page for class answers, buttons offer the same search on GameFAQs or the web in a window.
+
+## 0.18 · 21 Oct 2026 · Guides: fusion calculator and topic fixes
+- **NEW** Guides > Fusion lists the Persona 3 FES Fusion Calculator (Megaten Fusion Tool, made by the community) and opens it inside the launcher. Needs internet.
+- **IMPROVED** Tactics and Shuffle Time now sit under Tartarus instead of Daily planner. The Persona 3 game page no longer shows up in results.
+- **IMPROVED** School answers searches several ways and looks for pages about exams and class questions; if the wiki has none it says so.
+
+## 0.17 · 21 Oct 2026 · Tighter guide topics
+- **IMPROVED** Guide topic buttons now rank by page name and category, drop loose matches when enough on-topic pages exist, and leave out songs, albums and merchandise.
+
+## 0.16 · 21 Oct 2026 · Better guide results and pictures
+- **FIXED** Pictures now show on guide pages.
+- **IMPROVED** Guide results leave out the manga, live action, stage plays, anthologies and other games, and put pages whose names match your topic first.
+
+## 0.15 · 21 Oct 2026 · Guide pages and results
+- **FIXED** Guide pages are now drawn directly in the launcher (they came up blank before).
+- **IMPROVED** Guide searches leave out Portable, Reload, The Night Before, the stage play and other non-FES pages. Each result shows what the wiki filed it under.
+
+## 0.14 · 21 Oct 2026 · Guide fixes
+- **FIXED** The list of guide results and of saved pages no longer jumps back to the top while you scroll.
+- **IMPROVED** Guide searches now only list Persona 3 pages (not Persona 4, 5 and other games).
+- **FIXED** Guide pages that showed up blank.
+
+## 0.13 · 21 Oct 2026 · Guides you can save
+- **IMPROVED** Extra > Guides now searches the Megami Tensei Wiki right inside the launcher and shows the pages there. SAVE OFFLINE keeps a page on your computer so you can read it without internet.
+- **IMPROVED** GameFAQs and web search open in their own window (those sites do not allow being shown inside the launcher).
+
+## 0.12 · 21 Oct 2026 · Guides inside the launcher
+- **IMPROVED** Extra > Guides now shows the wiki, GameFAQs and web search pages right inside the launcher (plain pages, no ads or scripts). OPEN IN A WINDOW still gives you the full site.
+- **FIXED** The moon in the Golden theme is now easy to see.
+
+## 0.11 · 21 Oct 2026 · Guides, Extra and the Golden theme
+- **NEW** Extra > Guides: look up enemies and bosses, social link answers, the daily planner, school answers, fusion or Tartarus on the Megami Tensei wiki, GameFAQs or the web, in a window next to the launcher. Or search for anything you like.
+- **NEW** Golden theme (yellow and black with TV lines), the launcher look for the next project. Settings > Theme.
+- **NEW** About > Playtesters and Bug reporters (placeholders for now).
+- **IMPROVED** The Log menu is now called Extra, and the Update log moved there from Help.
 
 ## 0.10 · 21 Oct 2026 · Add to Steam
 - **NEW** Settings > Steam: add Persona 3 FES to your Steam library as a Non-Steam game, with the artwork you pick from SteamGridDB (capsule, wide, hero, logo, icon). Needs a free SteamGridDB key.
@@ -33,7 +78,7 @@ Newest first. The launcher shows the same list under Help > Update log (the sour
 - **NEW** Mouse camera in the PC window, like the browser game: click the picture, move the mouse sideways to turn the camera. Esc gives the mouse back.
 - **NEW** The PC window opens maximized, filling the screen like this launcher.
 - **NEW** The launcher closes as soon as the game starts. Turn it off in Settings > Launcher.
-- **NEW** This update log (Help > Update log).
+- **NEW** This update log (Extra > Update log).
 - **IMPROVED** Direct Commands is now a switch (Mods > Direct Commands), on by default: Play uses it whenever it is built, in the browser and in the PC window. The PC window version is built once with tools\p3fes_win_mod.bat.
 - **NEW** A small TV on the home screen. Just a hint of what comes later; it does nothing yet.
 

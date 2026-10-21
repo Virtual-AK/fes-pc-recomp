@@ -80,7 +80,7 @@ the list. It needs the PC window built with `ps2run_dialoglog_patch.py` (the ins
 - **Close the launcher on Play:** by default the launcher window closes as soon as the game starts, for the browser and the PC window. Turn it off
   in Settings > Launcher (the choice is remembered). For the browser game the launcher's background server keeps running for up to 30 minutes
   after the last save so the memory card and autosaves stay in sync; opening the launcher again just opens a window onto it.
-- **Update log:** Help > Update log lists what changed in each version (same text as [changelog.md](changelog.md)).
+- **Update log:** Extra > Update log lists what changed in each version (same text as [changelog.md](changelog.md)).
 - **TV icon:** a small static TV with "To be continued" on the home screen. It does nothing; it is a teaser for what comes after this project.
 
 ## Direct Commands switch (0.3)
@@ -141,3 +141,17 @@ Settings > Steam adds Persona 3 FES to your Steam library as a Non-Steam game, w
 - ADD TO STEAM writes the shortcut and downloads the chosen pictures into your Steam folder (`userdata/<account>/config`, `shortcuts.vdf` and `grid`) for the account that signed in most recently. Steam must be closed completely first, because it rewrites that file when it quits. A copy of the old file is kept next to it as `shortcuts.vdf.p3fes-backup`.
 - The shortcut starts `launch.bat` (next to `p3fes_launcher.py`), so Steam opens the launcher and you press Play there. Adding again replaces the shortcut and artwork. REMOVE FROM STEAM takes out the shortcut and the artwork this launcher added.
 - Only links on steamgriddb.com are downloaded. Code: `steam_*`, `shortcuts_*`, `vdf_*` and `sgdb_get` in `p3fes_launcher.py`; test: `tests/test_steam.py`. Not yet tried against the real SteamGridDB service or Steam (only against a pretend Steam folder).
+
+## Guides, Extra and the Golden theme (0.11)
+- **Extra** is the old Log menu: Dialogue log, Update log (moved from Help) and Guides.
+- **Extra > Guides** (reworked in 0.13): the launcher searches the Megami Tensei Wiki (Fandom) through its public MediaWiki API from the launcher page itself, so your own browser makes the request, and shows the page text in a viewer drawn inside the launcher (scripts, styles, classes and link addresses are removed; wiki links stay in the viewer; searches leave out Portable, Reload and other non-FES pages by title and category). SAVE OFFLINE writes the cleaned page to `~/.p3fes-guides/` in your Ubuntu home folder; saved pages open without internet (pictures need internet). Wiki text is CC BY-SA 3.0, so every page shows that notice and the page address (authors are in the page history). GameFAQs and web search cannot be shown inside the launcher (GameFAQs authors keep their copyright, and both sites refuse the launcher), so they open in a separate window from the typed search. Code: `gd*` functions in `index.html`, `guide_*` in `p3fes_launcher.py`; test: `tests/test_guides.py`. Not yet tried against the live wiki from here.
+- Since 0.20 the School answers topic also lists *Pop Quiz dates and answers* from the Shin Megami Tensei Persona Wiki (`WIKIS` in `index.html` lists the two wikis; saved pages remember which wiki they came from). The Fusion Calculator opens at `https://aqiu384.github.io/megaten-fusion-tool/p3f/personas`.
+- **About** now has Playtesters and Bug reporters pages. They are placeholders: edit the text in `index.html` (search for `PLAYTESTERS`) when there are names to list.
+- **Golden theme:** yellow and black with diagonal and TV-line overlays, only colours and CSS (no game art). Settings > Theme > GOLDEN. It is the starting point for the Persona 4 launcher look.
+
+## Updating the launcher (0.21)
+Help > Version has an UPDATES box. Enter the project's GitHub address once (`owner/name`, saved as `update_repo` in the launcher settings file). The launcher then reads `LAUNCHER_VERSION` from `tools/launcher/p3fes_launcher.py` on the repository's `main` branch (or `master`) and says whether you are up to date. UPDATE NOW downloads the branch as a zip from GitHub and replaces only `p3fes_launcher.py` and the `ui` folder next to the running launcher.
+- Before anything is replaced the download is checked (it must hold a launcher file that compiles and has a version), the old files are copied to `~/.p3fes-launcher-backup/<old version>/`, and the `.py` is written last. If anything fails, nothing is changed.
+- RESTART THE LAUNCHER restarts the server in place and reloads the window. If that does not work, close the launcher and open it again.
+- It updates the launcher only. The game build, the PC window, patches and tools are not touched.
+- Updating means running whatever is on that branch, so only point it at a repository you control. Code: `update_*` in `p3fes_launcher.py`; test: `tests/test_update.py` (the download itself has not been tried against GitHub from here).
