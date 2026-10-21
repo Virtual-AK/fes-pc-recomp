@@ -150,7 +150,7 @@ Settings > Steam adds Persona 3 FES to your Steam library as a Non-Steam game, w
 - **Golden theme:** yellow and black with diagonal and TV-line overlays, only colours and CSS (no game art). Settings > Theme > GOLDEN. It is the starting point for the Persona 4 launcher look.
 
 ## Updating the launcher (0.21)
-Help > Version has an UPDATES box. Enter the project's GitHub address once (`owner/name`, saved as `update_repo` in the launcher settings file). The launcher then reads `LAUNCHER_VERSION` from `tools/launcher/p3fes_launcher.py` on the repository's `main` branch (or `master`) and says whether you are up to date. UPDATE NOW downloads the branch as a zip from GitHub and replaces only `p3fes_launcher.py` and the `ui` folder next to the running launcher.
+Help > Version has an UPDATES box. The default source is `Virtual-AK/fes-pc-recomp` (`DEFAULT_UPDATE_REPO`); another `owner/name` can be entered and is saved as `update_repo` in the launcher settings file. The launcher then reads `LAUNCHER_VERSION` from `tools/launcher/p3fes_launcher.py` on the repository's `main` branch (or `master`) and says whether you are up to date. UPDATE NOW downloads the branch as a zip from GitHub and replaces only `p3fes_launcher.py` and the `ui` folder next to the running launcher.
 - Before anything is replaced the download is checked (it must hold a launcher file that compiles and has a version), the old files are copied to `~/.p3fes-launcher-backup/<old version>/`, and the `.py` is written last. If anything fails, nothing is changed.
 - RESTART THE LAUNCHER restarts the server in place and reloads the window. If that does not work, close the launcher and open it again.
 - It updates the launcher only. The game build, the PC window, patches and tools are not touched.

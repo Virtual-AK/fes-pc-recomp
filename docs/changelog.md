@@ -1,6 +1,9 @@
 # Update log
 Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
 
+## 0.22 · 21 Oct 2026 · Update source set
+- **IMPROVED** Help > Version now checks the project's own GitHub repository by default (Virtual-AK/fes-pc-recomp). You can still change the source there.
+
 ## 0.21 · 21 Oct 2026 · Updates from the launcher
 - **NEW** Help > Version checks whether you have the latest launcher and can update it with one button. Enter the project's GitHub address (owner/name) once. The old files are backed up first.
 
