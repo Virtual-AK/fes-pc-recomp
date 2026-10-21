@@ -6,7 +6,7 @@ It reads what the installer left behind, shows the Home screen, and starts the g
 Nothing from the game is read except the disc's SYSTEM.CNF line (to check the version).
 Standard library only.
 """
-import argparse, glob, urllib.request, json, os, re, shlex, shutil, socket, struct, subprocess, sys, threading, time, urllib.parse, zipfile
+import argparse, bisect, glob, io, math, wave, urllib.request, json, os, re, shlex, shutil, socket, struct, subprocess, sys, threading, time, urllib.parse, zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -684,9 +684,9 @@ def get_state():
     iso = find_iso()
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
-           "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "keys": read_keys(),
-           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT),
+           "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "keys": read_keys(),
+           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
         out["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(web)))
@@ -732,7 +732,7 @@ def win_open(url, app=False, prefer=None):
     # cmd.exe treats & as "run another command", so escape it. Unescaped, the URL was cut at the first &,
     # the leftover failed, and the loop then opened every browser in turn.
     cu = url.replace("&", "^&")
-    flag = ["--app=" + cu, "--window-size=1296,839"] if app else [cu]
+    flag = ["--app=" + cu, "--start-maximized"] if app else [cu]
     order = ["msedge", "chrome"]
     if prefer in order:
         order.remove(prefer)
@@ -753,6 +753,49 @@ def win_open(url, app=False, prefer=None):
         except Exception:
             pass
     return None
+
+
+MAXIMIZE_PS = r"""
+Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Runtime.InteropServices;
+public class W2 {
+  public delegate bool EP(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EP p, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  public static int Max() {
+    int n = 0;
+    EnumWindows((h, l) => {
+      if (!IsWindowVisible(h)) return true;
+      StringBuilder t = new StringBuilder(256); StringBuilder c = new StringBuilder(256);
+      GetWindowText(h, t, 256); GetClassName(h, c, 256);
+      if (t.ToString().StartsWith("Launcher") && c.ToString().StartsWith("Chrome_WidgetWin")) { ShowWindow(h, 3); n++; }
+      return true;
+    }, IntPtr.Zero);
+    return n;
+  }
+}
+'@
+$end = (Get-Date).AddSeconds(12)
+$found = 0
+while ((Get-Date) -lt $end -and $found -eq 0) { $found = [W2]::Max(); if ($found -eq 0) { Start-Sleep -Milliseconds 300 } }
+Write-Output ('maximized windows: ' + $found)
+"""
+
+
+def maximize_launcher():
+    """Maximize the launcher's own window (Edge and Chrome remember the last size and ignore the start flag).
+    The script goes in encoded, so no quote characters get lost on the way to PowerShell."""
+    import base64
+    try:
+        enc = base64.b64encode(MAXIMIZE_PS.encode("utf-16-le")).decode("ascii")
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-EncodedCommand", enc], capture_output=True, text=True, timeout=30, cwd=WINCWD)
+        with open(os.path.expanduser("~/.p3fes-maximize.log"), "w") as f:
+            f.write((r.stdout or "") + (r.stderr or ""))
+    except Exception:
+        pass
 
 
 def choose_disc():
@@ -903,6 +946,46 @@ def overlay_path():
     except Exception:
         return None
     return p
+
+
+def overlay_file():
+    """The active loose-file mod overlay for the PC window (no server needed), or None."""
+    p = os.path.join(os.path.dirname(saves_dir()), "mods", "active.ovl")
+    return p if os.path.isfile(p) else None
+
+
+_flag_cache = {}
+
+
+def exe_supports(exe, flag):
+    """True when the program knows the command-line switch (an older build of the PC window does not and would stop).
+    Asks the program itself (it prints its usage when started without a game), then falls back to searching its bytes."""
+    try:
+        st = os.stat(exe)
+        key = (exe, st.st_mtime, st.st_size, flag)
+        if key in _flag_cache:
+            return _flag_cache[key]
+        found = False
+        try:
+            r = subprocess.run([exe], capture_output=True, text=True, timeout=20, cwd=os.path.dirname(exe))
+            found = flag in ((r.stdout or "") + (r.stderr or ""))
+        except Exception:
+            pass
+        if not found:
+            needle, tail = flag.encode(), b""
+            with open(exe, "rb") as f:
+                while True:
+                    chunk = f.read(8 << 20)
+                    if not chunk:
+                        break
+                    if needle in tail + chunk:
+                        found = True
+                        break
+                    tail = chunk[-len(needle):]
+        _flag_cache[key] = found
+        return found
+    except OSError:
+        return False
 
 
 def card_path():
@@ -1060,6 +1143,18 @@ def store_card(data):
     os.replace(tmp, p)
 
 
+WS_PATCH = "007cad1c=3fe38e38/3faaaaab"   # the game's X field of view (a data value, 4:3 -> 16:9); see docs/widescreen.md
+
+
+def widescreen_env(env):
+    """Switch on the PC window's widescreen (picture shown at 16:9 plus the field-of-view data patch)."""
+    if load_cfg().get("widescreen"):
+        env["PS2_ASPECT"] = "16:9"
+        env["PS2_PATCH"] = WS_PATCH
+        return True
+    return False
+
+
 def display_env():
     """Environment for the PC window. WSL2 with WSLg has a display already; WSL1 needs an X server
     on Windows (VcXsrv, see docs/windows-build.md). Returns (env, problem or None)."""
@@ -1076,6 +1171,9 @@ def display_env():
         except Exception:
             pass
     env["PS2_KEYS"] = kp
+    sc = load_cfg().get("scale", "3")
+    env["PS2_SCALE"] = sc if sc in ("1", "2", "3") else "3"
+    widescreen_env(env)
     if wslg:
         # WSL2: Ubuntu has no Vulkan driver for the card (no Dozen), but Mesa's Direct3D12 OpenGL driver works.
         # Default: draw through OpenGL on the card. Put "P3F_RENDER=vulkan" in ~/.p3fes-window-env to go back.
@@ -1102,13 +1200,400 @@ def display_env():
     return env, None
 
 
-def play(mode, resume=None, mod=False):
+def win_exe():
+    """The native Windows PC window (ps2run.exe built with tools/build_win.bat), or None.
+    Looked for in C:\\p3fes\\winbuild\\build, or at the path in the P3F_WINEXE variable."""
+    cands = [os.environ.get("P3F_WINEXE", ""), "/mnt/c/p3fes/winbuild/build/ps2run.exe"] + sorted(glob.glob("/mnt/[a-z]/p3fes/winbuild/build/ps2run.exe"))
+    for c in cands:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+_AFS = {"key": None, "starts": [], "files": {}}
+
+
+def _iso_dir(f, base, lba, size, prefix, out, depth=0):
+    f.seek(base + lba * 2048)
+    data = f.read(size)
+    pos = 0
+    while pos < len(data):
+        ln = data[pos]
+        if ln == 0:
+            pos = (pos // 2048 + 1) * 2048
+            continue
+        rec = data[pos:pos + ln]
+        pos += ln
+        if len(rec) < 34:
+            continue
+        ext, sz, flags, nlen = struct.unpack_from("<I", rec, 2)[0], struct.unpack_from("<I", rec, 10)[0], rec[25], rec[32]
+        nm = rec[33:33 + nlen]
+        if nm in (b"\x00", b"\x01"):
+            continue
+        nm = nm.decode("latin-1").split(";")[0]
+        if flags & 2:
+            if depth < 6 and sz:
+                _iso_dir(f, base, ext, sz, prefix + nm + "/", out, depth + 1)
+        else:
+            out.append((prefix + nm, ext, sz))
+
+
+def _iso_volume(f, base):
+    f.seek(base + 16 * 2048)
+    pvd = f.read(2048)
+    if pvd[1:6] != b"CD001":
+        return None
+    out = []
+    _iso_dir(f, base, struct.unpack_from("<I", pvd, 156 + 2)[0], struct.unpack_from("<I", pvd, 156 + 10)[0], "", out)
+    return out
+
+
+def voice_iso():
+    real = os.path.realpath(os.path.join(DIR, "games", NAME, "disc.iso"))
+    if os.path.isfile(real):
+        return real
+    c = sorted(glob.glob("/mnt/c/p3fes/*.iso"))
+    return c[0] if c else None
+
+
+def afs_index(iso=None):
+    """Where each voice archive (SOUND/V*.AFS inside DATA.CVM) sits on the disc: {name: (first sector, size)} and a sorted list of starts."""
+    iso = iso or voice_iso()
+    if not iso:
+        return _AFS
+    key = (iso, os.path.getmtime(iso))
+    if _AFS["key"] == key:
+        return _AFS
+    files, starts = {}, []
+    try:
+        with open(iso, "rb") as f:
+            outer = _iso_volume(f, 0) or []
+            dat = [x for x in outer if x[0].upper() == "DATA.CVM"]
+            if dat:
+                first = dat[0][1]
+                for path, lba, size in _iso_volume(f, (first + 3) * 2048) or []:
+                    m = re.match(r"^SOUND/(V[0-9]+)\.AFS$", path.upper())
+                    if m:
+                        files[m.group(1)] = (first + 3 + lba, size)
+                        starts.append((first + 3 + lba, first + 3 + lba + (size + 2047) // 2048, m.group(1)))
+    except OSError:
+        pass
+    starts.sort()
+    _AFS.update(key=key, starts=starts, files=files)
+    return _AFS
+
+
+def afs_for_reads(reads, idx=None):
+    """The voice archive named by the most recent disc read in 'sector:count,sector:count,...' that lies inside one."""
+    idx = idx or afs_index()
+    st = idx["starts"]
+    if not st:
+        return None
+    for item in reversed([x for x in (reads or "").split(",") if ":" in x]):
+        try:
+            sec = int(item.split(":")[0])
+        except ValueError:
+            continue
+        i = bisect.bisect_right([s[0] for s in st], sec) - 1
+        if i >= 0 and st[i][0] <= sec < st[i][1]:
+            return st[i][2]
+    return None
+
+
+def adx_to_wav(data):
+    """Decode standard CRI ADX (4-bit, 18-byte frames, 1 or 2 channels) to a 16-bit WAV."""
+    if data[:2] != b"\x80\x00":
+        raise ValueError("not an ADX clip")
+    off = struct.unpack(">H", data[2:4])[0] + 4
+    enc, bsize, bits, ch = data[4], data[5], data[6], data[7]
+    rate, total = struct.unpack(">II", data[8:16])
+    cutoff = struct.unpack(">H", data[16:18])[0]
+    if enc != 3 or bsize != 18 or bits != 4 or ch not in (1, 2):
+        raise ValueError("unsupported ADX variant")
+    a = math.sqrt(2) - math.cos(2 * math.pi * cutoff / rate)
+    b = math.sqrt(2) - 1
+    c = (a - math.sqrt((a + b) * (a - b))) / b
+    c0, c1 = int(math.floor(c * 2 * 4096 + 0.5)), int(math.floor(-(c * c) * 4096 + 0.5))
+    pcm = [[] for _ in range(ch)]
+    h1, h2 = [0] * ch, [0] * ch
+    frames = (len(data) - off) // (18 * ch)
+    for fr in range(frames):
+        for k in range(ch):
+            p = off + (fr * ch + k) * 18
+            scale = ((data[p] << 8) | data[p + 1]) & 0x1FFF
+            s1, s2, out = h1[k], h2[k], pcm[k]
+            for byte in data[p + 2:p + 18]:
+                for d in (byte >> 4, byte & 15):
+                    if d >= 8:
+                        d -= 16
+                    s = (((d * 4096) * scale) + s1 * c0 + s2 * c1) >> 12
+                    s = -32768 if s < -32768 else 32767 if s > 32767 else s
+                    out.append(s)
+                    s2, s1 = s1, s
+            h1[k], h2[k] = s1, s2
+    n = min(total, len(pcm[0])) if total else len(pcm[0])
+    buf = io.BytesIO()
+    w = wave.open(buf, "wb")
+    w.setnchannels(ch)
+    w.setsampwidth(2)
+    w.setframerate(rate)
+    w.writeframes(b"".join(struct.pack("<" + "h" * ch, *[pcm[k][i] for k in range(ch)]) for i in range(n)))
+    w.close()
+    return buf.getvalue()
+
+
+_WAVS = {}
+
+
+def voice_wav(afs, n):
+    """WAV of clip number n (1-based, as the dialogue log counts) from voice archive afs, read from the player's own disc."""
+    key = (afs, n)
+    if key in _WAVS:
+        return _WAVS[key]
+    idx = afs_index()
+    iso = voice_iso()
+    if afs not in idx["files"] or not iso:
+        raise ValueError("voice archive not found on the disc")
+    start, size = idx["files"][afs]
+    with open(iso, "rb") as f:
+        f.seek(start * 2048)
+        head = f.read(8)
+        if head[:4] != b"AFS\x00":
+            raise ValueError("not an AFS archive")
+        count = struct.unpack_from("<I", head, 4)[0]
+        if not 1 <= n <= count:
+            raise ValueError("no such clip")
+        f.seek(start * 2048 + 8 + (n - 1) * 8)
+        off, sz = struct.unpack("<II", f.read(8))
+        f.seek(start * 2048 + off)
+        wav = adx_to_wav(f.read(sz))
+    if len(_WAVS) > 40:
+        _WAVS.clear()
+    _WAVS[key] = wav
+    return wav
+
+
+def dialog_log_path():
+    """Where the PC window writes the dialogue log (ps2run_dialoglog_patch.py). Next to the memory card."""
+    return os.path.join(saves_dir(), "dialog_log.tsv")
+
+
+def dialog_log_entries(path=None, limit=800, use_afs=True):
+    """Lines of the dialogue log, newest last. A new play session starts where the frame number goes back down.
+    Voiced means the page has a voice clip AND a speaker (narration pages carry a clip number but have no clip)."""
+    path = path or dialog_log_path()
+    rows, sess, last = [], 0, -1
+    idx = None
+    try:
+        with open(path, "r", errors="replace") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return {"ok": True, "entries": [], "have_file": False}
+    for ln in lines:
+        p = ln.split("\t")
+        if len(p) < 6:
+            continue
+        try:
+            fr, spk, clip, pg = int(p[0]), int(p[1]), int(p[2]), int(p[4])
+        except ValueError:
+            continue
+        if fr < last:
+            sess += 1
+        last = fr
+        voiced = clip >= 0 and spk >= 0
+        afs = None
+        if voiced and len(p) > 6 and use_afs:
+            if idx is None:
+                idx = afs_index()
+            afs = afs_for_reads(p[6], idx)
+        rows.append({"f": fr, "spk": spk, "clip": clip, "blk": p[3], "pg": pg, "t": p[5].replace("\\n", "\n"),
+                     "voiced": voiced, "sess": sess, "afs": afs})
+    return {"ok": True, "entries": rows[-limit:], "have_file": True}
+
+
+def dialog_log_clear(path=None):
+    try:
+        open(path or dialog_log_path(), "w").close()
+        return True
+    except OSError:
+        return False
+
+
+def to_win(path):
+    """Windows spelling of a Linux path (C:\\... for /mnt/c, \\\\wsl.localhost\\... for files inside Ubuntu)."""
+    try:
+        return subprocess.run(["wslpath", "-w", path], capture_output=True, text=True, timeout=5).stdout.strip() or None
+    except Exception:
+        return None
+
+
+def win_disc():
+    """A disc image the Windows program can read quickly: the real disc when it is on a Windows drive,
+    otherwise a same-size .iso in C:\\p3fes. Reading through the Ubuntu network path also works but is slower."""
+    real = os.path.realpath(os.path.join(DIR, "games", NAME, "disc.iso"))
+    if not os.path.isfile(real):
+        real = find_iso() or ""
+    if not real or not os.path.isfile(real):
+        return None
+    if real.startswith("/mnt/"):
+        return to_win(real)
+    size = os.path.getsize(real)
+    for c in sorted(glob.glob("/mnt/c/p3fes/*.iso")):
+        if os.path.getsize(c) == size and "modded" not in os.path.basename(c).lower():
+            return to_win(c)
+    return to_win(real)
+
+
+PC_AS_RE = re.compile(r"^(timer|card|manual)_(\d{8})-(\d{6})\.state$")
+PC_AS_REASON = {"timer": "timer", "card": "game save", "manual": "manual"}
+
+
+def pc_as_root():
+    return os.path.join(saves_dir(), "pc-autosaves")
+
+
+def pc_as_dir(exe):
+    """Each build of the PC window gets its own folder: a state only fits the build that made it."""
+    try:
+        st = os.stat(exe)
+        return os.path.join(pc_as_root(), "%d-%d" % (st.st_size, int(st.st_mtime)))
+    except OSError:
+        return os.path.join(pc_as_root(), "unknown")
+
+
+def pc_as_cfg():
+    c = load_cfg()
+    try:
+        every = float(c.get("pc_as_every", "2"))
+    except ValueError:
+        every = 2.0
+    try:
+        keep = int(c.get("pc_as_keep", "3"))
+    except ValueError:
+        keep = 3
+    return {"every": every if every >= 0 else 2.0, "keep": keep if 1 <= keep <= 20 else 3, "card": bool(c.get("pc_as_card", True))}
+
+
+def pc_as_state():
+    """The PC window's autosaves for the current build of ps2run.exe, newest first. 'older' counts other builds' files."""
+    exe = win_exe()
+    out = {"available": bool(exe), "list": [], "bytes": 0, "older": 0, "cfg": pc_as_cfg()}
+    if not exe:
+        return out
+    cur = pc_as_dir(exe)
+    root = pc_as_root()
+    if os.path.isdir(root):
+        for d in os.listdir(root):
+            full = os.path.join(root, d)
+            if not os.path.isdir(full):
+                continue
+            for n in os.listdir(full):
+                m = PC_AS_RE.match(n)
+                if not m:
+                    continue
+                try:
+                    size = os.path.getsize(os.path.join(full, n))
+                except OSError:
+                    continue
+                out["bytes"] += size
+                if full != cur:
+                    out["older"] += 1
+                    continue
+                t = m.group(2) + m.group(3)
+                out["list"].append({"id": n, "reason": PC_AS_REASON[m.group(1)], "size": size, "stamp": t,
+                                    "when": "%s-%s-%s %s:%s" % (t[0:4], t[4:6], t[6:8], t[8:10], t[10:12])})
+    out["list"].sort(key=lambda a: a["stamp"], reverse=True)
+    return out
+
+
+def play_windows(exe, resume=None):
+    """Start the native Windows window. Returns the same {ok, msg} as play()."""
+    exe_dir = os.path.dirname(exe)
+    elf_src = os.path.join(DIR, "games", NAME, "disc", "SLUS_216.21")
+    elf = os.path.join(os.path.dirname(exe_dir), "SLUS_216.21")
+    if not os.path.isfile(elf):
+        if not os.path.isfile(elf_src):
+            return {"ok": False, "msg": "The game's boot file is missing. Run setup again."}
+        try:
+            shutil.copyfile(elf_src, elf)
+        except OSError as e:
+            return {"ok": False, "msg": "Could not copy the boot file next to the Windows program: %s" % e}
+    disc, card, welf = win_disc(), to_win(os.path.join(saves_dir(), "Mcd001.ps2")), to_win(elf)
+    if not (disc and card and welf):
+        return {"ok": False, "msg": "Could not work out the Windows paths for the disc, card or boot file."}
+    if any(c.poll() is None and "ps2run" in str(c.args[0]) for c in children):
+        return {"ok": False, "msg": "The PC window is already running. Close it first (two would overwrite each other's saves)."}
+    env = dict(os.environ)
+    if not os.path.exists(KEYS_FILE):
+        try:
+            write_keys(dict(KEY_DEFAULTS))
+        except Exception:
+            pass
+    env["PS2_KEYS"] = KEYS_FILE
+    scale = load_cfg().get("scale", "3")
+    env["PS2_SCALE"] = scale if scale in ("1", "2", "3") else "3"
+    widescreen_env(env)
+    names = ["PS2_KEYS/p", "PS2_SCALE", "PS2_ASPECT", "PS2_PATCH"]
+    wlog = to_win(dialog_log_path())
+    if wlog:   # the Log screen reads this file; a PS2_DIALOG_LOG line in ~/.p3fes-window-env still wins
+        env["PS2_DIALOG_LOG"] = wlog
+        names.append("PS2_DIALOG_LOG")
+    try:   # research switches: lines like PS2_LOG_DISC=1 in ~/.p3fes-window-env (only PS2_ names are passed on)
+        with open(os.path.expanduser("~/.p3fes-window-env")) as f:
+            for ln in f:
+                if "=" in ln and not ln.lstrip().startswith("#"):
+                    k, v = ln.strip().split("=", 1)
+                    k = k.strip()
+                    if re.match(r"^PS2_[A-Z0-9_]+$", k) and k not in ("PS2_KEYS", "PS2_SCALE", "PS2_ASPECT", "PS2_PATCH"):
+                        env[k] = v.strip()
+                        if k not in names:
+                            names.append(k)
+    except OSError:
+        pass
+    env["WSLENV"] = (env.get("WSLENV", "") + ":" if env.get("WSLENV") else "") + ":".join(names)
+    asdir = pc_as_dir(exe)
+    try:
+        os.makedirs(asdir, exist_ok=True)
+    except OSError:
+        pass
+    wasdir = to_win(asdir)
+    cmd = [exe, welf, "--disc", disc, "--window", "--memcard", card]
+    cfg = pc_as_cfg()
+    if wasdir:
+        cmd += ["--autosave", wasdir, "--autosave-every", "%g" % cfg["every"], "--autosave-keep", str(cfg["keep"]), "--autosave-card", "1" if cfg["card"] else "0"]
+    mods = ""
+    ovl = overlay_file()
+    if ovl:
+        wovl = to_win(ovl)
+        if wovl and exe_supports(exe, "--overlay"):
+            cmd += ["--overlay", wovl]
+            mods = " File mods are on."
+        else:
+            mods = " Your file mods are not applied: this build of the PC window is older than file mod support (see docs/mod-folder-plan.md)."
+    if resume:
+        state = os.path.join(asdir, resume)
+        if not PC_AS_RE.match(resume) or not os.path.isfile(state):
+            return {"ok": False, "msg": "That autosave is gone, or was made by an older build of the PC window."}
+        wstate = to_win(state)
+        if not wstate:
+            return {"ok": False, "msg": "Could not work out the Windows path of that autosave."}
+        cmd += ["--load-state", wstate]
+    log = open(os.path.expanduser("~/.p3fes-window.log"), "w")
+    children.append(subprocess.Popen(cmd, cwd=exe_dir, env=env, stdout=log, stderr=subprocess.STDOUT))
+    return {"ok": True, "msg": ("Resuming the PC window from your autosave." if resume else "Started the PC window (Windows version). Its memory card is in " + saves_dir() + ".") + mods}
+
+
+def play(mode, resume=None, mod=False, pcresume=None):
     st = get_state()
     name = MOD_NAME if mod else NAME
     if st["state"] != "ready":
         return {"ok": False, "msg": "The game is not installed yet."}
     if mod and not os.path.exists(os.path.join(DIR, "build", "web-" + name, "ps2web.html")):
         return {"ok": False, "msg": "That mod is not built on this computer yet."}
+    if pcresume and not (mode == "exe" and not mod and win_exe()):
+        return {"ok": False, "msg": "Resuming a PC window autosave needs the Windows PC window (build it first)."}
+    if mode == "exe" and not mod and win_exe():
+        return play_windows(win_exe(), pcresume or None)
     if mode == "exe":
         exe = os.path.join(DIR, "build", "native-" + name, "ps2run")
         if not os.path.exists(exe):
@@ -1307,6 +1792,17 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, get_state())
         if self.path == "/api/report":
             return self.send(200, {"text": report()})
+        if self.path == "/api/dialoglog":
+            return self.send(200, dialog_log_entries())
+        if self.path.startswith("/api/voice?"):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try:
+                afs, n = q.get("afs", [""])[0], int(q.get("n", ["0"])[0])
+                if not re.match(r"^V[0-9]{3,8}$", afs):
+                    raise ValueError("bad archive name")
+                return self.send(200, voice_wav(afs, n), "audio/wav")
+            except Exception as e:
+                return self.send(404, {"error": str(e)})
         if self.path == "/api/bye":
             bye_time[0] = time.time()
             return self.send(200, {"ok": True})
@@ -1317,7 +1813,7 @@ class H(BaseHTTPRequestHandler):
         f = os.path.normpath(os.path.join(UI, p))
         if not f.startswith(UI) or not os.path.isfile(f):
             return self.send(404, {"error": "not found"})
-        ct = {"html": "text/html; charset=utf-8", "css": "text/css", "js": "text/javascript", "svg": "image/svg+xml"}.get(f.rsplit(".", 1)[-1], "application/octet-stream")
+        ct = {"html": "text/html; charset=utf-8", "css": "text/css", "js": "text/javascript", "svg": "image/svg+xml", "png": "image/png"}.get(f.rsplit(".", 1)[-1], "application/octet-stream")
         with open(f, "rb") as fh:
             self.send(200, fh.read(), ct)
 
@@ -1349,6 +1845,13 @@ class H(BaseHTTPRequestHandler):
             if data["theme"] == "twelve" and not c.get("journey"):
                 return self.send(200, {"ok": False})
             c["theme"] = data["theme"]
+            save_cfg(c)
+            return self.send(200, {"ok": True})
+        if self.path == "/api/dialoglog/clear":
+            return self.send(200, {"ok": dialog_log_clear()})
+        if self.path == "/api/widescreen":
+            c = load_cfg()
+            c["widescreen"] = bool(data.get("on"))
             save_cfg(c)
             return self.send(200, {"ok": True})
         if self.path == "/api/scale" and data.get("scale") in ("1", "2", "3"):
@@ -1423,7 +1926,28 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, {"ok": False, "msg": "Could not open the folder: %s" % e})
         if self.path == "/api/play":
             rid = str(data.get("resume") or "")
-            return self.send(200, play(data.get("mode") or load_cfg().get("mode", "browser"), int(rid) if AS_ID.match(rid) else None, bool(data.get("mod"))))
+            pcr = str(data.get("pcresume") or "")
+            return self.send(200, play(data.get("mode") or load_cfg().get("mode", "browser"), int(rid) if AS_ID.match(rid) else None, bool(data.get("mod")), pcr if PC_AS_RE.match(pcr) else None))
+        if self.path == "/api/pcsave/delete":
+            name, exe = str(data.get("id") or ""), win_exe()
+            f = os.path.join(pc_as_dir(exe), name) if exe else ""
+            if PC_AS_RE.match(name) and f and os.path.isfile(f):
+                try:
+                    os.remove(f)
+                    return self.send(200, {"ok": True, "msg": "Autosave deleted."})
+                except OSError as e:
+                    return self.send(200, {"ok": False, "msg": "Could not delete it: %s" % e})
+            return self.send(200, {"ok": False, "msg": "That autosave is gone."})
+        if self.path == "/api/pcautosave":
+            c = load_cfg()
+            if str(data.get("every")) in ("0", "1", "2", "5", "10", "15", "30"):
+                c["pc_as_every"] = str(data["every"])
+            if str(data.get("keep")) in ("1", "3", "5", "10"):
+                c["pc_as_keep"] = str(data["keep"])
+            if data.get("card") in (True, False):
+                c["pc_as_card"] = bool(data["card"])
+            save_cfg(c)
+            return self.send(200, {"ok": True})
         if self.path == "/api/autosave/delete":
             rid = str(data.get("id") or "")
             if not AS_ID.match(rid):
@@ -1463,7 +1987,8 @@ def main():
         # already running: just open another window onto it
         print("The launcher is already running; opening its window.")
         if not a.no_window:
-            win_open(url, app=True)
+            if win_open(url, app=True):
+                maximize_launcher()
         return
     print("Launcher running at", url, "(closing its window stops it)")
     threading.Thread(target=watchdog, daemon=True).start()
@@ -1471,6 +1996,8 @@ def main():
         how = win_open(url, app=True)
         if not how:
             print("Could not open a window. Open", url, "in Chrome or Edge.")
+        else:
+            threading.Thread(target=maximize_launcher, daemon=True).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

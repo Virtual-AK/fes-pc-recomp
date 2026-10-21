@@ -84,6 +84,7 @@ ps2run_trace_patch6.py
 ps2run_trace_patch9.py
 ps2run_fix_path3_mask.py
 ps2run_vubranch_patch.py
+ps2recomp_vubranch_patch.py
 ps2web_vubranch_patch.py
 ps2run_vif_v2zero_patch.py
 ps2gpu_tricenter_patch.py
@@ -94,6 +95,13 @@ ps2run_keyremap_patch.py
 ps2run_sifquiet_patch.py
 ps2run_window_capture_patch.py
 ps2run_window_savestate_patch.py
+ps2run_autosave_patch.py
+ps2run_overlay_patch.py
+ps2run_widescreen_patch.py
+ps2run_turbo_patch.py
+ps2run_probe_patch.py
+ps2run_disclog_patch.py
+ps2run_dialoglog_patch.py
 ps2web_cardbackup_patch.py
 ps2web_controls_patch.py
 ps2web_keyremap_patch.py

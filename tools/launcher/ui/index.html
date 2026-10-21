@@ -63,6 +63,10 @@ html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
 .hb i{width:14px;height:14px;background:var(--deep);flex:none}
 .btns{right:60px;bottom:40px;display:flex;gap:22px;align-items:center}
 .btn{display:flex;align-items:center;gap:10px;background:var(--btn);border:1px solid rgba(255,255,255,.35);border-radius:22px;padding:5px 20px 5px 8px;font-size:22px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow);cursor:pointer}
+.btn,.sw .b,[data-act]{transition:filter .1s,transform .1s}
+.btn:hover,.sw .b:hover{filter:brightness(1.3);transform:translateY(-2px)}
+[data-act]:hover{filter:brightness(1.3);outline:2px solid rgba(255,255,255,.55)}
+#hvb{transition:top .12s,opacity .12s}
 .why .rw{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid rgba(255,255,255,.3)}
 .why .rw .n{width:92px;font-size:16px;font-weight:800;font-style:italic;text-shadow:1px 1px 0 var(--shadow)}
 .why .rw .v{flex-grow:1;font-size:15px;font-weight:600;color:var(--ink)}
@@ -72,12 +76,14 @@ html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
 <script>
 const $=s=>document.querySelector(s);
 const C=document.getElementById('c');
-const ITEMS=['PLAY','RESUME','MODS','SETTINGS','SAVES','HELP'];
+const ITEMS=['PLAY','RESUME','MODS','SETTINGS','SAVES','LOG','HELP','ABOUT'];
 const GOLD='linear-gradient(90deg,#FF9A3C,#FFD08A)',RED='linear-gradient(90deg,#FF6B78,#FFB3BA)',VIO='linear-gradient(90deg,#7A5CFF,#C9B8FF)';
-let S=null,sel=0,note='',noteT=0,busy=false;
+let S=null,sel=0,note='',noteT=0,busy=false,hv=-1;
 
 function fit(){const k=Math.min(innerWidth/1280,innerHeight/800);$('#fit').style.transform='scale('+k+') translate(-50%,-50%)';}
 addEventListener('resize',fit);fit();
+// fill the screen when opened as an app window (Edge/Chrome remember the last window size and ignore the start flag; a plain tab ignores this)
+try{if(screen.availWidth&&(outerWidth<screen.availWidth-8||outerHeight<screen.availHeight-8)){moveTo(0,0);resizeTo(screen.availWidth,screen.availHeight);}}catch(e){}
 
 function view(s){
   const st=s.state, d=s.disc||{};
@@ -99,6 +105,9 @@ function view(s){
      pT:'WHAT TO DO',pB:'Use the original disc',pX:'It must be Persona 3 FES (USA), not modified.',pN:'Your disc is never changed or uploaded.',
      dl:'Disc: '+(d.file||'?'),help:'This disc image is not a supported copy. Choose another.'}
   }[st];
+  if(st==='ready'){const pa=s.pc_autosaves&&s.pc_autosaves.available&&s.mode==='exe'?s.pc_autosaves:s.autosaves, n=pa&&pa.list?pa.list.length:0;
+    if(n){T.pB=n+' saved';T.pX='Newest: '+pa.list[0].when;T.pN='Resume picks up where you left off.';}
+    else{T.pB='None yet';T.pX='They appear as you play.';T.pN='Saved every few minutes while you play.';}}
   let why=null;
   const gid=d.game_id||'not found', reg=d.region||'unknown', gshow=d.game_id?gid.replace('_','-').replace('.',''):'Not found';
   if(st==='wrong'){
@@ -120,20 +129,20 @@ function renderHome(){
   const dc=dn==='Sun'?'#FF6B78':dn==='Sat'?'#6AB4FF':'#fff';
   const ready=S.state==='ready', exe=S.mode==='exe';
   const on=x=>x?'background:var(--deep);color:var(--acc);border-color:var(--acc)':'background:var(--btn);color:var(--fg,#fff);border-color:rgba(255,255,255,.35)';
-  const top=i=>172+i*56;
+  const top=i=>164+i*44;
   let h=`<div class="a ring"></div><div class="a ticks"></div><div class="a moon"></div><div class="a curve"></div><div class="a stripe"></div>
   <div class="a title">LAUNCHER</div><div class="a sub">FOR PERSONA 3 FES</div>${S.journey?'<div class="badge">THE JOURNEY · COMPLETE</div>':''}
   <div class="a plate" style="background:linear-gradient(100deg,transparent 0%,${T.pa} 38%,${T.pb} 100%)"></div>
   <div class="a date"><span>${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}</span><span style="color:${dc}">${dn}</span></div>
   <div class="a pt"><div class="t" style="text-shadow:2px 2px 0 ${T.ps},0 0 12px rgba(5,32,70,.6)">${T.t}</div><div class="s" style="text-shadow:1px 1px 0 ${T.ps},0 0 10px rgba(5,32,70,.6)">${T.s}</div></div>
-  <div class="a bar" style="top:${top(sel)}px"></div>`;
+  <div class="a bar" style="top:${top(sel)}px;height:44px"></div>`;
   ITEMS.forEach((it,i)=>{
-    const y=top(i), lab=i===0?T.play:it, op=(i===0||i===3||i===4||i===5)?1:T.dim, s=i===sel;
-    h+=`<div class="a sq" style="top:${y+16}px;background:${s?'var(--acc)':'var(--deep)'};opacity:${s?1:op}"></div>
-    <div class="a it${s?' sel':''}" style="top:${y}px;opacity:${s?1:op}">${lab}</div>
-    <div class="a hit" data-i="${i}" style="top:${y}px"></div>`;
+    const y=top(i), lab=i===0?T.play:it, op=(i!==1&&i!==2)?1:T.dim, s=i===sel;
+    h+=`<div class="a sq" style="top:${y+10}px;background:${s?'var(--acc)':'var(--deep)'};opacity:${s?1:op}"></div>
+    <div class="a it${s?' sel':''}" style="top:${y}px;height:44px;line-height:44px;opacity:${s?1:op}">${lab}</div>
+    <div class="a hit" data-i="${i}" style="top:${y}px;height:44px"></div>`;
   });
-  h+=`<div class="a cap" style="top:${top(sel)}px">${sel===0?T.cap:''}</div>`;
+  h+=`<div class="a cap" style="top:${top(sel)}px;height:44px">${sel===0?T.cap:''}</div>`;
   h+=`<div class="a sw" style="display:${ready?'flex':'none'}"><div class="l">PLAY IN</div><div class="b" data-m="browser" style="${on(!exe)}">BROWSER</div><div class="b" data-m="exe" style="${on(exe)}">PC WINDOW</div><div class="k">Q / E</div></div>`;
   h+=`<div class="a panel" style="left:112px;top:536px;width:540px;height:150px">
    <div style="font-size:22px;font-weight:800;color:var(--ink)">Persona 3 FES <span style="font-size:14px;font-weight:600">NTSC-U</span></div>
@@ -158,11 +167,21 @@ function renderHome(){
 let G=null,gq='',gs='new',gp=0,gload=false,gmsg='',D=null,dload=false,dfile=0,dimg=0;
 async function gbOpen(id){D=null;dload=true;dfile=0;dimg=0;render();try{D=await api('/api/gb/mod',{id});if(D.ok){const f=D.files.find(x=>x.ok);dfile=f?f.id:0;}}catch(e){D={ok:false,err:'The launcher could not be reached.'};}dload=false;render();}
 async function gbLoad(refresh){gload=true;gmsg='';render();try{G=await api('/api/gb/view',{q:gq,sort:gs,page:gp,refresh:!!refresh});gp=G.page;}catch(e){G={ok:false,err:'The launcher could not be reached.',mods:[],total:0,page:0,pages:1};}gload=false;render();}
-let screen='home',msel=0,capture=null,reportText='',pend='';
+let screen='home',astab='',msel=0,capture=null,reportText='',pend='';
+let LG=null,lgScroll=null,lgStick=true;
+async function lgLoad(){try{LG=await api('/api/dialoglog');}catch(e){}if(screen==='log')render();}
+function openLog(){LG=null;lgScroll=null;lgStick=true;open_('log');lgLoad();}
+const SPK={3:'Yukari Takeba',5:'Mitsuru Kirijo',6:'Junpei Iori',8:'Akihiko Sanada',12:'Shuji Ikutsuki','-1':''};
+let VA=null;
+function playVoice(a,n){try{if(VA){VA.pause();}VA=new Audio('/api/voice?afs='+encodeURIComponent(a)+'&n='+encodeURIComponent(n));VA.onerror=()=>say('That clip could not be read from your disc.');VA.play().catch(()=>say('That clip could not be played.'));}catch(e){say('That clip could not be played.');}}
+const spkName=n=>n in SPK?SPK[n]:'Speaker '+n;
+const icoSpk=(on)=>`<svg width="26" height="26" viewBox="0 0 26 26" style="flex:none"><path d="M3 10h4l6-5v16l-6-5H3z" fill="var(--ink)"/>${on?'<path d="M16 9c2 2 2 6 0 8M19 6c4 4 4 10 0 14" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>':'<path d="M16 9l7 8M23 9l-7 8" fill="none" stroke="#FF6B78" stroke-width="2.5" stroke-linecap="round"/>'}</svg>`;
 const ROWL={cross:'CROSS · confirm',circle:'CIRCLE · cancel',square:'SQUARE',triangle:'TRIANGLE',l1:'L1',r1:'R1',l2:'L2',r2:'R2',start:'START',select:'SELECT'};
 const ROWS=Object.keys(ROWL);
 const MENUS={
- help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','ABOUT'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.']},
+ help:{title:'HELP',sub:'IF SOMETHING LOOKS WRONG',items:['GETTING STARTED','CONTROLS','TROUBLESHOOTING','VERSION'],y:158,hint:['The steps from a new computer to playing.','Default keys for the game.','Find what you are seeing.','Version, and a report to send us.']},
+ log:{title:'LOG',sub:'WHAT WAS SAID',items:['DIALOGUE'],y:160,hint:['Lines shown so far. Click a speaker icon to hear the line.']},
+ about:{title:'ABOUT',sub:'WHO MADE THIS',items:['THE CREATORS','THE PROJECT'],y:160,hint:['The two people behind this launcher and port.','What this is, and what it is built on.']},
  saves:{title:'SAVES',sub:'PICK UP WHERE YOU LEFT OFF',items:['AUTOSAVES','MEMORY CARD','BACKUPS'],y:160,hint:['Saves of the whole game.','The card both versions share.','Earlier copies of the card.']},
  mods:{title:'MODS',sub:'YOUR NORMAL GAME IS NEVER CHANGED',items:['DIRECT COMMANDS','FEMC PROTAGONIST','RELOAD STYLE PACK','FILE MODS','BROWSE GAMEBANANA','ADD A PATCH'],y:160,hint:['Control party members in battle.','Play as the female protagonist.','A look-alike menu pack idea.','Add mods that replace game files (text, images, sounds).','Find Persona 3 FES mods on GameBanana and add them.','Check a patch file against your disc.']},
  setup:{title:'SETUP',sub:'FIRST TIME ONLY',items:['FIND YOUR DISC','GET THE TOOLS','BUILD THE GAME','PLAY'],y:160,tag:1,hint:['Your own Persona 3 FES (USA) disc image.','Downloads what the build needs.','Turns your disc into a game that runs here.','Ready when the build is done.']},
@@ -179,11 +198,30 @@ function setupSteps(){
 }
 function body(){
   const k=S?S.keys:{}, kd=S?S.key_defaults:{};
+  if(screen==='log'){
+    if(!LG)return pnl(H1('DIALOGUE LOG')+P('Loading…'));
+    const E=LG.entries||[];
+    if(!E.length)return pnl(H1('DIALOGUE LOG')+P(LG.have_file?'Nothing has been said yet in the last session. Play in the PC window, then come back here.':'No log yet. It is written while you play in the PC window (this needs the PC window built with the dialogue log patch).')+P('The log keeps lines from every play session. A speaker icon means the line has a voice; a crossed icon means it has none.',10));
+    let last=-1,rows='';
+    E.forEach(x=>{
+      if(x.sess!==last){rows+=`<div style="margin:10px 0 4px;font-size:12px;letter-spacing:2px;font-weight:800;opacity:.75;color:var(--ink)">PLAY SESSION ${x.sess+1}</div>`;last=x.sess;}
+      const nm=spkName(x.spk).replace(/&/g,'&amp;').replace(/</g,'&lt;'), tx=x.t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>').replace(/(<br>)+$/,'');
+      const pl=x.voiced&&x.afs;
+      rows+=`<div style="display:flex;gap:10px;align-items:flex-start;border-top:1px solid rgba(255,255,255,.25);padding:7px 0">${pl?`<div data-voice="${x.afs}|${x.clip}" title="Play this line" style="cursor:pointer;padding:2px;border-radius:6px;background:rgba(255,255,255,.18)">${icoSpk(true)}</div>`:icoSpk(x.voiced)}<div style="min-width:0">${nm?`<div style="font-size:14px;font-weight:800;color:var(--acc)">${nm}</div>`:''}<div style="font-size:15px;line-height:1.35;color:var(--ink)">${tx}</div></div></div>`;
+    });
+    return pnl(H1('DIALOGUE LOG')+`<div id="lglist" style="margin-top:6px;max-height:500px;overflow-y:auto;padding-right:6px">${rows}</div>`+btnx('CLEAR LOG','lgclear'),'padding-bottom:14px');
+  }
+  if(screen==='about'){
+    const who=(av,sg,name,role)=>`<div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-top:1px solid rgba(255,255,255,.3)"><img src="img/${av}" alt="" style="width:168px;height:168px;object-fit:contain;flex:none"><div style="flex:1;min-width:0"><img src="img/${sg}" alt="${name}" style="display:block;width:100%;height:112px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(120,190,255,.9)) drop-shadow(0 1px 2px rgba(4,10,36,.5))"><div style="font-size:14px;line-height:1.4;margin-top:6px;color:var(--ink)"><b>${name}</b> · ${role}</div></div></div>`;
+    if(msel===0)return pnl(H1('CREATED BY')+`<div style="margin-top:6px">`+who('virtualak-avatar.png','virtualak-signature.png','VirtualAK','Idea, testing and direction.')+who('claude-avatar.png','claude-signature.png','Claude','Code, tools and documentation. An AI model made by Anthropic.')+`</div>`,'padding-bottom:12px');
+    return pnl(H1('PERSONA 3 FES ON PC')+P('A community project that runs Persona 3 FES (USA) in your browser and in its own window, from your own disc. Nothing from the game is included or shared: everything is made on your computer from your own copy, and your disc is never changed.',8)+
+      P('Built on PS2 Web Recomp by snuri00 (MIT licence), with SDL2 and wgpu-native. Not affiliated with or endorsed by Atlus or SEGA.',10)+P('Launcher '+(S?S.version:'')+'. Thank you to everyone who tested.',10),'padding-bottom:18px');
+  }
   if(screen==='help'){
     if(msel===0)return pnl(H1('GETTING STARTED')+['Put your own Persona 3 FES (USA) disc image in C:\\p3fes.','Run the installer in Ubuntu (docs/install.md). It takes 10 minutes or more.','Open this launcher. Home says <b>Ready</b> when the game is built.','Press <b>PLAY</b>. Pick the browser or the PC window with Q and E.'].map((t,i)=>`<div style="display:flex;gap:14px;margin-top:12px;font-size:15px;line-height:1.45;color:var(--ink)"><div style="flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:var(--acc);font-weight:800;text-align:center;line-height:28px">${i+1}</div><div>${t}</div></div>`).join(''),'padding-bottom:18px');
     if(msel===1)return pnl(H1('DEFAULT KEYS')+`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:8px;font-size:15px;color:var(--ink)">`+ROWS.map(r=>`<div style="display:flex;justify-content:space-between"><span style="font-weight:600">${ROWL[r]}</span><b>${kd[r]||''}</b></div>`).join('')+`</div>`+P('Arrow keys are the D-pad. W A S D is the left stick and T F G H the right stick. F11 or ` toggles fullscreen. Change keys in Settings.',12),'padding-bottom:18px');
     if(msel===2)return pnl(H1('WHAT ARE YOU SEEING?')+[
-      ['The picture is garbled or the screen is blank','Close the game and start it again. If it repeats, copy a report (About) and send it to us.'],
+      ['The picture is garbled or the screen is blank','Close the game and start it again. If it repeats, copy a report (Help, Version) and send it to us.'],
       ['The build stopped or seems stuck','It can sit quiet for a long time. Run the installer again: finished steps are skipped.'],
       ['The launcher says my disc cannot be used','It needs an untouched USA copy of Persona 3 FES. Home shows which check failed.'],
       ['The PC window does not open','Start VcXsrv first (docs/windows-build.md), then press Play again.'],
@@ -206,7 +244,7 @@ function body(){
       return pnl(H1('FILE MODS')+tag(F.on?F.on+' ON':'NONE ON',F.on?'#2BD07F':'#8FA6C9')+big('Replace game files')+P('Add a mod folder, .zip, .7z or .rar. The launcher finds where each file goes on your disc and lays it over the game when it starts. Your disc and your normal game are never changed.')+
         (F.serve_ok===false?P('<b>One-time update needed:</b> run Setup > GET THE TOOLS again so the game server can load file mods.',8):'')+
         (busyF?P('<b>'+(F.msg||'Working…')+'</b>',10):btnx('ADD A FOLDER','lma:folder')+btnx('ADD A ZIP / 7Z / RAR','lma:zip')+(F.msg?P(F.msg,8):''))+
-        `<div style="margin-top:8px">${rows}</div>`+P('Works in the browser game after you press Play. The PC window does not use file mods yet. Mods are made by their authors; we do not ship them.',8),'padding-bottom:16px');
+        `<div style="margin-top:8px">${rows}</div>`+P('Works in the browser game and in the Windows PC window after you press Play (the PC window needs a rebuild once, see the notes). Mods are made by their authors; we do not ship them.',8),'padding-bottom:16px');
     }
     if(msel===4){
       const F=M.files||{list:[]}, busyF=F.busy;
@@ -271,9 +309,14 @@ function body(){
     const c=S&&S.card?S.card:{};
     if(msel===0){
       const A=S&&S.autosaves?S.autosaves:{list:[],older:0,bytes:0};
+      const PA=S&&S.pc_autosaves?S.pc_autosaves:{available:false,list:[],older:0,bytes:0};
       const RS={'timer':'timer','game save':'after a game save','manual':'saved by you'};
-      const rows=A.list.length?A.list.map((a,k)=>{const dl=pend==='da:'+a.id;return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;color:var(--ink)"><div style="font-size:15px;font-weight:800">${a.when} · ${RS[a.reason]||a.reason}${k===0?'<span style="margin-left:10px;background:var(--acc);color:#0B1A3F;border-radius:6px;padding:1px 7px;font-size:11px">NEWEST</span>':''}</div><div style="font-size:12px">About ${Math.max(1,Math.round(a.size/1048576))} MB</div></div><div data-act="ra:${a.id}" style="background:var(--deep);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer">RESUME</div><div data-act="da:${a.id}" style="background:var(--deep);border:2px solid ${dl?'#FF6B78':'transparent'};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:${dl?'#FF6B78':'var(--acc)'};cursor:pointer">${dl?'SURE? DELETE':'DELETE'}</div></div>`}).join(''):P('No autosaves yet. They appear here after you play in the browser game.');
-      return pnl(H1('YOUR AUTOSAVES')+`<div style="margin-top:6px">${rows}</div>`+P('SPACE USED '+Math.round(A.bytes/1048576)+' MB. The browser game makes these as you play. Change how often, and how many it keeps, in the game\'s Autosave panel.'+(A.older?' '+A.older+' from an older version of the game cannot be resumed.':'')+' Resume opens the browser game, then click Resume autosave on its start screen.',10),'padding-bottom:16px');
+      const tab=astab||(PA.available?'pc':'br'), pc=tab==='pc', X=pc?PA:A, ra=pc?'rp:':'ra:', da=pc?'dp:':'da:', cap=PA.available?7:9;
+      const rows=X.list.length?X.list.slice(0,cap).map((a,k)=>{const dl=pend===da+a.id;return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.3)"><div style="flex:1;color:var(--ink)"><div style="font-size:15px;font-weight:800">${a.when} · ${RS[a.reason]||a.reason}${k===0?'<span style="margin-left:10px;background:var(--acc);color:#0B1A3F;border-radius:6px;padding:1px 7px;font-size:11px">NEWEST</span>':''}</div><div style="font-size:12px">About ${Math.max(1,Math.round(a.size/1048576))} MB</div></div><div data-act="${ra}${a.id}" style="background:var(--deep);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:var(--acc);cursor:pointer">RESUME</div><div data-act="${da}${a.id}" style="background:var(--deep);border:2px solid ${dl?'#FF6B78':'transparent'};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:800;color:${dl?'#FF6B78':'var(--acc)'};cursor:pointer">${dl?'SURE? DELETE':'DELETE'}</div></div>`}).join(''):P(pc?'No PC window autosaves yet. They appear here after you play in the PC window.':'No autosaves yet. They appear here after you play in the browser game.');
+      const more=X.list.length>cap?P('+ '+(X.list.length-cap)+' older ones not shown.',4):'';
+      const tabs=PA.available?`<div style="margin-top:-4px">${btnx('PC WINDOW','ast:pc',pc)}${btnx('BROWSER','ast:br',!pc)}</div>`:'';
+      const note=pc?'SPACE USED '+Math.round(X.bytes/1048576)+' MB. Saved every few minutes, after each game save and when you press F5 in the PC window. Change this in Settings, Autosave.'+(X.older?' '+X.older+' from an older build cannot be resumed.':'')+' Resume starts the PC window right where you were.':'SPACE USED '+Math.round(X.bytes/1048576)+' MB. The browser game makes these as you play. Change how often, and how many it keeps, in the game\'s Autosave panel.'+(X.older?' '+X.older+' from an older version of the game cannot be resumed.':'')+' Resume opens the browser game, then click Resume autosave on its start screen.';
+      return pnl(H1('YOUR AUTOSAVES')+tabs+`<div style="margin-top:6px">${rows}</div>`+more+P(note,10),'padding-bottom:16px');
     }
     if(msel===1)return pnl(H1('MEMORY CARD')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">${c.exists?'Saved '+c.modified:'No card yet'}</div>`+P('One file, shared by the PC window and the browser game. Size '+(c.size?(c.size/1048576).toFixed(2)+' MB':'—')+'.')+`<div style="font:13px/1.5 ui-monospace,Consolas,monospace;margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.2);border-radius:8px;color:var(--ink);word-break:break-all">${c.dir||''}\\Mcd001.ps2</div>`+btnx('OPEN FOLDER','openfolder')+P('To keep a copy, copy that file somewhere safe.',10),'padding-bottom:18px');
     const L=c.list||[];
@@ -286,9 +329,14 @@ function body(){
     return pnl(H1('KEYS FOR THE PC WINDOW')+`<div style="display:flex;gap:16px;margin-top:10px"><div style="flex:1">${col(ROWS.slice(0,half))}</div><div style="flex:1">${col(ROWS.slice(half))}</div></div>`+btnx('RESET TO DEFAULTS','resetkeys')+P('Click a row, then press the new key. Esc cancels. A key already used elsewhere is taken from that row. The browser game has its own Keys button.',10),'padding-bottom:18px');
   }
   if(msel===1)return pnl(H1('CONTROLLER')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">In the browser game</div>`+P('Plug in a controller, start the game in the browser and use the Controller button at the bottom. The PC window has no controller panel yet.'),'padding-bottom:18px');
-  if(msel===2)return pnl(H1('AUTOSAVE')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">Not connected yet</div>`+P('Autosave lives inside the browser game today. It will show here once saves are shared between the browser and the PC window. Until then use the Autosave button in the game.'),'padding-bottom:18px');
+  if(msel===2){
+    const PA=S&&S.pc_autosaves;
+    if(!PA||!PA.available)return pnl(H1('AUTOSAVE')+`<div style="font-size:26px;font-weight:800;margin-top:6px;color:var(--ink)">In the browser game</div>`+P('The browser game has its own Autosave button. Autosave for the PC window appears here once the Windows PC window is built.'),'padding-bottom:18px');
+    const c=PA.cfg, ev=(v,t)=>btnx(t,'pe:'+v,String(c.every)===v), kp=v=>btnx(v,'pk:'+v,String(c.keep)===v);
+    return pnl(H1('AUTOSAVE IN THE PC WINDOW')+P('Save automatically',8)+ev('0','OFF')+ev('1','1 MIN')+ev('2','2 MIN')+ev('5','5 MIN')+ev('10','10 MIN')+ev('30','30 MIN')+`<div style="margin-top:12px">${P('Also save after each in-game save',2)}</div>`+btnx('ON','pc:1',c.card)+btnx('OFF','pc:0',!c.card)+`<div style="margin-top:12px">${P('Keep the newest of each kind',2)}</div>`+kp('1')+kp('3')+kp('5')+kp('10')+P('Press F5 in the PC window to save right now. Changes apply the next time the PC window starts. Each save takes tens of MB on your disk; the Saves screen lists them.',10),'padding-bottom:18px');
+  }
   if(msel===3){const b=S?S.browser:'msedge', o=(v,t)=>btnx(t,'br:'+v,b===v), sc=S?S.scale:'3', r=(v,t)=>btnx(t,'sc:'+v,sc===v);
-    return pnl(H1('BROWSER FOR THE GAME')+P('The browser game needs WebGPU. Edge and Chrome have it; Firefox may not.')+o('msedge','EDGE')+o('chrome','CHROME')+o('default','SYSTEM DEFAULT')+`<div style="margin-top:14px">${H1('RESOLUTION')}</div>`+P('Sharper picture needs a stronger graphics card. 3x ran at 60 frames per second on an RTX 3060 Ti.',4)+r('1','1x · 640×512')+r('2','2x · 1280×1024')+r('3','3x · 1920×1536')+P('Fullscreen: F11 in the PC window, the ` key in the browser.',10),'padding-bottom:18px');}
+    return pnl(H1('BROWSER FOR THE GAME')+P('The browser game needs WebGPU. Edge and Chrome have it; Firefox may not.')+o('msedge','EDGE')+o('chrome','CHROME')+o('default','SYSTEM DEFAULT')+`<div style="margin-top:14px">${H1('RESOLUTION')}</div>`+P('Sharper picture needs a stronger graphics card. 3x ran at 60 frames per second on an RTX 3060 Ti.',4)+r('1','1x · 640×512')+r('2','2x · 1280×1024')+r('3','3x · 1920×1536')+`<div style="margin-top:14px">${H1('WIDESCREEN · PC WINDOW')}</div>`+P('Shows the picture at 16:9 and widens the 3D view to match. Experimental: menus and portraits may look stretched. Needs a PC window built with the widescreen patch.',4)+btnx('ON','ws:1',S&&S.widescreen)+btnx('OFF','ws:0',!(S&&S.widescreen))+P('Fullscreen: F11 in the PC window, the ` key in the browser.',10),'padding-bottom:18px');}
   if(msel===4){const th=S&&S.theme?S.theme:'blue', t=(v,n)=>btnx(n,'th:'+v,th===v),
       sw=(a,b,c)=>`<span style="white-space:nowrap;display:inline-block;margin-bottom:6px"><span style="display:inline-block;width:26px;height:26px;border-radius:6px;background:${a};margin-right:4px;border:2px solid ${b}"></span><span style="display:inline-block;width:26px;height:26px;border-radius:6px;background:${c};margin-right:12px"></span></span>`;
     return pnl(H1('THEME')+P('Changes the colours of this launcher only. The game is not affected.')+t('blue','BLUE')+t('pink','PINK')+t('reload','RELOAD')+t('moon','MOON')+t('dawn','DAWN')+t('seal','SEAL')+t('daybreak','DAYBREAK')+t('horizon','HORIZON')+t('ceremony','CEREMONY')+t('eclipse','ECLIPSE')+(S&&S.journey?t('twelve','TWELVE'):'')+
@@ -301,7 +349,7 @@ function body(){
 function renderMenu(){
   const M=MENUS[screen], top=i=>M.y+i*56;
   let h=`<div class="a ring"></div><div class="a ticks"></div><div class="a moon"></div><div class="a curve"></div><div class="a stripe"></div>
-  <div class="a title">${M.title}</div><div class="a sub" style="font-size:12px">${M.sub}</div><div class="a bar" style="top:${top(msel)}px;width:600px"></div>`;
+  <div class="a title">${M.title}</div><div class="a sub" style="font-size:12px">${M.sub}</div><div id="hvb" class="a bar" style="top:${top(hv<0?msel:hv)}px;width:600px;background:rgba(255,255,255,.24);opacity:${hv<0?0:1}"></div><div class="a bar" style="top:${top(msel)}px;width:600px"></div>`;
   M.items.forEach((it,i)=>{const s=i===msel,y=top(i);
     h+=`<div class="a sq" style="top:${y+16}px;background:${s?'var(--acc)':'var(--deep)'}"></div><div class="a it${s?' sel':''}" style="top:${y}px;font-size:${s?34:32}px">${it}</div><div class="a hit" data-mi="${i}" style="top:${y}px;width:600px"></div>`;
     if(M.tag===2){const M2=S.mods||{},g=[M2.direct?'BUILT':'NOT BUILT','IN DEVELOPMENT','CONCEPT','']; h+=`<div class="a" style="left:360px;width:220px;text-align:right;top:${y+17}px;font-size:12px;font-weight:800;letter-spacing:1px;color:#BFD3F2">${g[i]}</div>`;}
@@ -311,7 +359,13 @@ function renderMenu(){
   <div class="a btns"><div class="btn" data-back="1"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#0A3C85"/><circle cx="15" cy="15" r="6" fill="none" stroke="#FF6B78" stroke-width="3"/></svg>Back</div></div>`;
   C.innerHTML=h;
 }
-function render(){ if(screen==='home'||lost||!S) renderHome(); else renderMenu(); }
+function render(){
+  const el=document.getElementById('lglist');
+  if(el){lgScroll=el.scrollTop;lgStick=el.scrollHeight-el.scrollTop-el.clientHeight<24;}
+  if(screen==='home'||lost||!S) renderHome(); else renderMenu();
+  const l2=document.getElementById('lglist');
+  if(l2){l2.scrollTop=(lgStick||lgScroll===null)?l2.scrollHeight:lgScroll;}
+}
 const SDLKEY=e=>{const c=e.code;
   if(/^Key[A-Z]$/.test(c))return c[3]; if(/^Digit[0-9]$/.test(c))return c[5]; if(/^Numpad[0-9]$/.test(c))return 'Keypad '+c[6];
   return {ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Enter:'Return',Backspace:'Backspace',Space:'Space',ShiftLeft:'Left Shift',ShiftRight:'Right Shift',ControlLeft:'Left Ctrl',Tab:'Tab'}[c]||null;};
@@ -342,23 +396,39 @@ async function go(){
     if(S.state==='ready'){busy=true;say('Starting…');const r=await api('/api/play',{mode:S.mode});busy=false;say(r.msg||'');}
     else{open_('setup');msel=Math.max(0,setupSteps().indexOf('NOW'));render();}
   }else if(sel===1){
+    const PL=S&&S.pc_autosaves&&S.pc_autosaves.available?S.pc_autosaves.list:null;
+    if(S.mode==='exe'&&PL){
+      if(!PL.length)say('No PC window autosaves yet. Play in the PC window first.');
+      else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'exe',pcresume:PL[0].id});busy=false;say(r.msg||'');}
+      return;
+    }
     const L=S&&S.autosaves?S.autosaves.list:[];
     if(!L.length)say('No autosaves yet. Play in the browser first.');
     else{busy=true;say('Starting…');const r=await api('/api/play',{mode:'browser',resume:String(L[0].id)});busy=false;say(r.msg||'');}
-  }else if(sel===2)open_('mods');else if(sel===3)open_('settings');else if(sel===5)open_('help');else if(sel===4)open_('saves');
+  }else if(sel===2)open_('mods');else if(sel===3)open_('settings');else if(sel===6)open_('help');else if(sel===7)open_('about');else if(sel===4)open_('saves');else if(sel===5)openLog();
   else say(ITEMS[sel][0]+ITEMS[sel].slice(1).toLowerCase()+' is not built yet.');
 }
 C.addEventListener('click',e=>{
-  const t=e.target.closest('[data-i],[data-m],[data-go],[data-quit],[data-mi],[data-back],[data-act],[data-key]'); if(!t)return;
+  const t=e.target.closest('[data-i],[data-m],[data-go],[data-quit],[data-mi],[data-back],[data-act],[data-key],[data-voice]'); if(!t)return;
+  if(t.dataset.voice){const [a,n]=t.dataset.voice.split('|');playVoice(a,n);return;}
   if(t.dataset.mi!==undefined){msel=+t.dataset.mi;capture=null;reportText='';pend='';render();}
   else if(t.dataset.back)back();
   else if(t.dataset.key){capture=t.dataset.key;render();}
-  else if(t.dataset.act){const a=t.dataset.act;if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
+  else if(t.dataset.act){const a=t.dataset.act;if(a==='lgclear'){api('/api/dialoglog/clear',{}).then(()=>{lgLoad();say('Log cleared.');});}else if(a==='report')report();else if(a==='resetkeys')resetKeys();else if(a.startsWith('ast:')){astab=a.slice(4);render();}else if(a.startsWith('rp:')){busy=true;say('Starting…');api('/api/play',{mode:'exe',pcresume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');});}else if(a.startsWith('dp:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/pcsave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('pe:')||a.startsWith('pk:')||a.startsWith('pc:')){const v=a.slice(3),c=S.pc_autosaves.cfg;if(a[1]==='e')c.every=+v;else if(a[1]==='k')c.keep=+v;else c.card=v==='1';api('/api/pcautosave',{every:String(c.every),keep:String(c.keep),card:c.card});render();}else if(a==='sethome')back();else if(a==='choosemod'){say('Choose a patch file in the file window…');api('/api/mod/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='playmod'){busy=true;say('Starting…');api('/api/play',{mode:S.mode,mod:true}).then(r=>{busy=false;say(r.msg||'');});}else if(a==='choosedisc'){say('Choose your disc in the file window…');api('/api/disc/choose',{}).then(r=>{say(r.msg||'');refresh();});}else if(a==='startsetup'){api('/api/setup/start',{}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('ra:')){busy=true;say('Starting…');api('/api/play',{mode:'browser',resume:a.slice(3)}).then(r=>{busy=false;say(r.msg||'');});}else if(a.startsWith('da:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/autosave/delete',{id:a.slice(3)}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('rs:')||a.startsWith('dl:')){if(pend!==a){pend=a;render();}else{pend='';const name=a.slice(3);api(a.startsWith('rs:')?'/api/card/restore':'/api/card/delete',{name}).then(r=>{say(r.msg||'');refresh();});}}else if(a.startsWith('lma:')){say('Choose it in the file window…');api('/api/lmod/add',{kind:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('gbs:')){gs=a.slice(4);gp=0;gbLoad(false);}else if(a.startsWith('gbp:')){gp=Math.max(0,gp+(+a.slice(4)));gbLoad(false);}else if(a==='gbq'){const q=prompt('Search mods by name, author or type (leave empty to clear):',gq);if(q!==null){gq=q.trim();gp=0;gbLoad(false);}}else if(a==='gbr'){gbLoad(true);}else if(a.startsWith('gbd:')){gbOpen(+a.slice(4));}else if(a==='gbb'){D=null;dload=false;render();}else if(a.startsWith('gbf:')){dfile=+a.slice(4);render();}else if(a.startsWith('gbm:')){dimg=+a.slice(4);render();}else if(a.startsWith('gbi:')){const q=a.split(':');api('/api/gb/install',{id:+q[1],file:+q[2]}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmu:')){api('/api/lmod/up',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmt:')){api('/api/lmod/toggle',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}else if(a.startsWith('lmr:')){if(pend!==a){pend=a;render();}else{pend='';api('/api/lmod/remove',{id:a.slice(4)}).then(r=>{say(r.msg||'');refresh();});}}else if(a==='openfolder'){api('/api/openfolder',{}).then(r=>{if(!r.ok)say(r.msg);});}else if(a.startsWith('ws:')){S.widescreen=a==='ws:1';api('/api/widescreen',{on:S.widescreen});render();}else if(a.startsWith('sc:')){api('/api/scale',{scale:a.slice(3)});S.scale=a.slice(3);render();}else if(a.startsWith('jy:')){api('/api/journey',{on:a==='jy:1'}).then(()=>{if(a==='jy:1')S.journey=true;else{S.journey=false;if(S.theme==='twelve')S.theme='blue';}applyTheme();render();});}else if(a.startsWith('th:')){S.theme=a.slice(3);applyTheme();api('/api/theme',{theme:a.slice(3)});render();}else if(a.startsWith('br:')){api('/api/browser',{browser:a.slice(3)});S.browser=a.slice(3);render();}}
   else if(t.dataset.i!==undefined){sel=+t.dataset.i;render();go();}
   else if(t.dataset.m)setMode(t.dataset.m);
   else if(t.dataset.go)go();
   else if(t.dataset.quit)window.close();
 });
+C.addEventListener('mouseover',e=>{
+  const m=e.target.closest('[data-mi]');
+  if(m){hv=+m.dataset.mi;const b=document.getElementById('hvb');if(b&&screen!=='home'){b.style.top=(MENUS[screen].y+hv*56)+'px';b.style.opacity=1;}return;}
+  const t=e.target.closest('[data-i]');
+  if(!t||busy){ if(hv>=0){hv=-1;const b=document.getElementById('hvb');if(b)b.style.opacity=0;} return;}
+  const i=+t.dataset.i; if(i!==sel){sel=i;render();}
+});
+C.addEventListener('mouseleave',()=>{hv=-1;const b=document.getElementById('hvb');if(b)b.style.opacity=0;});
+C.addEventListener('mouseout',e=>{ if(e.target.closest('[data-mi]')&&!(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('[data-mi]'))){hv=-1;const b=document.getElementById('hvb');if(b)b.style.opacity=0;}});
 addEventListener('keydown',e=>{
   if(screen!=='home'&&S){
     if(capture){e.preventDefault();if(e.key==='Escape'){capture=null;render();return;}const k=SDLKEY(e);if(!k){say('That key cannot be used. Try another.');return;}const r=capture;capture=null;setKey(r,k);return;}
@@ -375,5 +445,5 @@ addEventListener('keydown',e=>{
   else if(e.key==='Escape')window.close();
 });
 addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/bye');}catch(e){}});
-refresh();setInterval(refresh,3000);
+refresh();setInterval(refresh,3000);setInterval(()=>{if(screen==='log')lgLoad();},2000);
 </script></body></html>
