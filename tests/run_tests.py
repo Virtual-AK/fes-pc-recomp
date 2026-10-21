@@ -127,7 +127,7 @@ def run_all():
     for name in sorted(os.listdir(HERE)):
         if name.startswith("test_") and name.endswith(".py"):
             out = run(os.path.join(HERE, name))
-            print(out.strip().splitlines()[-1])
+            print(out.strip().splitlines()[-1] if out.strip() else "ok   %s (unittest, no output)" % name)
     print("All tests passed.")
 
 
