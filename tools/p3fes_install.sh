@@ -98,6 +98,7 @@ ps2run_window_savestate_patch.py
 ps2run_autosave_patch.py
 ps2run_overlay_patch.py
 ps2run_widescreen_patch.py
+ps2run_widescreen_web_patch.py
 ps2run_turbo_patch.py
 ps2run_probe_patch.py
 ps2run_disclog_patch.py
@@ -116,8 +117,22 @@ ps2web_autosaveopts_patch.py
 ps2web_cardsync_patch.py
 ps2web_autosavesync_patch.py
 ps2web_serveovl_patch.py
+ps2web_speedrun_patch.py
+ps2web_turbo_patch.py
+ps2web_gamebeat_patch.py
 "
+# Patches are not all safe to run twice once later patches have changed their text, so remember which ones were applied.
+# A project folder patched by an older installer (no list yet) is put back to the original source first.
+APPLIED="$DIR/.p3fes_applied"
+if [ "$PATCHES_ONLY" != 1 ] && [ ! -f "$APPLIED" ] && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+  echo "Putting the project source back to the original before applying the patches (an earlier run changed it)"
+  git checkout -q -- . || fail "could not restore the original project source."
+fi
 for f in $PATCHES; do
+  if [ "$PATCHES_ONLY" != 1 ] && grep -qx "$f" "$APPLIED" 2>/dev/null; then
+    echo "$f: applied earlier"
+    continue
+  fi
   [ -f "$HERE/$f" ] || fail "$f is missing from $HERE. Keep p3fes_install.sh inside the tools folder of the repository."
   out=$(python3 "$HERE/$f" 2>&1); rc=$?
   echo "$f: $(echo "$out" | tail -1)"
@@ -125,6 +140,7 @@ for f in $PATCHES; do
     echo "$out" | tail -5
     fail "$f did not fit the downloaded project (it may have changed). Send me this screen."
   fi
+  [ "$PATCHES_ONLY" = 1 ] || echo "$f" >> "$APPLIED"
 done
 [ "$PATCHES_ONLY" = 1 ] || touch "$DIR/.tools-ok"   # the launcher reads this to show "get the tools: done"
 if [ "$PATCHES_ONLY" = 1 ]; then echo; echo "All patches fit."; exit 0; fi
@@ -186,12 +202,17 @@ say "Translating and building the game (this is the long step)"
 echo "It can sit quietly for a long time. Leave this window open."
 if [ -f "build/web-$NAME/ps2web.html" ]; then
   echo "already built: delete build/web-$NAME to rebuild"
-  if ! grep -q -e "ps2-card-sync" -e "CS_URL" "build/web-$NAME/ps2web.html" 2>/dev/null || ! grep -q "asDiskSync" "build/web-$NAME/ps2web.html" 2>/dev/null; then
+  if ! grep -q -e "ps2-card-sync" -e "CS_URL" "build/web-$NAME/ps2web.html" 2>/dev/null || ! grep -q "asDiskSync" "build/web-$NAME/ps2web.html" 2>/dev/null || ! grep -q "ps2-gamebeat" "build/web-$NAME/ps2web.html" 2>/dev/null; then
     echo "Updating the browser page with the newest patches (a few minutes, no full rebuild)"
     scripts/build_web.sh "$NAME" || fail "updating the browser page failed. Send me the last 30 lines of this window."
   fi
 else
   scripts/port.sh "$NAME" "$ISO" || fail "the build stopped. Send me the last 30 lines of this window."
+fi
+# the Direct Commands browser page (if you built it) is a separate build: bring it up to date too
+if [ -f "build/web-p3fesmod/ps2web.html" ] && ! grep -q "ps2-gamebeat" "build/web-p3fesmod/ps2web.html" 2>/dev/null; then
+  echo "Updating the Direct Commands browser page too (a few minutes)"
+  scripts/build_web.sh p3fesmod || echo "Note: the Direct Commands page could not be updated; the normal game is fine."
 fi
 [ -f "build/web-$NAME/ps2web.html" ] || echo "Note: no browser build found in build/web-$NAME. If the lines above show an error, send me the last 30 lines."
 

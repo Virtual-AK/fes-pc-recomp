@@ -19,13 +19,16 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.22"
+LAUNCHER_VERSION = "0.28"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
 last_ping = [0.0]
 bye_time = [0.0]
 game_keep = [0.0]   # the browser game uses this server for card sync and autosave: stay alive while it is in use
+
+
+game_seen = [0.0]   # when the browser game last talked to this server
 
 
 def keep_game_alive():
@@ -716,8 +719,8 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "keys": read_keys(),
-           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "midnight_date": load_cfg().get("midnight_play", ""),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
+           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
         out["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(web)))
@@ -1366,6 +1369,23 @@ def widescreen_env(env):
     return False
 
 
+def web_params(cfg=None):
+    """Settings that the browser game reads from its page address: widescreen, volumes (only when below 100) and the speedrun clock."""
+    cfg = cfg if cfg is not None else load_cfg()
+    q = ""
+    if cfg.get("widescreen"):
+        q += "&PS2_ASPECT=%s&PS2_PATCH=%s" % (urllib.parse.quote("16:9", safe=""), urllib.parse.quote(WS_PATCH, safe=""))
+    for key, var in (("vol_master", "PS2_VOL_MASTER"), ("vol_fx", "PS2_VOL_FX"), ("vol_music", "PS2_VOL_MUSIC"), ("vol_voice", "PS2_VOL_VOICE")):
+        v = vol_get(cfg, key)
+        if v != 100:
+            q += "&%s=%d" % (var, v)
+    if cfg.get("speedrun"):
+        q += "&speedrun=1"
+        if cfg.get("speedrun_zero_web"):
+            q += "&srzero=1"
+    return q
+
+
 def display_env():
     """Environment for the PC window. WSL2 with WSLg has a display already; WSL1 needs an X server
     on Windows (VcXsrv, see docs/windows-build.md). Returns (env, problem or None)."""
@@ -1631,6 +1651,9 @@ def speedrun_reset():
         os.remove(speedrun_file())
     except OSError:
         pass
+    c = load_cfg()
+    c["speedrun_zero_web"] = True   # the browser game's clock is zeroed the next time it opens
+    save_cfg(c)
 
 
 def dialog_log_path():
@@ -1924,12 +1947,315 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
             time.sleep(0.2)
     pref = load_cfg().get("browser", "msedge")
     scale = load_cfg().get("scale", "3")
-    url = "http://localhost:%d/?PS2_SCALE=%s&cardsync=%d" % (GAME_PORT, scale, SERVER_PORT[0])
+    url = "http://localhost:%d/?PS2_SCALE=%s&cardsync=%d" % (GAME_PORT, scale, SERVER_PORT[0]) + web_params()
     if resume:
         url += "&resume=%d" % resume
+    if load_cfg().get("speedrun_zero_web"):
+        c = load_cfg()
+        c.pop("speedrun_zero_web", None)
+        save_cfg(c)
     how = win_open(url, prefer=pref)
     keep_game_alive()
     return {"ok": True, "msg": "Opened in " + (how or "your browser") if how else "Open http://localhost:%d/ in Chrome or Edge." % GAME_PORT}
+
+
+# ------------------------------------------------------------------ screenshots
+SHOT_KEYS = ["F8", "F9", "F10", "F12", "PrintScreen", "Insert"]
+SHOT_RE = re.compile(r"^P3FES_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(_\d+)?\.png$")
+
+# Runs in Windows PowerShell. It waits for one global key and saves the window that is in front as a PNG.
+# It reads its settings from .helper.cfg every 2 seconds and quits when the launcher stops writing .alive.
+SHOT_PS1 = r'''
+$ErrorActionPreference = 'Stop'
+$dir = '@DIR@'
+try {
+Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @"
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Windows.Forms;
+
+public class P3ShotHost : Form
+{
+    [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
+    [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr h, ref POINT p);
+    [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+    [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
+    [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
+
+    string dir; string cfgPath; string alivePath; string logPath;
+    string curKey = ""; bool curOn = false; bool sound = true;
+    string lastAlive = ""; DateTime lastChange = DateTime.UtcNow;
+    System.Windows.Forms.Timer tick;
+
+    public static void Run(string d)
+    {
+        bool created;
+        Mutex m = new Mutex(true, "P3FES_ShotHelper", out created);
+        if (!created) return;
+        SetProcessDPIAware();
+        Application.EnableVisualStyles();
+        Application.Run(new P3ShotHost(d));
+        GC.KeepAlive(m);
+    }
+
+    P3ShotHost(string d)
+    {
+        dir = d;
+        cfgPath = Path.Combine(d, ".helper.cfg");
+        alivePath = Path.Combine(d, ".alive");
+        logPath = Path.Combine(d, ".helper.log");
+        ShowInTaskbar = false;
+        FormBorderStyle = FormBorderStyle.None;
+        Opacity = 0;
+        var h = Handle;
+        tick = new System.Windows.Forms.Timer();
+        tick.Interval = 2000;
+        tick.Tick += delegate { Poll(); };
+        tick.Start();
+        Poll();
+    }
+
+    protected override void SetVisibleCore(bool v) { base.SetVisibleCore(false); }
+
+    void Log(string s)
+    {
+        try { File.AppendAllText(logPath, DateTime.Now.ToString("s") + " " + s + "\r\n"); } catch (Exception) { }
+    }
+
+    void Poll()
+    {
+        try
+        {
+            string a = File.Exists(alivePath) ? File.ReadAllText(alivePath) : "";
+            if (a != lastAlive) { lastAlive = a; lastChange = DateTime.UtcNow; }
+            if ((DateTime.UtcNow - lastChange).TotalSeconds > 40) { Quit(); return; }
+            bool on = false; string key = "F9"; bool snd = true;
+            if (File.Exists(cfgPath))
+            {
+                foreach (string line in File.ReadAllLines(cfgPath))
+                {
+                    int i = line.IndexOf('=');
+                    if (i < 1) continue;
+                    string k = line.Substring(0, i).Trim(); string v = line.Substring(i + 1).Trim();
+                    if (k == "on") on = (v == "1");
+                    else if (k == "key") key = v;
+                    else if (k == "sound") snd = (v == "1");
+                }
+            }
+            sound = snd;
+            if (on != curOn || key != curKey)
+            {
+                UnregisterHotKey(Handle, 1);
+                curOn = on; curKey = key;
+                if (on)
+                {
+                    Keys kk = (Keys)Enum.Parse(typeof(Keys), key);
+                    if (!RegisterHotKey(Handle, 1, 0, (uint)kk)) Log("Could not register " + key + " (another program may be using it).");
+                    else Log("Ready on " + key);
+                }
+            }
+            File.WriteAllText(Path.Combine(dir, ".helper.alive"), DateTime.UtcNow.ToString("o"));
+        }
+        catch (Exception e) { Log("poll: " + e.Message); }
+    }
+
+    void Quit()
+    {
+        try { UnregisterHotKey(Handle, 1); } catch (Exception) { }
+        tick.Stop();
+        Application.Exit();
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x0312 && m.WParam.ToInt32() == 1)
+        {
+            try { TakeShot(); } catch (Exception e) { Log("shot: " + e.Message); }
+        }
+        base.WndProc(ref m);
+    }
+
+    void TakeShot()
+    {
+        int x, y, w, h;
+        IntPtr fg = GetForegroundWindow();
+        RECT r; POINT p = new POINT();
+        bool okWin = fg != IntPtr.Zero && GetClientRect(fg, out r) && ClientToScreen(fg, ref p);
+        if (okWin)
+        {
+            GetClientRect(fg, out r);
+            x = p.X; y = p.Y; w = r.R - r.L; h = r.B - r.T;
+        }
+        else { x = 0; y = 0; w = 0; h = 0; }
+        if (w < 200 || h < 150)
+        {
+            Rectangle b = Screen.PrimaryScreen.Bounds;
+            x = b.X; y = b.Y; w = b.Width; h = b.Height;
+        }
+        string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+        string name = "P3FES_" + stamp + ".png";
+        int n = 1;
+        while (File.Exists(Path.Combine(dir, name))) { n++; name = "P3FES_" + stamp + "_" + n + ".png"; }
+        using (Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb))
+        {
+            using (Graphics g = Graphics.FromImage(bmp)) { g.CopyFromScreen(x, y, 0, 0, new Size(w, h)); }
+            bmp.Save(Path.Combine(dir, name), ImageFormat.Png);
+            string td = Path.Combine(dir, "thumbs");
+            Directory.CreateDirectory(td);
+            int tw = 320; int th = Math.Max(1, (int)((long)h * tw / w));
+            using (Bitmap t = new Bitmap(tw, th, PixelFormat.Format24bppRgb))
+            {
+                using (Graphics g2 = Graphics.FromImage(t))
+                {
+                    g2.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g2.DrawImage(bmp, 0, 0, tw, th);
+                }
+                t.Save(Path.Combine(td, name.Replace(".png", ".jpg")), ImageFormat.Jpeg);
+            }
+        }
+        if (sound) { try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { } }
+    }
+}
+"@
+[P3ShotHost]::Run($dir)
+} catch {
+    try { Add-Content -Path (Join-Path $dir '.helper.log') -Value ((Get-Date -Format s) + ' ' + $_.Exception.Message) } catch {}
+}
+'''
+
+
+def shots_dir():
+    """Where screenshots are kept: C:\\p3fes\\screenshots next to the saves, else a folder in Ubuntu."""
+    s = saves_dir()
+    d = os.path.join(os.path.dirname(s), "screenshots") if s.startswith("/mnt/c/p3fes") else os.path.expanduser("~/p3fes-screenshots")
+    try:
+        os.makedirs(os.path.join(d, "thumbs"), exist_ok=True)
+    except Exception:
+        d = os.path.expanduser("~/p3fes-screenshots")
+        os.makedirs(os.path.join(d, "thumbs"), exist_ok=True)
+    return d
+
+
+def shots_settings(cfg=None):
+    cfg = cfg if cfg is not None else load_cfg()
+    key = cfg.get("screenshot_key", "F9")
+    return {"on": cfg.get("screenshots_on", True) is not False, "key": key if key in SHOT_KEYS else "F9",
+            "sound": cfg.get("screenshot_sound", True) is not False}
+
+
+def shots_write_cfg():
+    d = shots_dir()
+    s = shots_settings()
+    with open(os.path.join(d, ".helper.cfg"), "w") as f:
+        f.write("on=%d\nkey=%s\nsound=%d\n" % (1 if s["on"] else 0, s["key"], 1 if s["sound"] else 0))
+
+
+def shots_beat():
+    try:
+        with open(os.path.join(shots_dir(), ".alive"), "w") as f:
+            f.write(repr(time.time()))
+    except Exception:
+        pass
+
+
+def shots_helper_start():
+    """Start the capture helper in Windows (it quits by itself if the launcher goes away; a second copy exits at once)."""
+    if not os.path.isdir("/mnt/c"):
+        return False
+    try:
+        d = shots_dir()
+        wd = to_win(d)
+        if not wd:
+            return False
+        shots_write_cfg()
+        shots_beat()
+        ps = os.path.join(d, ".helper.ps1")
+        with open(ps, "w", newline="") as f:
+            f.write(SHOT_PS1.replace("@DIR@", wd.replace("'", "''")).replace("\r\n", "\n").replace("\n", "\r\n"))
+        wp = to_win(ps)
+        subprocess.Popen(["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", wp],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=WINCWD)
+        return True
+    except Exception:
+        return False
+
+
+def shots_alive_thread():
+    while True:
+        shots_beat()
+        time.sleep(5)
+
+
+def shots_list():
+    d = shots_dir()
+    out = []
+    try:
+        for n in os.listdir(d):
+            if SHOT_RE.match(n):
+                st = os.stat(os.path.join(d, n))
+                out.append({"name": n, "size": st.st_size, "t": int(st.st_mtime)})
+    except Exception:
+        pass
+    out.sort(key=lambda e: (e["t"], e["name"]), reverse=True)
+    return out
+
+
+def shots_info():
+    d = shots_dir()
+    alive = False
+    try:
+        alive = time.time() - os.stat(os.path.join(d, ".helper.alive")).st_mtime < 15
+    except Exception:
+        pass
+    log = ""
+    try:
+        with open(os.path.join(d, ".helper.log")) as f:
+            ls = [x for x in f.read().splitlines() if re.match(r"^\d{4}-\d\d-\d\dT", x)]
+            log = re.sub(r"^\S+ ", "", ls[-1])[:200] if ls else ""
+    except Exception:
+        pass
+    s = shots_settings()
+    return {"ok": True, "on": s["on"], "key": s["key"], "sound": s["sound"], "keys": SHOT_KEYS, "dir": to_win(d) or d,
+            "helper": alive, "log": log, "items": shots_list()}
+
+
+def shots_file(name, thumb=False):
+    """Bytes and type of one screenshot (or its small picture), or None. Only names the helper makes are allowed."""
+    if not SHOT_RE.match(name or ""):
+        return None
+    d = shots_dir()
+    if thumb:
+        p = os.path.join(d, "thumbs", name[:-4] + ".jpg")
+        if os.path.isfile(p):
+            with open(p, "rb") as f:
+                return f.read(), "image/jpeg"
+    p = os.path.join(d, name)
+    if not os.path.isfile(p):
+        return None
+    with open(p, "rb") as f:
+        return f.read(), "image/png"
+
+
+def shots_delete(name):
+    if not SHOT_RE.match(name or ""):
+        return False
+    d = shots_dir()
+    ok = False
+    for p in (os.path.join(d, name), os.path.join(d, "thumbs", name[:-4] + ".jpg")):
+        try:
+            os.remove(p)
+            ok = True
+        except Exception:
+            pass
+    return ok
 
 
 # ------------------------------------------------------------------ http
@@ -1937,13 +2263,13 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def send(self, code, body, ctype="application/json"):
+    def send(self, code, body, ctype="application/json", cache=None):
         if not isinstance(body, bytes):
             body = json.dumps(body).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache or "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2063,6 +2389,16 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/card" or self.path.startswith("/autosave"):
             keep_game_alive()
+        if self.path.startswith("/gamebeat"):
+            ok, origin = self.cors_ok()
+            if not ok:
+                return self.card_reply(403)
+            if "s=0" in self.path:
+                game_seen[0] = 0.0   # the game page was closed: the launcher's music may come back at once
+            else:
+                game_seen[0] = time.time()
+                keep_game_alive()
+            return self.card_reply(200, b"ok", origin)
         if self.path.startswith("/autosave"):
             ok, origin = self.cors_ok()
             if not ok:
@@ -2105,6 +2441,15 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, voice_wav(afs, n), "audio/wav")
             except Exception as e:
                 return self.send(404, {"error": str(e)})
+        if self.path == "/api/shots":
+            return self.send(200, shots_info())
+        if self.path.startswith("/api/shot/"):
+            u = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(u.query)
+            r = shots_file((q.get("n") or [""])[0], thumb=u.path == "/api/shot/thumb")
+            if not r:
+                return self.send(404, {"error": "not found"})
+            return self.send(200, r[0], r[1], cache="max-age=86400")
         if self.path == "/api/bye":
             bye_time[0] = time.time()
             return self.send(200, {"ok": True})
@@ -2197,10 +2542,31 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/volume":
             c = load_cfg()
             which = data.get("which")
-            if which in ("master", "fx", "music", "voice"):
+            if which in ("master", "fx", "music", "voice", "launcher"):
                 c["vol_" + which] = vol_get({"v": data.get("v", 100)}, "v")
             save_cfg(c)
             return self.send(200, {"ok": True, "v": c.get("vol_" + str(which))})
+        if self.path == "/api/shots/settings":
+            c = load_cfg()
+            if "on" in data:
+                c["screenshots_on"] = bool(data["on"])
+            if data.get("key") in SHOT_KEYS:
+                c["screenshot_key"] = data["key"]
+            if "sound" in data:
+                c["screenshot_sound"] = bool(data["sound"])
+            save_cfg(c)
+            shots_write_cfg()
+            if c.get("screenshots_on", True) is not False:
+                shots_helper_start()
+            return self.send(200, shots_info())
+        if self.path == "/api/shots/delete":
+            return self.send(200, {"ok": shots_delete(data.get("name"))})
+        if self.path == "/api/shots/open":
+            try:
+                subprocess.Popen(["explorer.exe", to_win(shots_dir())], cwd=WINCWD if os.path.isdir("/mnt/c") else None)
+                return self.send(200, {"ok": True})
+            except Exception as e:
+                return self.send(200, {"ok": False, "msg": "Could not open the folder: %s" % e})
         if self.path == "/api/speedrun":
             c = load_cfg()
             c["speedrun"] = bool(data.get("on"))
@@ -2636,6 +3002,15 @@ def playing_now():
         return False
 
 
+def music_hold():
+    """Launcher music pauses while the PC window runs, or while the browser game page is open (it checks in every 5 seconds and says goodbye when it closes).
+    (The browser game's server stays up after its tab is closed, so the open port alone must not silence the music.)"""
+    try:
+        return any(c.poll() is None and "ps2run" in str(c.args[0]) for c in children) or (port_open(GAME_PORT) and time.time() - game_seen[0] < 30)
+    except Exception:
+        return False
+
+
 def win_clock():
     """The Windows clock as ('YYYY-MM-DD', hour), or None. The Linux side may be on another time zone, so ask Windows."""
     try:
@@ -2696,6 +3071,9 @@ def main():
     print("Launcher running at", url, "(closing its window stops it)")
     threading.Thread(target=watchdog, daemon=True).start()
     threading.Thread(target=midnight_watch, daemon=True).start()
+    threading.Thread(target=shots_alive_thread, daemon=True).start()
+    if shots_settings()["on"]:
+        threading.Thread(target=shots_helper_start, daemon=True).start()
     if not a.no_window:
         how = win_open(url, app=True)
         if not how:
