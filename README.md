@@ -5,9 +5,9 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 **Status: playable, with testing still going.** The game runs from your own disc in the browser and in a native Windows window, and a launcher handles setup, saves, mods and the dialogue Log. The tools in this repo also read, unpack, convert and (for text) edit and repack the game's data, and the file formats are documented. Nothing from the game is included here.
 
 <!-- progress:start -->
-**Overall progress: about 82%** (rough estimate by the maintainers; the game starts and plays in the browser and in a native Windows window, and most of what is left is testing and polish)
+**Overall progress: about 83%** (rough estimate by the maintainers; the game starts and plays in the browser and in a native Windows window, and most of what is left is testing and polish)
 
-`████████████████░░░░` 82%
+`█████████████████░░░` 83%
 
 | Phase | Progress | |
 | --- | --- | --- |
@@ -15,10 +15,10 @@ A community effort to run a PlayStation 2 role-playing game (Persona 3 FES, NTSC
 | 1. Pick the approach, prototype | `████████████████████` | 100% |
 | 2. Runtime layer (files, audio, video, input, saves) | `██████████████████░░` | 92% |
 | 3. Graphics (GS and vector units to a modern API) | `██████████████████░░` | 88% |
-| 4. Playable desktop build, QA | `███████░░░░░░░░░░░░░` | 35% |
-| 5. Browser build and mod tooling | `██████████████████░░` | 90% |
+| 4. Playable desktop build, QA | `████████░░░░░░░░░░░░` | 40% |
+| 5. Browser build and mod tooling | `███████████████████░` | 95% |
 
-Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. The native Windows PC window now exists (it runs at 60 fps on the graphics card, with a resolution setting, a widescreen option, fast-forward on Tab, autosave and resume), which moved phases 3 and 4 forward; phase 4 (testing the whole game, and a clean-PC test of the one-step Windows setup) is still the biggest gap. Phase 5 has the browser build with card backups, autosave, key and controller settings, a one-command installer ([docs/install.md](docs/install.md)), and the launcher: loose-file mods (folders, zip, 7z and rar, merged Aemulus-style with a priority order), browsing and previewing GameBanana mods before installing, battle and menu portrait mods, ten colour themes (one, Twelve, unlocked by saying you finished The Journey; automatic detection from the memory card is on hold until before and after card copies exist), and a dialogue Log that lists every line shown with its speaker and a clickable speaker icon that replays the voice clip ([docs/log-plan.md](docs/log-plan.md)). Not done: a Log key inside the game window, widescreen for the menus and HUD (only the 3D view is widened), and frame rates other than 60. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
+Phase 0 is about 85%: disc, archives, textures, audio, sound effects, text, models, animations and field geometry are done; scripts, effect data, field tables and the remaining model chunks are partly understood. Phases 1 to 3 work end to end: the game is recompiled and runs from the player's own disc with graphics, sound, movies, input and saves, and the opening, town and first dungeon floors have been played through. The native Windows PC window now exists (it runs at 60 fps on the graphics card, with a resolution setting, a widescreen option, fast-forward on Tab, autosave and resume), which moved phases 3 and 4 forward; phase 4 (testing the whole game, and a clean-PC test of the one-step Windows setup) is still the biggest gap. Phase 5 has the browser build with card backups, autosave, key and controller settings, a speedrun clock, widescreen, volume settings, turbo on Tab, a one-command installer ([docs/install.md](docs/install.md)), and the launcher: loose-file mods (folders, zip, 7z and rar, merged Aemulus-style with a priority order), browsing and previewing GameBanana mods before installing, battle and menu portrait mods, ten colour themes (one, Twelve, unlocked by saying you finished The Journey; automatic detection from the memory card is on hold until before and after card copies exist), in-launcher wiki guides, one-key screenshots, launcher music, updating the launcher from GitHub, and a dialogue Log that lists every line shown with its speaker and a clickable speaker icon that replays the voice clip ([docs/log-plan.md](docs/log-plan.md)). Not done: subtitle languages, a Log key inside the game window, widescreen for the menus and HUD (only the 3D view is widened), and frame rates other than 60. The percentages are a guide, not a promise. See [docs/roadmap.md](docs/roadmap.md).
 <!-- progress:end -->
 
 | Area | State |
@@ -101,6 +101,10 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_overlay_patch.py` | File mods for the PC window: `--overlay mods.ovl` lays the launcher's mod overlay over the disc as the game reads it (no copy of the disc). The launcher passes it when `C:\p3fes\mods\active.ovl` exists. See `docs/mod-folder-plan.md`. The installer applies it. |
 | `ps2run_widescreen_patch.py` | Widescreen (experimental) for the PC window: `PS2_ASPECT=16:9` shows the picture at 16:9, `PS2_PATCH` rewrites game data values (the x field of view). The launcher sets both from Settings → Widescreen. See `docs/widescreen.md`. The installer applies it. |
 | `ps2run_turbo_patch.py` | Turbo for the PC window: Tab turns the frame limiter off and on (sound muted while on). See `docs/fast-forward.md`. The installer applies it. |
+| `ps2web_turbo_patch.py` | Turbo for the browser build: Tab in the game page turns fast forward on and off (needs `ps2run_turbo_patch.py`). |
+| `ps2web_speedrun_patch.py` | Browser build: speedrun clock over the page (`?speedrun=1`, F6 pause, F7 zero), kept in the browser. |
+| `ps2run_widescreen_web_patch.py` | Lets the widescreen field-of-view data patch run in the browser build too (the launcher passes `PS2_ASPECT` and `PS2_PATCH` in the page address). |
+| `ps2web_gamebeat_patch.py` | Browser game page tells the launcher when it opens and closes, so the launcher's music pauses and resumes at the right time. |
 | `ps2run_probe_patch.py`, `p3fes_ramfind.py` | Research tools: F7 dumps the game's memory, `PS2_WATCH` logs changes; `p3fes_ramfind.py` compares dumps from different situations (dialogue, choice menu, walking). See `docs/fast-forward.md`. |
 | `p3fes_ramgrep.py` | Finds a known phrase in a memory dump whatever the text encoding is (research for the dialogue Log). See `docs/log-plan.md`. |
 | `ps2run_disclog_patch.py` | Research: with `PS2_LOG_DISC=1` the runner logs every disc read with its frame (to find the voice clips). See `docs/log-plan.md`. The installer applies it. |

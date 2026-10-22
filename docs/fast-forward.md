@@ -1,4 +1,6 @@
-# Fast forward (PC window)
+# Fast forward (PC window and browser)
+
+**Browser (0.26):** Tab in the game page does the same (`ps2web_turbo_patch.py`, needs `ps2run_turbo_patch.py` first; the installer applies both). A TURBO badge shows at the top right.
 
 **Step 1, done:** Tab in the game window turns turbo on, Tab again turns it off (`ps2run_turbo_patch.py`; the installer applies it,
 for an existing Windows build apply it like the other runner patches and rebuild). While on, the frame limiter is off, sound is

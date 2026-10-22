@@ -1,6 +1,31 @@
 # Update log
 Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
 
+## 0.28 · 21 Oct 2026 · Settings wording
+- **IMPROVED** Settings no longer say PC window only for the speedrun clock, volumes and widescreen, which now work in the browser game too. The Autosave and Controls screens point to the buttons on the browser game page.
+
+## 0.27 · 21 Oct 2026 · Instant music
+- **IMPROVED** Launcher music comes back within a few seconds of closing the browser game (the game page now tells the launcher when it opens and closes). Run the installer once more to rebuild the browser pages.
+
+## 0.26 · 21 Oct 2026 · Browser turbo
+- **NEW** Turbo (fast forward) in the browser game: press Tab to turn it on, Tab again to turn it off. The frame limiter is off, only every 4th frame is drawn, sound is muted and a TURBO badge shows. Run the installer once more to rebuild the browser pages.
+
+## 0.25 · 21 Oct 2026 · Browser catches up
+- **NEW** The browser game now has the speedrun clock (Settings > Speedrun): top left of the page, F6 pauses, F7 resets, kept between sessions.
+- **NEW** Widescreen (Settings > Widescreen) and the Master, Music, Voices and Effects volumes now apply to the browser game too. Run the installer once more to rebuild the browser page.
+- **NOTE** Still PC window only: fast-forward on Tab.
+
+## 0.24 · 21 Oct 2026 · Screenshots
+- **NEW** Press one key (F9 by default) while the game is in front and it saves a screenshot of the game window. No Snipping Tool needed.
+- **NEW** Extra > SCREENSHOTS shows them as a gallery with a large view, next and previous, delete, and a button that opens the folder (C:\p3fes\screenshots).
+- **NEW** Choose the key (F8, F9, F10, F12, Print Screen or Insert), turn the click sound off, or turn the feature off.
+- **FIXED** Launcher music no longer stays silent after you close the browser game.
+
+## 0.23 · 21 Oct 2026 · Launcher music
+- **NEW** Launcher music: an original, laid-back loop (electric piano, bass, drums and a short lead line) that plays while the launcher is open. Nothing is taken from the game.
+- **NEW** Settings > Audio has a LAUNCHER slider with a number box and MUTE like the others. Press M anywhere to mute or unmute it.
+- **IMPROVED** The music stops by itself while a game is running.
+
 ## 0.22 · 21 Oct 2026 · Update source set
 - **IMPROVED** Help > Version now checks the project's own GitHub repository by default (Virtual-AK/fes-pc-recomp). You can still change the source there.
 

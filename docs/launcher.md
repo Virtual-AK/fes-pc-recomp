@@ -98,7 +98,7 @@ resized, maximized, full screen); it hides when the game window is minimized. OB
 The time is saved once a second in `C:\p3fes\saves\speedrun_clock.txt` and read back at start, so a run continues through Resume.
 In the game window F6 pauses and continues, F7 sets it back to zero (Settings > Speedrun > Reset also does it, for the next start).
 The clock starts counting when the window opens (the game does not tell us where a New Game begins); press F7 at the moment your run starts.
-Browser game: no clock yet. The change is in `tools/ps2run_speedrun_patch.py`.
+Browser game (0.25): the same clock, drawn over the page (`tools/ps2web_speedrun_patch.py`, page address `?speedrun=1`). It starts when the page opens, is kept in the browser's local storage, and uses the same F6 / F7 keys. Settings > Speedrun > Reset zeroes it the next time the browser game opens.
 
 ## Audio (0.5)
 Settings > Audio sets the master volume of the PC window (0 to 100 percent: type any value and press Enter or SET, or use minus and plus in steps of 5; default 100). It applies when the game
@@ -155,3 +155,18 @@ Help > Version has an UPDATES box. The default source is `Virtual-AK/fes-pc-reco
 - RESTART THE LAUNCHER restarts the server in place and reloads the window. If that does not work, close the launcher and open it again.
 - It updates the launcher only. The game build, the PC window, patches and tools are not touched.
 - Updating means running whatever is on that branch, so only point it at a repository you control. Code: `update_*` in `p3fes_launcher.py`; test: `tests/test_update.py` (the download itself has not been tried against GitHub from here).
+
+## Launcher music (0.23)
+`tools/launcher/ui/music.js` makes an original 16-bar loop live in the browser's audio engine: electric piano (FM), bass, a soft pad, a short lead line, swung drums and finger snaps, at 86 BPM in B minor. It uses no audio files, no samples and nothing from the game or its soundtrack (the game's music is the player's own disc data and is never copied here).
+- Starts after the first click or key press (browsers do not allow sound before that). Settings > Audio > LAUNCHER sets the level (default 70) with slider, number box and MUTE; the **M** key mutes and unmutes from any screen. It pauses while a game is running or the launcher window is hidden.
+- To change the music, edit the chords (`PROG`, `C`), the lead line (`LEAD`), the tempo (`BPM`) or the drum patterns in `music.js`. `LM.build(ctx)` also works with an `OfflineAudioContext`, which is how the loop was rendered and checked (levels, balance, timing); it has not been listened to by its author, so tune it by ear. Test: `tests/test_music.py`.
+
+## Screenshots (0.24)
+Press one key (F9 by default) with the game in front and the launcher saves the game window as `P3FES_YYYY-MM-DD_HH-MM-SS.png` in `C:\p3fes\screenshots` (a small picture for the gallery goes in `thumbs`). Extra > SCREENSHOTS shows the gallery, a large view with newer/older, delete (asks twice) and OPEN FOLDER. The key (F8, F9, F10, F12, Print Screen, Insert), the click sound and the whole feature can be changed there.
+
+How it works: the launcher writes a small PowerShell helper (`.helper.ps1`) into the screenshots folder and starts it hidden. The helper registers the key with Windows, reads `.helper.cfg` for changes and quits by itself when the launcher stops writing `.alive`. Only the launcher's own file names are served or deleted (`P3FES_...png`).
+
+Limits: it works while the launcher is running (it keeps running while the PC window is open). It copies what is on screen, so a game in exclusive fullscreen may give a black picture; use the windowed mode. Screenshots stay on the player's PC and are never part of the repo.
+
+## Browser build catches up (0.25)
+The launcher adds the PC window's settings to the browser game's address: widescreen (`PS2_ASPECT`, `PS2_PATCH`), the four volumes (only when below 100) and the speedrun clock. The browser build shares the graphics and sound code with the PC window, so these work there once the browser page is rebuilt (run `p3fes_install.sh` again; it notices the new patches `ps2run_widescreen_web_patch.py` and `ps2web_speedrun_patch.py`). Fast-forward on Tab came to the browser in 0.26. Still PC window only: the research switches.
