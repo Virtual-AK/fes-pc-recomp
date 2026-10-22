@@ -103,6 +103,10 @@ ps2run_turbo_patch.py
 ps2run_probe_patch.py
 ps2run_disclog_patch.py
 ps2run_dialoglog_patch.py
+ps2run_commtrace_patch.py
+ps2run_discslow_patch.py
+ps2run_storewatch_patch.py
+ps2run_wakelog_patch.py
 ps2run_mouselook_patch.py
 ps2run_speedrun_patch.py
 ps2run_audio_patch.py
@@ -120,6 +124,8 @@ ps2web_serveovl_patch.py
 ps2web_speedrun_patch.py
 ps2web_turbo_patch.py
 ps2web_gamebeat_patch.py
+ps2recomp_modswitch_patch.py
+ps2port_modswitch_patch.py
 "
 # Patches are not all safe to run twice once later patches have changed their text, so remember which ones were applied.
 # A project folder patched by an older installer (no list yet) is put back to the original source first.

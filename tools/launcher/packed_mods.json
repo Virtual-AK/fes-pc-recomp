@@ -1,0 +1,22 @@
+[
+ {"id": "directcmd", "bit": 0, "kind": "code", "name": "Direct Commands", "by": "TGE",
+  "desc": "Control party members in battle (also fixes the skill list in Fusion).", "extra_entries": ["69ac94"]},
+ {"id": "modernswitch", "bit": 1, "kind": "code", "name": "Modern Persona Switch", "by": "",
+  "desc": "On your turn you can switch Personas as often as you like. After a 1 More you keep that Persona until the enemy has had its turn."},
+ {"id": "alwayscutin", "bit": 2, "kind": "code", "name": "Always Cut-In", "by": "", "exclude": ["crit"],
+  "desc": "Every critical hit and every weakness strike gets its cut-in, instead of leaving it to chance."},
+ {"id": "alwayscrit", "bit": 5, "kind": "code", "cheat": true, "source": "alwayscutin", "match": ["crit"], "name": "Always Critical", "by": "",
+  "desc": "Every attack is a critical hit. This is a cheat, so it is off until you turn it on. It comes from the same GameBanana download as Always Cut-In."},
+ {"id": "partyxp", "bit": 3, "kind": "code", "name": "Share Party Experience", "by": "",
+  "desc": "The whole party gets experience after a battle, not only the members in the fight."},
+ {"id": "nevertired", "bit": 4, "kind": "code", "name": "Never Tired", "by": "Sir Toasterpastry",
+  "desc": "Characters never get tired."},
+ {"id": "faststart", "kind": "files", "name": "Fast Start", "by": "",
+  "desc": "Skips the questions at the start about transferring data and what FES added."},
+ {"id": "skillinherit", "bit": 6, "kind": "code", "with_files": true, "pick": ["fes"], "avoid": ["portable"], "name": "Manual Skill Inheritance", "by": "teolicht, RVRZERO",
+  "desc": "Choose which skills carry over in Fusion, instead of leaving it to chance."},
+ {"id": "classroom", "kind": "cheat", "name": "Classroom Cheat Sheet", "by": "",
+  "desc": "Shows the answers to class questions and exams."},
+ {"id": "sociallink", "kind": "cheat", "name": "Social Link Cheat Sheet", "by": "",
+  "desc": "Shows the best answers in Social Link conversations."}
+]

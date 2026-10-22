@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.28"
+LAUNCHER_VERSION = "0.31"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -203,7 +203,7 @@ def theme_now(cfg):
 
 
 def mods_state():
-    return {"direct": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "direct_on": direct_on(), "direct_win": bool(win_mod_exe()), "has_winexe": bool(win_exe()), "check": load_cfg().get("mod_check"), "overlay": bool(overlay_path()), "files": lm_state()}
+    return {"direct": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "direct_on": direct_on(), "direct_win": bool(win_mod_exe()), "has_winexe": bool(win_exe()), "check": load_cfg().get("mod_check"), "overlay": bool(overlay_path()), "files": lm_state(), "packed": packed_state()}
 
 
 # ------------------------------------------------------------------ loose-file mods
@@ -212,6 +212,7 @@ def mods_state():
 lm_work = {"busy": False, "msg": ""}
 lm_cache = {}
 LM_ID = re.compile(r"^[a-z0-9_-]{1,60}$")
+PACKED_ID = re.compile(r"^[a-z0-9]{1,30}$")
 
 
 def lm_dir():
@@ -434,6 +435,368 @@ def lm_start(target, *args):
     threading.Thread(target=target, args=args, daemon=True).start()
     return {"ok": True, "msg": "Working…"}
 
+
+
+# ------------------------------------------------------------------ packed-in mods
+# Community mods that ship with a switch in the launcher. Code mods (.pnach files) are baked into ONE extra build of the game, each with its own
+# on/off switch (tools/p3fes_packed_build.py, docs/packed-mods.md); file mods (Fast Start, cheat sheets ...) are ordinary FILE MODS that can be
+# toggled instantly. The mod files are downloaded from the authors' GameBanana pages onto this computer and are never part of our repository.
+packed_build = {"proc": None, "log": os.path.expanduser("~/.p3fes-packed-build.log")}
+
+
+def packed_registry():
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "packed_mods.json")) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def packed_dir():
+    d = os.path.join(os.path.dirname(saves_dir()), "packed")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def packed_cfg():
+    c = load_cfg().get("packed")
+    return c if isinstance(c, dict) else {}
+
+
+def packed_src(mid):
+    """The mod whose download folder holds this mod's files (Always Critical comes from the Always Cut-In download)."""
+    reg = next((r for r in packed_registry() if r["id"] == mid), None)
+    return (reg or {}).get("source") or mid
+
+
+def packed_name_ok(reg, filename):
+    """Registry "match" / "exclude": a mod can own only some of the .pnach files in a download, chosen by a word in the file name."""
+    low = filename.lower()
+    if reg.get("match") and not any(t in low for t in reg["match"]):
+        return False
+    return not any(t in low for t in (reg.get("exclude") or []))
+
+
+def packed_pnach(mid):
+    reg = next((r for r in packed_registry() if r["id"] == mid), {})
+    out = []
+    for dp, dn, fn in os.walk(os.path.join(packed_dir(), packed_src(mid))):
+        out += [os.path.join(dp, x) for x in sorted(fn) if x.lower().endswith(".pnach") and packed_name_ok(reg, x)]
+    return out
+
+
+def packed_built():
+    """-> ({id: bit} of the code mods inside the mod build, legacy). A build made before switches existed holds Direct Commands, always on."""
+    g = os.path.join(DIR, "games", MOD_NAME)
+    try:
+        with open(os.path.join(g, "variants.txt")) as f:
+            built = {}
+            for ln in f:
+                t = ln.split()
+                if len(t) == 3 and t[0] == "M" and t[2].isdigit():
+                    built[t[1]] = int(t[2])
+            return built, False
+    except OSError:
+        pass
+    old = os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")) or bool(win_mod_exe())
+    return ({"directcmd": 0} if old else {}), True
+
+
+def packed_on(mid):
+    on = packed_cfg().get("on") or {}
+    if mid in on:
+        return bool(on[mid])
+    if mid == "directcmd":   # on by default, as before there was a list
+        return load_cfg().get("direct_on", True) is not False
+    return False
+
+
+def packed_set_on(mid, flag):
+    c = load_cfg()
+    p = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+    p.setdefault("on", {})[mid] = bool(flag)
+    c["packed"] = p
+    save_cfg(c)
+
+
+def packed_mask():
+    """PS2_MODS for the mod build: the switch bit of every code mod that is both built in and turned on (0 when the build is an old one)."""
+    built, legacy = packed_built()
+    if legacy:
+        return 0
+    m = 0
+    for r in packed_registry():
+        if r.get("kind") == "code" and r["id"] in built and packed_on(r["id"]):
+            m |= 1 << built[r["id"]]
+    return m
+
+
+def packed_wanted():
+    """Should Play use the mod build?"""
+    built, legacy = packed_built()
+    return packed_on("directcmd") if legacy else packed_mask() != 0
+
+
+def packed_lm(mid):
+    lmid = (packed_cfg().get("lm") or {}).get(mid)
+    return next((m for m in lm_load() if m["id"] == lmid), None) if lmid else None
+
+
+def packed_build_status():
+    pr = packed_build["proc"]
+    state = "idle"
+    if pr is not None:
+        state = "running" if pr.poll() is None else ("done" if pr.returncode == 0 else "failed")
+    last = ""
+    try:
+        with open(packed_build["log"], errors="replace") as f:
+            lines = [x.strip() for x in f.read()[-4000:].splitlines() if x.strip()]
+        last = lines[-1][:140] if lines else ""
+    except OSError:
+        pass
+    return {"state": state, "last": last}
+
+
+def packed_state():
+    built, legacy = packed_built()
+    cfg = packed_cfg()
+    rows, need = [], []
+    for r in packed_registry():
+        row = {"id": r["id"], "name": r["name"], "kind": r.get("kind", "code"), "by": r.get("by", ""), "desc": r.get("desc", ""),
+               "cheat": bool(r.get("cheat")),
+               "url": ("https://gamebanana.com/mods/%d" % cfg["gb"][packed_src(r["id"])]) if isinstance(cfg.get("gb"), dict) and cfg["gb"].get(packed_src(r["id"])) else ""}
+        if row["kind"] == "code":
+            have = len(packed_pnach(r["id"]))
+            row.update({"have": have > 0 or (legacy and r["id"] == "directcmd" and r["id"] in built), "built": r["id"] in built, "on": packed_on(r["id"])})
+            if r.get("with_files"):
+                lmm = packed_lm(r["id"])
+                row["files_fit"] = ("%s of %s" % (lmm.get("fit"), lmm.get("total"))) if lmm else ""
+            if row["on"] and have and r["id"] not in built:
+                need.append(r["name"])
+        else:
+            m = packed_lm(r["id"])
+            row.update({"have": bool(m), "built": bool(m), "on": bool(m and m.get("enabled")), "fit": (m or {}).get("fit"), "total": (m or {}).get("total")})
+        rows.append(row)
+    return {"list": rows, "legacy": legacy, "busy": lm_work["busy"], "msg": lm_work["msg"], "build": packed_build_status(), "need_build": need,
+            "win_stale": win_mod_stale(), "mask": packed_mask(), "mod_page": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "has_winexe": bool(win_exe()),
+            "win_mod": bool(win_mod_exe())}
+
+
+def packed_link(mid, text):
+    mid = packed_src(mid)
+    mt = re.search(r"gamebanana\.com/mods/(\d+)", text or "")
+    c = load_cfg()
+    p = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+    g = p.setdefault("gb", {})
+    if not text:
+        g.pop(mid, None)
+    elif mt:
+        g[mid] = int(mt.group(1))
+    else:
+        return {"ok": False, "msg": "That is not a GameBanana mod link. It looks like https://gamebanana.com/mods/123456."}
+    c["packed"] = p
+    save_cfg(c)
+    return {"ok": True, "msg": "Link saved." if text else "Link removed."}
+
+
+def gb_download_file(f, dest, limit):
+    """Download one file listed on a GameBanana page (only from gamebanana.com). Returns an error text, or None."""
+    url = str(f.get("_sDownloadUrl", ""))
+    if not gb_host_ok(url):
+        return "GameBanana gave an address that is not on gamebanana.com, so it was not used."
+    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0"})
+    got = 0
+    with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as out:
+        if not gb_host_ok(r.geturl()):
+            return "The download moved to an address that is not on gamebanana.com, so it was stopped."
+        while True:
+            b = r.read(1 << 20)
+            if not b:
+                break
+            got += len(b)
+            if got > limit:
+                return "A download is larger than allowed, so it was stopped."
+            out.write(b)
+    return None
+
+
+def packed_add_files(mid, reg, archive):
+    """Add an archive as the file mod of packed mod mid (off at first). Returns True when a file mod was made."""
+    old = packed_lm(mid)
+    if old:   # replace an earlier copy
+        try:
+            lm_change_work(old["id"], True)
+        except Exception:
+            pass
+    before = {m["id"] for m in lm_load()}
+    lm_add_work(archive)
+    now = [m for m in lm_load() if m["id"] not in before]
+    if not now:
+        return False
+    c = load_cfg()
+    p = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+    p.setdefault("lm", {})[mid] = now[0]["id"]
+    c["packed"] = p
+    save_cfg(c)
+    lst = lm_load()
+    for m in lst:
+        if m["id"] == now[0]["id"]:
+            m["name"] = reg["name"]
+            m["enabled"] = False   # packed-in mods start off
+    lm_save(lst)
+    try:
+        lm_rebuild(find_iso(), lm_locate(find_iso()))
+    except Exception:
+        pass
+    return True
+
+
+def packed_pick_archive(reg, ar):
+    """The archive to use from a GameBanana page: the first whose name has every word of reg["pick"] and none of reg["avoid"], else the first."""
+    pick = [w.lower() for w in (reg.get("pick") or [])]
+    avoid = [w.lower() for w in (reg.get("avoid") or [])]
+    for f in ar:
+        low = str(f.get("_sFile", "")).lower()
+        if all(w in low for w in pick) and not any(w in low for w in avoid):
+            return f
+    return ar[0]
+
+
+def packed_get_work(mid, gbid):
+    tmp = os.path.join(packed_dir(), "_dl")
+    try:
+        reg = next((r for r in packed_registry() if r["id"] == mid), None)
+        if not reg:
+            lm_work["msg"] = "Unknown mod."
+            return
+        lm_work["msg"] = "Asking GameBanana for the files…"
+        info = gb_get("%s/Mod/%d/ProfilePage" % (GB_API, gbid))
+        files = [f for f in (info.get("_aFiles") or []) if f.get("_sDownloadUrl")]
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp)
+        if reg.get("kind") == "code":
+            pn = [f for f in files if str(f.get("_sFile", "")).lower().endswith(".pnach")]
+            ar = [f for f in files if str(f.get("_sFile", "")).lower().endswith(GB_EXTS)]
+            pick = (pn or ([packed_pick_archive(reg, ar)] if ar else []))[:6]
+            data_zip = None
+            if not pick:
+                lm_work["msg"] = "That page has no .pnach, .zip, .7z or .rar file I can use."
+                return
+            found = []
+            for k, f in enumerate(pick):
+                name = re.sub(r"[^A-Za-z0-9 ._-]+", "", str(f.get("_sFile", "file"))) or "file"
+                dest = os.path.join(tmp, "%d_%s" % (k, name))
+                lm_work["msg"] = "Downloading %s…" % name[:50]
+                err = gb_download_file(f, dest, 200 * 1024 ** 2)
+                if err:
+                    lm_work["msg"] = err
+                    return
+                if name.lower().endswith(".pnach"):
+                    found.append(dest)
+                else:
+                    lm_work["msg"] = "Unpacking…"
+                    x = os.path.join(tmp, "x%d" % k)
+                    lm_extract_archive(dest, x)
+                    if reg.get("with_files"):
+                        data_zip = dest
+                    for dp, dn, fn in os.walk(x):
+                        found += [os.path.join(dp, y) for y in sorted(fn) if y.lower().endswith(".pnach")]
+            if not found:
+                lm_work["msg"] = "There was no .pnach file in it, so nothing was added."
+                return
+            out = os.path.join(packed_dir(), mid)
+            shutil.rmtree(out, ignore_errors=True)
+            os.makedirs(out)
+            used = set()
+            for k, src in enumerate(found[:12]):
+                base = re.sub(r"^\d+_", "", os.path.basename(src))
+                nm = base if base not in used else "%d_%s" % (k, base)
+                used.add(nm)
+                shutil.copyfile(src, os.path.join(out, nm))
+            lm_work["msg"] = "Downloaded %d patch file%s for %s. Press BUILD to put it into the game." % (len(found[:12]), "" if len(found) == 1 else "s", reg["name"])
+            if data_zip:   # the same download also carries game files: lay them over the disc as a file mod
+                packed_add_files(mid, reg, data_zip)
+                lm_work["msg"] += " Its game files were added too."
+            return
+        ar = [f for f in files if str(f.get("_sFile", "")).lower().endswith(GB_EXTS)]
+        if not ar:
+            lm_work["msg"] = "That page has no .zip, .7z or .rar file I can use."
+            return
+        f = packed_pick_archive(reg, ar)
+        name = re.sub(r"[^A-Za-z0-9 ._-]+", "", str(f.get("_sFile", "mod"))) or "mod.zip"
+        dest = os.path.join(tmp, name)
+        lm_work["msg"] = "Downloading %s…" % name[:50]
+        err = gb_download_file(f, dest, 2 * 1024 ** 3)
+        if err:
+            lm_work["msg"] = err
+            return
+        if packed_add_files(mid, reg, dest):
+            lm_work["msg"] = "%s downloaded. Turn it on with its ON button." % reg["name"]
+    except Exception as e:
+        lm_work["msg"] = "Could not download that mod: %s" % str(e)[:100]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        lm_work["busy"] = False
+
+
+def packed_toggle(mid, flag):
+    reg = next((r for r in packed_registry() if r["id"] == mid), None)
+    if not reg:
+        return {"ok": False, "msg": "Unknown mod."}
+    if reg.get("kind") == "code":
+        packed_set_on(mid, flag)
+        built, legacy = packed_built()
+        m = packed_lm(mid) if reg.get("with_files") else None
+        if m and bool(m.get("enabled")) != bool(flag):   # its game files follow the switch
+            lm_start(lm_change_work, m["id"], False)
+        if flag and mid not in built:
+            return {"ok": True, "msg": "On, but it is not in the build yet. Press BUILD (after downloading it) first."}
+        return {"ok": True, "msg": "%s is %s. It applies the next time you press Play." % (reg["name"], "on" if flag else "off")}
+    m = packed_lm(mid)
+    if not m:
+        return {"ok": False, "msg": "Download it first."}
+    if bool(m.get("enabled")) == bool(flag):
+        return {"ok": True, "msg": ""}
+    return lm_start(lm_change_work, m["id"], False)
+
+
+def packed_remove(mid):
+    reg = next((r for r in packed_registry() if r["id"] == mid), None)
+    if not reg:
+        return {"ok": False, "msg": "Unknown mod."}
+    if reg.get("kind") == "code":
+        if reg.get("source") or reg.get("match") or reg.get("exclude"):   # a mod that shares its download: remove only its own files
+            for f in packed_pnach(mid):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+        else:
+            shutil.rmtree(os.path.join(packed_dir(), mid), ignore_errors=True)
+        m = packed_lm(mid) if reg.get("with_files") else None
+        if m:
+            lm_start(lm_change_work, m["id"], True)
+        return {"ok": True, "msg": "Removed. The game keeps it until the next BUILD."}
+    m = packed_lm(mid)
+    if not m:
+        return {"ok": False, "msg": "Nothing to remove."}
+    return lm_start(lm_change_work, m["id"], True)
+
+
+def packed_build_start():
+    if packed_build["proc"] is not None and packed_build["proc"].poll() is None:
+        return {"ok": False, "msg": "A build is already running."}
+    script = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "p3fes_packed_build.py"))
+    if not os.path.isfile(script):
+        return {"ok": False, "msg": "p3fes_packed_build.py is missing from the tools folder."}
+    if get_state()["state"] != "ready":
+        return {"ok": False, "msg": "Finish setup first."}
+    try:
+        log = open(packed_build["log"], "w")
+        packed_build["proc"] = subprocess.Popen([sys.executable, script, "--packed", packed_dir()], cwd=DIR, stdout=log, stderr=subprocess.STDOUT)
+    except OSError as e:
+        return {"ok": False, "msg": "Could not start the build: %s" % e}
+    return {"ok": True, "msg": "Building. This takes a while (about as long as the first game build). You can keep using the launcher."}
 
 
 # ------------------------------------------------------------------ GameBanana browsing
@@ -1451,15 +1814,24 @@ def win_mod_exe():
 
 
 def direct_on():
-    """Direct Commands is a toggle, on unless switched off (Mods > Direct Commands)."""
-    return load_cfg().get("direct_on", True) is not False
+    """Direct Commands is a toggle, on unless switched off (Mods > Packed-In Mods)."""
+    return packed_on("directcmd")
+
+
+def win_mod_stale():
+    """The PC window's mod build was made before the newest BUILD of the packed-in mods, so it would not have the mods that were added since."""
+    exe = win_mod_exe()
+    try:
+        return bool(exe) and os.path.getmtime(exe) < os.path.getmtime(os.path.join(DIR, "games", MOD_NAME, "variants.txt"))
+    except OSError:
+        return False
 
 
 def direct_available(mode):
-    """Is the Direct Commands build there for this way of playing?"""
+    """Is the packed-in mods build there for this way of playing?"""
     if mode == "exe":
         if win_exe():
-            return bool(win_mod_exe())
+            return bool(win_mod_exe()) and not win_mod_stale()
         return os.path.exists(os.path.join(DIR, "build", "native-" + MOD_NAME, "ps2run"))
     return os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html"))
 
@@ -1822,6 +2194,9 @@ def play_windows(exe, resume=None, mod=False):
     env["PS2_SCALE"] = scale if scale in ("1", "2", "3") else "3"
     widescreen_env(env)
     names = ["PS2_KEYS/p", "PS2_SCALE", "PS2_ASPECT", "PS2_PATCH"]
+    if mod and packed_mask():
+        env["PS2_MODS"] = str(packed_mask())
+        names.append("PS2_MODS")
     wlog = to_win(dialog_log_path())
     if wlog:   # the Log screen reads this file; a PS2_DIALOG_LOG line in ~/.p3fes-window-env still wins
         env["PS2_DIALOG_LOG"] = wlog
@@ -1840,7 +2215,14 @@ def play_windows(exe, resume=None, mod=False):
                 if "=" in ln and not ln.lstrip().startswith("#"):
                     k, v = ln.strip().split("=", 1)
                     k = k.strip()
-                    if re.match(r"^PS2_[A-Z0-9_]+$", k) and k not in ("PS2_KEYS", "PS2_SCALE", "PS2_ASPECT", "PS2_PATCH"):
+                    if k == "PS2_PATCH" and env.get("PS2_ASPECT"):   # research: PS2_PATCH=none keeps the 16:9 picture but drops the field-of-view patch; any other value replaces it
+                        if v.strip().lower() == "none":
+                            env.pop("PS2_PATCH", None)
+                            if "PS2_PATCH" in names:
+                                names.remove("PS2_PATCH")
+                        elif v.strip():
+                            env["PS2_PATCH"] = v.strip()
+                    elif re.match(r"^PS2_[A-Z0-9_]+$", k) and k not in ("PS2_KEYS", "PS2_SCALE", "PS2_ASPECT", "PS2_PATCH"):
                         env[k] = v.strip()
                         if k not in names:
                             names.append(k)
@@ -1880,15 +2262,20 @@ def play_windows(exe, resume=None, mod=False):
 
 
 def play(mode, resume=None, mod=False, pcresume=None):
-    """Start the game. Direct Commands (a separate build of the game) is used when its toggle is on and it is built for this way of
+    """Start the game. The packed-in mods build (a separate build of the game) is used when a mod in it is turned on and it is built for this way of
     playing; a browser autosave resume always uses the normal build (a state only fits the build that made it)."""
     note = ""
-    if not mod and direct_on() and not resume:
+    if not mod and packed_wanted() and not resume:
         if direct_available(mode):
             mod = True
-            note = " Direct Commands is on."
+            note = " Packed-in mods are on."
         elif direct_available("browser" if mode == "exe" else "exe"):
-            note = " Direct Commands is on, but it is not built for the %s yet (see Mods > Direct Commands)." % ("PC window" if mode == "exe" else "browser")
+            note = " Packed-in mods are on, but they are not built for the %s yet (see Mods > Packed-In Mods)." % ("PC window" if mode == "exe" else "browser")
+    built, legacy = packed_built()
+    if not resume and not legacy:
+        need = packed_state()["need_build"]
+        if need:
+            note += " Not in the build yet: %s (press BUILD in Mods > Packed-In Mods)." % ", ".join(need)
     r = play_inner(mode, resume, mod, pcresume)
     if r.get("ok") and note:
         r["msg"] = (r.get("msg") or "") + note
@@ -1922,6 +2309,8 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
         env, problem = display_env()
         if problem:
             return {"ok": False, "msg": problem}
+        if mod and packed_mask():
+            env["PS2_MODS"] = str(packed_mask())
         children.append(subprocess.Popen(cmd, cwd=DIR, env=env))
         return {"ok": True, "msg": "Started the PC window. Its memory card is in " + saves_dir() + ". If none appears, check VcXsrv is running."}
     ovl = None if mod else overlay_path()
@@ -1948,6 +2337,8 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
     pref = load_cfg().get("browser", "msedge")
     scale = load_cfg().get("scale", "3")
     url = "http://localhost:%d/?PS2_SCALE=%s&cardsync=%d" % (GAME_PORT, scale, SERVER_PORT[0]) + web_params()
+    if mod and packed_mask():
+        url += "&PS2_MODS=%d" % packed_mask()
     if resume:
         url += "&resume=%d" % resume
     if load_cfg().get("speedrun_zero_web"):
@@ -2497,10 +2888,33 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/dialoglog/clear":
             return self.send(200, {"ok": dialog_log_clear()})
         if self.path == "/api/direct":
-            c = load_cfg()
-            c["direct_on"] = bool(data.get("on"))
-            save_cfg(c)
+            packed_set_on("directcmd", bool(data.get("on")))
             return self.send(200, {"ok": True})
+        if self.path == "/api/packed/on":
+            return self.send(200, packed_toggle(str(data.get("id", "")), bool(data.get("on"))))
+        if self.path == "/api/packed/link":
+            return self.send(200, packed_link(str(data.get("id", "")), str(data.get("url", "")).strip()[:200]))
+        if self.path == "/api/packed/get":
+            mid = packed_src(str(data.get("id", "")))
+            gb = (packed_cfg().get("gb") or {}).get(mid)
+            if not PACKED_ID.match(mid) or not any(r["id"] == mid for r in packed_registry()):
+                return self.send(200, {"ok": False, "msg": "Unknown mod."})
+            if not gb:
+                return self.send(200, {"ok": False, "msg": "Paste the GameBanana link of this mod first (LINK)."})
+            return self.send(200, lm_start(packed_get_work, mid, int(gb)))
+        if self.path == "/api/packed/remove":
+            return self.send(200, packed_remove(str(data.get("id", ""))))
+        if self.path == "/api/packed/build":
+            return self.send(200, packed_build_start())
+        if self.path == "/api/packed/folder":
+            mid = packed_src(str(data.get("id", "")))
+            d = os.path.join(packed_dir(), mid if PACKED_ID.match(mid) else "")
+            os.makedirs(d, exist_ok=True)
+            try:
+                subprocess.Popen(["explorer.exe", to_win(d)], cwd=WINCWD if os.path.isdir("/mnt/c") else None)
+                return self.send(200, {"ok": True, "msg": "Opened the folder. Put the mod's .pnach files in it, then press BUILD."})
+            except Exception as e:
+                return self.send(200, {"ok": False, "msg": "Could not open the folder: %s" % e})
         if self.path == "/api/steam/state":
             return self.send(200, steam_state())
         if self.path == "/api/steam/key":
