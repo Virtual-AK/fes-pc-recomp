@@ -1,5 +1,7 @@
 # Using PCSX2-style code patches (.pnach) in the recompiled game
 
+> Since launcher 0.29 several mods can share one build, each with a live on/off switch: see [packed-mods.md](packed-mods.md). The steps below are the manual, single-patch way.
+
 A `.pnach` file rewrites game code while the game runs on PCSX2. Our game is recompiled ahead of time, so the same
 rewrite at run time has no effect. Instead the patch is written into a copy of the boot program (`SLUS_216.21`) and
 the game is recompiled from that copy. The original disc and program are never changed, and the patch files stay on

@@ -20,3 +20,6 @@ N lines with a speaker icon (no X) when a voice played and a speaker with an X w
 `C:\p3fes\winbuild\build`) and `PS2_WATCH=addr,addr` (logs when those words change). `tools/p3fes_ramfind.py` then lists words
 that are the same in every dump of one situation but differ between situations. Each dump is 32 MB: delete them when done, and
 do not share them (they hold game data).
+
+## Status of PC-window Turbo (0.29)
+Tab-Turbo in the PC window is switched off by default: with it on, the game froze for good around the classroom scene (Junpei, "aura around her") even with every mod off, at unlimited speed, at 2x and with frame skipping removed. The code is still there; set the environment variable `PS2_TURBO=1` to switch Tab back on while we look for the cause. Browser Turbo is unchanged.

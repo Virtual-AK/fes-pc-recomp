@@ -84,6 +84,8 @@ the list. It needs the PC window built with `ps2run_dialoglog_patch.py` (the ins
 - **TV icon:** a small static TV with "To be continued" on the home screen. It does nothing; it is a teaser for what comes after this project.
 
 ## Direct Commands switch (0.3)
+*Since 0.29 Direct Commands is one of the packed-in mods: see [packed-mods.md](packed-mods.md). Mods > PACKED-IN MODS replaces Mods > Direct Commands.*
+
 Mods > Direct Commands is now a switch, on by default. While it is on, Play (and Resume in the PC window) starts the Direct Commands build of the
 game whenever it is built for the way you are playing, otherwise the normal game, with a note saying so. The browser version comes from the
 mod build in Ubuntu. The PC window version is a second build of the Windows program: run `tools\p3fes_win_mod.bat` once from the

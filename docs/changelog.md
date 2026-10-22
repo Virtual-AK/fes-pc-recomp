@@ -1,6 +1,19 @@
 # Update log
 Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
 
+## 0.31 · 22 Oct 2026 · Manual Skill Inheritance fixed
+- **FIXED** Manual Skill Inheritance took the wrong download (the Portable 4:3 one) and ignored the code patch in the FES one. Now it picks the FES zip, adds its patch to the build (switch 6) and lays its game files over the disc, all under one ON/OFF. Remove the old one, press DOWNLOAD again, press BUILD, then run `tools\p3fes_win_mod.bat`.
+
+## 0.30 · 22 Oct 2026 · Always Critical is a cheat
+- **IMPROVED** Always Cut-In now only does the cut-ins. The Always Critical part (every attack is a critical hit) is its own switch under Mods > CHEATS, off by default. Both still come from the same GameBanana download. Press BUILD once, then run `tools\p3fes_win_mod.bat` once for the PC window.
+
+## 0.29 · 21 Oct 2026 · Packed-in mods
+- **NEW** Mods > PACKED-IN MODS: Direct Commands, Modern Persona Switch, Always Cut-In, Share Party Experience, Never Tired, Fast Start and Manual Skill Inheritance, each with an ON/OFF button, its author credited and linked, and a DOWNLOAD button that fetches it from GameBanana onto your computer. Nothing from the mods is in our project.
+- **NEW** Code mods share ONE extra build of the game with a live switch each: press BUILD once after adding one, then turn mods on and off without rebuilding. The translator keeps the original and the patched version of every changed instruction and picks one while the game runs.
+- **NEW** Mods > CHEATS: the Classroom and Social Link cheat sheets, off by default.
+- **NEW** `p3fes_pnach_apply.py` understands `extended` patch lines and several mods at once; `p3fes_packed_build.py` builds them. Run the installer once more (Setup > GET THE TOOLS), then press BUILD.
+- **IMPROVED** Direct Commands is now one of the switches (it keeps working from the old build until the first BUILD). The PC window build must be redone with `tools\p3fes_win_mod.bat` after a BUILD; the launcher tells you.
+
 ## 0.28 · 21 Oct 2026 · Settings wording
 - **IMPROVED** Settings no longer say PC window only for the speedrun clock, volumes and widescreen, which now work in the browser game too. The Autosave and Controls screens point to the buttons on the browser game page.
 
@@ -128,3 +141,6 @@ Newest first. The launcher shows the same list under Extra > Update log (the sou
 - **NEW** Mods: file mods (folders, zip, 7z and rar, merged with a priority order), portrait mods, GameBanana browsing and install, direct commands.
 - **NEW** Ten colour themes, and the Twelve theme for finishing The Journey.
 - **NEW** Help with getting started, controls, troubleshooting and a copyable report.
+
+### Turbo fix
+- PC window Turbo no longer skips drawing frames (that could freeze the picture for good). It now runs at double speed on a timer (unlimited speed froze voiced scenes) and still mutes sound. Re-run the installer (Setup > GET THE TOOLS) and rebuild the PC window.
