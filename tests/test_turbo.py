@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory() as d:
     r = run(d)
     assert "patched" in r.stdout and "NOT" not in r.stdout, r.stdout + r.stderr
     t = open(p).read()
-    assert t.index("bool g_turbo") < t.index("void poll()") and "SDL_SCANCODE_TAB" in t and "[TURBO] " in t and t.count("if (g_turbo)") >= 3 and "turbo_n" in t and "set_turbo" in open(os.path.join(d, "runtime/src/system.cpp")).read()
+    assert t.index("bool g_turbo") < t.index("void poll()") and "SDL_SCANCODE_TAB" in t and "[TURBO] " in t and t.count("if (g_turbo)") >= 3 and "turbo_n" not in t and "set_turbo" in open(os.path.join(d, "runtime/src/system.cpp")).read()
     assert "already patched" in run(d).stdout
     open(p, "w").write("int main() {}\n")
     r = run(d)
