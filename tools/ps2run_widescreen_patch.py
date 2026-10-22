@@ -103,7 +103,14 @@ for rel, _ in EDITS:
     except OSError:
         fail("cannot read " + rel)
 
-if all(new in texts[rel].replace('\r\n', '\n') for rel, edits in EDITS for _, new in edits):
+WEB_MARK = 'ps2run_widescreen_web_patch.py'   # that patch removes the browser guard from the call, so SYS_CALL_NEW is gone on purpose
+
+
+def has(t, old, new):
+    return new in t or (new == SYS_CALL_NEW and WEB_MARK in t)
+
+
+if all(has(texts[rel].replace('\r\n', '\n'), None, new) for rel, edits in EDITS for _, new in edits):
     print("already patched")
     raise SystemExit
 
@@ -115,7 +122,7 @@ for rel, edits in EDITS:
     if crlf:
         t = t.replace('\r\n', '\n')
     for old, new in edits:
-        if new in t:
+        if has(t, old, new):
             continue
         if t.count(old) != 1:
             fail(rel + " does not look like the expected source")
