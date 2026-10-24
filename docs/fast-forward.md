@@ -1,10 +1,6 @@
 # Fast forward (PC window and browser)
 
-**Browser (0.26):** Tab in the game page does the same (`ps2web_turbo_patch.py`, needs `ps2run_turbo_patch.py` first; the installer applies both). A TURBO badge shows at the top right.
-
-**Step 1, done:** Tab in the game window turns turbo on, Tab again turns it off (`ps2run_turbo_patch.py`; the installer applies it,
-for an existing Windows build apply it like the other runner patches and rebuild). While on, the frame limiter is off, sound is
-muted and the title bar shows [TURBO]. It speeds up everything, not only dialogue.
+**Removed in 0.37.** Turbo (Tab fast forward) was taken out of the project: `ps2run_turbo_patch.py` and `ps2web_turbo_patch.py` are gone and the installer no longer applies them. In the PC window it was already off by default because it froze the game for good around the classroom scene (Junpei, "aura around her"), even with every mod off, at unlimited speed, at 2x and with frame skipping removed. A build made before 0.37 still has the Tab key in the browser game until its source is put back (delete `~/ps2-web-recomp/.p3fes_applied`, run `git checkout -- .` there, then run Setup > GET THE TOOLS again and rebuild); the PC window ignores Tab unless `PS2_TURBO` is set. The plan below for stopping at choices and speeding up only dialogue is kept for later but nothing is started.
 
 **Step 2, not started: stop at choices, and speed up only dialogue.** Needs the game's own state: a flag for "a message is
 being shown" and one for "a choice menu is open". Those addresses are not known yet. Plan: add a runner switch that logs
@@ -20,6 +16,3 @@ N lines with a speaker icon (no X) when a voice played and a speaker with an X w
 `C:\p3fes\winbuild\build`) and `PS2_WATCH=addr,addr` (logs when those words change). `tools/p3fes_ramfind.py` then lists words
 that are the same in every dump of one situation but differ between situations. Each dump is 32 MB: delete them when done, and
 do not share them (they hold game data).
-
-## Status of PC-window Turbo (0.29)
-Tab-Turbo in the PC window is switched off by default: with it on, the game froze for good around the classroom scene (Junpei, "aura around her") even with every mod off, at unlimited speed, at 2x and with frame skipping removed. The code is still there; set the environment variable `PS2_TURBO=1` to switch Tab back on while we look for the cause. Browser Turbo is unchanged.

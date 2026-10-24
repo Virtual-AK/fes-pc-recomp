@@ -1,6 +1,17 @@
 # Update log
 Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
 
+## 0.37 · 23 Oct 2026 · Skip the launcher, Turbo removed
+- **NEW** Settings > Launcher > SKIP THE LAUNCHER: when the launcher opens it counts down 4 seconds and starts the game as the PLAY button would, with the mode last chosen. Any key or click during the countdown opens the launcher instead; opening it with `?menu` in the address also shows the menu. It only starts when the setup is finished and no game is running. Setting `skip_launcher` in the launcher settings file.
+- **REMOVED** Turbo (Tab fast forward): `ps2run_turbo_patch.py`, `ps2web_turbo_patch.py` and their tests are deleted and the installer no longer applies them (checked: the other 52 patches still apply to the pinned upstream source). It froze the PC window in some scenes and was off there by default. A build made earlier keeps the Tab key in the browser game until its source is put back; see `docs/fast-forward.md`.
+
+## 0.36 · 23 Oct 2026 · Bug report, controller panel, themes, music
+- **NEW** Help > Bug Report: an email to the maintainer (`kingbackup1876@gmail.com`, a secondary inbox that is not checked daily) with the launcher report filled in. EMAIL APP uses the default mail program, GMAIL IN BROWSER opens a Gmail compose page, COPY ADDRESS copies the address. The report holds versions and the Home checks, never the disc or saves.
+- **NEW** Settings > Controller for the PC window: click a row, press the new controller button. Saved as `pad.NAME = BUTTON` lines in `~/.p3fes-keys.txt` next to the keyboard lines. Needs the new `ps2run_padremap_patch.py` (applied after `ps2run_keyremap_patch.py`; `p3fes_install.sh` does it), then `p3fes_win_mod.bat`. L2/R2 can be bound to a trigger or a button. The face-button labels for Nintendo pads assume SDL's A/B and X/Y naming; not tested on a real Nintendo pad.
+- **NEW** Extra > Screenshots > CLEAR ALL (two clicks) deletes every screenshot and thumbnail in the folder.
+- **NEW** Themes BLOOD MOON, LAGOON (teal and coral), SEVEN SISTERS (Persona 1, cobalt and silver), INNOCENCE (Persona 2 IS, orange), PUNISHMENT (Persona 2 EP, rose pink, crimson, black), PHANTOM (Persona 5), GRAVEYARD (Persona 6, green): colours and CSS only. The Theme and Audio panels now scroll.
+- **NEW** Launcher tracks "Rooftop Sun" (104 BPM, D major) and "Velvet Hour" (70 BPM, A minor), original and made in code like "Late Train". Settings > Audio > Launcher track: AUTO or one track (kept in the browser).
+
 ## 0.35 · 23 Oct 2026 · Social Link screens in widescreen
 - **FIXED** The widescreen Social Link part (`ws5`) no longer breaks the Tartarus entrance screen. It is now three parts (`ws5_slink` X-positions, `ws5a_hook`, `ws5e_cards2`); the hook in `ws5a_hook` narrowed every quad of the generic quad routine at 001140d0, which the Tartarus screen also uses. Its routine now reads the caller's return address (saved at 0x90(sp)) and narrows only for callers in the Social Link code (00130000-0013C000). Tested: Social Link screen and Tartarus entrance both correct. All three parts are on by default again. Needs the new `ws5a_hook.pnach`, `packed_mods.json`, then BUILD and `p3fes_win_mod.bat`.
 - **NOTE** `ws3a_clock` and `ws3c_zoom` stay off for good: nothing visibly needs them.

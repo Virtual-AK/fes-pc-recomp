@@ -172,3 +172,15 @@ Limits: it works while the launcher is running (it keeps running while the PC wi
 
 ## Browser build catches up (0.25)
 The launcher adds the PC window's settings to the browser game's address: widescreen (`PS2_ASPECT`, `PS2_PATCH`), the four volumes (only when below 100) and the speedrun clock. The browser build shares the graphics and sound code with the PC window, so these work there once the browser page is rebuilt (run `p3fes_install.sh` again; it notices the new patches `ps2run_widescreen_web_patch.py` and `ps2web_speedrun_patch.py`). Fast-forward on Tab came to the browser in 0.26. Still PC window only: the research switches.
+
+## Bug report, controller panel, more themes, more music (0.36)
+- **Bug Report** (Help): `/api/bugreport` returns a `mailto:` link and a Gmail compose link (subject with the launcher version, three questions, then the launcher report). The address is `BUG_EMAIL` in `p3fes_launcher.py`.
+- **Controller panel** (Settings > Controller): reads and writes the `pad.` lines of `~/.p3fes-keys.txt` through `/api/padkeys`, and keeps the keyboard lines. Capture uses the browser's Gamepad API; labels switch between PlayStation, Xbox and Nintendo names from the pad's id.
+- **Clear screenshots**: `/api/shots/clear` deletes every `P3FES_*` picture and thumbnail; the button needs two clicks.
+- **Themes**: Blood Moon (black and deep red with a glowing red moon), Lagoon (sea-glass teal with a coral banner), Seven Sisters (Persona 1: cobalt blue and silver), Innocence (Persona 2 Innocent Sin: orange and cream), Punishment (Persona 2 Eternal Punishment: rose pink from the PSP cover art's colours, with a crimson banner and black), Phantom (Persona 5: red, black and white with stripes) and Graveyard (Persona 6: graveyard green with a neon-green glow and banner; green is the colour shown in its announcement trailer). Only colours and CSS, nothing from the games. The Theme and Audio panels scroll when they are taller than the screen.
+- **Music**: `music.js` has three tracks; `LM.setTrack(-1|0|1|2)`; Settings > Audio > Launcher track stores the choice in `localStorage` (`p3f_mtrack`).
+
+The saved theme names stay `persona1`, `persona2is`, `persona2ep`, `persona5`, `persona6` (so a saved choice survives the renaming); `lagoon` is the old teal-and-rose Persona 1 look under its own name.
+
+## Skip the launcher (0.37)
+Settings > Launcher > SKIP THE LAUNCHER sets `skip_launcher` in the launcher settings. On the first state load of a launcher window the UI starts a 4 second countdown overlay and then posts `/api/play` with the saved mode, like the PLAY button (and closes itself afterwards if "close the launcher" is on). A key press or click cancels it; so does `?menu` in the address; it is not started while the setup is unfinished, while a game is running, (the check runs once each time the launcher page loads).

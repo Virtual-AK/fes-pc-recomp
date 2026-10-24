@@ -7,7 +7,7 @@
 - **Checked against the original game** (a PS2 longplay of the same scene): there Kenji is not visible yet at that moment, so this is a real fault, not authentic behaviour.
 - **Not the cause:** Turbo (off in the PC window by default now), frame pacing (60 fps steady). Disc reads are timed (about 0.25 ms per sector plus 0.4 ms, no seek time), a slow-disc test (x20 per sector, +100 ms per read, confirmed active in the log) left the stalls exactly the same, 3 to 4 seconds each, so load timing is ruled out.
 - **Open:** which script step or code path moves or shows the character too early. Next step would be a per-frame position log of the characters in the scene and a comparison with the video.
-- **Also open:** PC-window Turbo (Tab) froze the game around the classroom scene; see fast-forward.md.
+- **Also open:** PC-window Turbo (Tab) froze the game around the classroom scene; Turbo was removed in 0.37 (see fast-forward.md).
 
 ### Investigation tool: script-command trace
 `tools/ps2run_commtrace_patch.py` (run by the installer): with `PS2_COMM_TRACE=FROM,TO` in `~/.p3fes-window-env` the window log lists every script function call (COMM number, register values, frame) between those frames. Used to see which script step shows or moves a character at the gate scene.
@@ -51,3 +51,12 @@ tools/ps2run_wakelog_patch.py: PS2_WAKE_TRACE=30 logs every thread wait of 30+ f
 
 ### What ends the wait (22 October 2026, wake log)
 PS2_WAKE_TRACE=30 with the store watch: the keyframe gap (frames 2669 -> 2893) is not ended by any thread wake-up. The only long waits released around it are thread 9 (sleep, woken by game thread 1 at ra 0x0010C744 at frames 2649 and 3075), i.e. game code waking game code. So the game's main thread simply keeps running and its own timeline decides to move Kenji 224 frames after placing him. Next: find the counter the timeline compares (tools/p3fes_counters.py: three F7 dumps, two during the wait at least 100 frames apart and one after).
+
+## Which widescreen part cures the stalls (found 23 October 2026)
+Bisected in the PC window with `P3F_WS_OFF` and `PS2_POKE` lines in `~/.p3fes-window-env`, no rebuilds, watching the school gate scene (4/21):
+- All parts off: stalls. Only `ws1` off: gone. `ws2, ws3b, ws4, ws6, ws9` off: gone. `ws10, ws11` off: stalls. Only `ws10` off: gone. So the cure is **`ws11_zoom`**.
+- `ws11_zoom` rewrites a stretch at 0x003bb94c (camera setup). It makes the same four calls as the original code, in a different slot order, and divides the float passed in `$f12` to the routine at 0x001a4580 by 1.2578 (the constant `0x3fa1` in the high half). That routine turns `$f12` into a horizontal field-of-view scale (`gp[-32408] * f12 / 176 / 2`, then a function call, then a camera parameter).
+- Same patch with the divide changed to 1.0 (`0x3f80`): stalls. With 1.09 (`0x3f8c`): stalls. With 1.26: gone. So it is the **narrower field of view**, not the code reshuffle, and it needs a fairly large change, not a small nudge.
+- Reading: a script step in that scene waits on something view-dependent (a character on or off screen). The original game does not stall and does not show Kenji yet, so at the original value the recompiled game's view is wider than it should be at that moment. 1.2578 is close to 640/512 = 1.25, which may be a clue (a 512-wide game view against a 640-wide picture), unchecked.
+- Effect today: with widescreen on (default) the stalls are gone. With widescreen off, or in a 4:3 build, they are still there.
+- Next, only if wanted: find out what the routine's inputs are at that moment (`gp[-32408]`, `256(s3)`), and whether they match what the original game would have there.

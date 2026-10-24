@@ -54,6 +54,16 @@ The runner prints `[keys] reading keys.txt` at start and a line for any name or 
 to two rows does both things; the runner prints a warning. The window keys (F6 save state, F11 fullscreen and the others)
 are not remappable.
 
+### Controller buttons (PC runner)
+
+`python3 tools/ps2run_padremap_patch.py host/window.cpp` (after the key remap patch), then rebuild. The same `keys.txt` may hold
+`pad.NAME = BUTTON` lines: NAME is one of `up down left right cross circle square triangle l1 r1 l2 r2 l3 r3 start select`, BUTTON an
+SDL controller button name (`a b x y back start leftstick rightstick leftshoulder rightshoulder dpup dpdown dpleft dpright guide misc1 touchpad`),
+`lefttrigger` / `righttrigger`, or `none`. `a b x y` are the bottom, right, left and top face buttons whatever the pad is called.
+Rows you leave out keep the default (cross = a, circle = b, square = x, triangle = y, L1/R1 = shoulders, L2/R2 = triggers, L3/R3 = stick clicks,
+start = start, select = back). The sticks are not remappable. The launcher's Settings > Controller panel writes these lines (the browser
+only shows a pad after a button press, so press one first).
+
 ## Mouse look in the PC window
 Click the game picture to capture the mouse, then move it sideways: it turns the camera (right stick, and it taps L1 or R1, which is what
 Persona 3 uses in Tartarus). Esc, or switching to another window, gives the mouse back. This is the same as the browser build. The PC

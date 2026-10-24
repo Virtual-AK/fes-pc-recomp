@@ -100,12 +100,17 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_autosave_patch.py` | Autosave for the PC window: `--autosave DIR`, `--autosave-every`, `--autosave-keep`, `--autosave-card`, F5 to save now; works with `--load-state` for resume. The launcher uses it (Saves, Settings and Resume). See `docs/autosave.md`. Run after `ps2run_window_savestate_patch.py`; the installer does. |
 | `ps2run_overlay_patch.py` | File mods for the PC window: `--overlay mods.ovl` lays the launcher's mod overlay over the disc as the game reads it (no copy of the disc). The launcher passes it when `C:\p3fes\mods\active.ovl` exists. See `docs/mod-folder-plan.md`. The installer applies it. |
 | `ps2run_widescreen_patch.py` | Widescreen (experimental) for the PC window: `PS2_ASPECT=16:9` shows the picture at 16:9, `PS2_PATCH` rewrites game data values (the x field of view). The launcher sets both from Settings → Widescreen. See `docs/widescreen.md`. The installer applies it. |
-| `ps2run_turbo_patch.py` | Turbo for the PC window: Tab turns the frame limiter off and on (sound muted while on). See `docs/fast-forward.md`. The installer applies it. |
-| `ps2web_turbo_patch.py` | Turbo for the browser build: Tab in the game page turns fast forward on and off (needs `ps2run_turbo_patch.py`). |
 | `ps2web_speedrun_patch.py` | Browser build: speedrun clock over the page (`?speedrun=1`, F6 pause, F7 zero), kept in the browser. |
 | `ps2run_widescreen_web_patch.py` | Lets the widescreen field-of-view data patch run in the browser build too (the launcher passes `PS2_ASPECT` and `PS2_PATCH` in the page address). |
 | `ps2web_gamebeat_patch.py` | Browser game page tells the launcher when it opens and closes, so the launcher's music pauses and resumes at the right time. |
 | `ps2run_probe_patch.py`, `p3fes_ramfind.py` | Research tools: F7 dumps the game's memory, `PS2_WATCH` logs changes; `p3fes_ramfind.py` compares dumps from different situations (dialogue, choice menu, walking). See `docs/fast-forward.md`. |
+| `ps2run_commtrace_patch.py` | Research tool: `PS2_COMM_TRACE=FROM,TO` logs every call the game's script machine makes through its function table (see `docs/script-functions.md`). |
+| `ps2run_discslow_patch.py` | Research tool: `PS2_DISC_SLOW` / `PS2_DISC_SEEK_MS` make the simulated disc slower, to test whether load timing matters. |
+| `ps2run_storewatch_patch.py` | Research tool: `PS2_STORE_WATCH=0xADDR,...` logs each write of a different value to a watched word, with the call chain. |
+| `ps2run_wakelog_patch.py` | Research tool: `PS2_WAKE_TRACE=N` logs game threads released after waiting N frames or more. |
+| `ps2run_poke_patch.py` | Memory pokes at start-up (`PS2_POKE=ADDR=VALUE,...`) in the PC window; the launcher uses it for file mods that need a bigger file than the disc slot. |
+| `ps2web_cardsync_patch.py`, `ps2web_autosavesync_patch.py` | Browser build: share the memory card and the autosaves with the launcher (and so the PC window). |
+| `ps2web_serveovl_patch.py` | Browser build: the game's server lays a mod overlay (`.ovl`) on top of the disc image while serving it, so a mod needs no copy of the disc. |
 | `p3fes_ramgrep.py` | Finds a known phrase in a memory dump whatever the text encoding is (research for the dialogue Log). See `docs/log-plan.md`. |
 | `ps2run_disclog_patch.py` | Research: with `PS2_LOG_DISC=1` the runner logs every disc read with its frame (to find the voice clips). See `docs/log-plan.md`. The installer applies it. |
 | `ps2run_dialoglog_patch.py` | The dialogue Log: the PC window writes every dialogue page shown (speaker, voice clip, text, recent disc reads) to `dialog_log.tsv`; the launcher's LOG screen shows it and replays voice clips. See `docs/log-plan.md` and `docs/launcher.md`. The installer applies it. |
@@ -139,6 +144,7 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_controls_patch.py` | The same PCSX2-style keys for the PC runner window (WASD left stick, TFGH right stick, IJKL face buttons, Q/E shoulders, 1/2/3/4 for L2/L3/R2/R3). Mouse look and the full-screen start come from `ps2run_mouselook_patch.py`. |
 | `ps2web_keyremap_patch.py` | Key remapping for the browser build: a Keys button opens a panel, click a row and press the new key. Saved in the browser, with Reset to defaults. See `docs/controls.md`. |
 | `ps2run_keyremap_patch.py` | Key remapping for the PC runner window from a `keys.txt` file (`cross = Z` style lines, SDL key names). See `docs/controls.md`. |
+| `ps2run_padremap_patch.py` | Controller button remapping for the PC runner window: `pad.cross = b` style lines in the same `keys.txt` (SDL button names). Written by the launcher's Settings > Controller panel. See `docs/controls.md`. |
 | `ps2web_padremap_patch.py` | Controller panel for the browser build: with a controller connected the Keys button shows that controller's own button names (PlayStation, Xbox or Nintendo) and lets you rebind its buttons, saved per controller type. See `docs/controls.md`. |
 | `ps2run_sifquiet_patch.py` | Prints the harmless `[sif] command 0x........ has no handler` message once per command number instead of every time, for both the PC runner and the browser build. |
 | `ps2web_autosave_patch.py` | Full-state autosave for the browser build: the whole game is saved every 2 minutes and after each in-game save, and the start screen offers Resume to continue exactly where you were. An Autosave button lists, resumes and deletes the saves. See `docs/autosave.md`. |
