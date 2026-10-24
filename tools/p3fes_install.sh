@@ -93,6 +93,7 @@ ps2gpu_edgetie_patch.py
 ps2gs_uploadclamp_patch.py
 ps2run_controls_patch.py
 ps2run_keyremap_patch.py
+ps2run_padremap_patch.py
 ps2run_sifquiet_patch.py
 ps2run_window_capture_patch.py
 ps2run_window_savestate_patch.py
@@ -100,7 +101,6 @@ ps2run_autosave_patch.py
 ps2run_overlay_patch.py
 ps2run_widescreen_patch.py
 ps2run_widescreen_web_patch.py
-ps2run_turbo_patch.py
 ps2run_probe_patch.py
 ps2run_disclog_patch.py
 ps2run_dialoglog_patch.py
@@ -123,7 +123,6 @@ ps2web_cardsync_patch.py
 ps2web_autosavesync_patch.py
 ps2web_serveovl_patch.py
 ps2web_speedrun_patch.py
-ps2web_turbo_patch.py
 ps2web_gamebeat_patch.py
 ps2recomp_modswitch_patch.py
 ps2port_modswitch_patch.py
