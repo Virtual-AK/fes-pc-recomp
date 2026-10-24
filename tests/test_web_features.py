@@ -38,6 +38,14 @@ assert "speedrun=1" in q and "srzero=1" in q
 assert "srzero" not in L.web_params({"speedrun": True})
 print("ok   launcher passes widescreen, volumes and speedrun to the browser game only when set")
 
+_pk = L.lm_pokes_text
+L.lm_pokes_text = lambda: "00123456=0000ABCD,00123460=00000001"
+assert L.web_pokes_param(None) == "" and L.web_pokes_param("x.ovl") == "&PS2_POKE=00123456%3D0000ABCD%2C00123460%3D00000001"
+L.lm_pokes_text = lambda: ""
+assert L.web_pokes_param("x.ovl") == ""
+L.lm_pokes_text = _pk
+print("ok   launcher passes the file-mod table pokes to the browser game only with an overlay")
+
 with tempfile.TemporaryDirectory() as d:
     for sub in ("host", "web", "runtime/include/ps2"):
         os.makedirs(os.path.join(d, sub))
