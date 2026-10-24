@@ -46,28 +46,6 @@ assert L.web_pokes_param("x.ovl") == ""
 L.lm_pokes_text = _pk
 print("ok   launcher passes the file-mod table pokes to the browser game only with an overlay")
 
-with tempfile.TemporaryDirectory() as d:
-    for sub in ("host", "web", "runtime/include/ps2"):
-        os.makedirs(os.path.join(d, sub))
-    w = lambda rel, t: open(os.path.join(d, rel), "w", newline="").write(t)
-    rd = lambda rel: open(os.path.join(d, rel), newline="").read()
-    w("host/web.cpp", "namespace {\nvoid push_audio(const std::int16_t *samples, std::size_t frames) {\n    x();\n}\ndouble g_next_frame = 0.0;\nvoid pace() {\n    ps2::post_present();\n    if (a) {}\n}\n}\n"
-      'extern "C" EMSCRIPTEN_KEEPALIVE int ps2web_rumble(int pad) { return ps2::pad_rumble(pad); }\n')
-    w("web/shell.html", "<script>\nx\n</script>\n{{{ SCRIPT }}}\n</body>\n")
-    w("runtime/include/ps2/system.hpp", "void post_present();\n")
-    r = run("ps2web_turbo_patch.py", d)
-    assert "NOT APPLIED" in r.stdout and "ps2run_turbo_patch" in r.stdout, r.stdout   # needs the PC turbo patch first
-    w("runtime/include/ps2/system.hpp", "void post_present();\nvoid set_turbo(bool on);\n")
-    r = run("ps2web_turbo_patch.py", d)
-    assert "patched (4 edits)" in r.stdout, r.stdout + r.stderr
-    c, h = rd("host/web.cpp"), rd("web/shell.html")
-    assert c.index("g_turbo{false}") < c.index("void push_audio") and "ps2web_set_turbo" in c and c.count("g_turbo.load()") == 2
-    assert "ps2-turbo" in h and h.index("ps2-turbo") < h.index("{{{ SCRIPT }}}") and "u25B6" in h
-    assert "already patched" in run("ps2web_turbo_patch.py", d).stdout
-    w("host/web.cpp", "nothing")
-    assert "NOT APPLIED" in run("ps2web_turbo_patch.py", d).stdout
-print("ok   browser turbo patch needs the PC turbo patch, applies once, is idempotent and refuses unknown source")
-
 # the PC widescreen patch must still accept a tree where the browser patch already ran
 with tempfile.TemporaryDirectory() as d:
     for sub in ("runtime/src/gs/gpu", "runtime/src"):

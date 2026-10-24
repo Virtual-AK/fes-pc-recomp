@@ -23,6 +23,12 @@ assert L.shots_delete(good) and not os.path.exists(os.path.join(d, good)) and no
 assert os.path.exists(os.path.join(d, "secret.png"))
 print("ok  names, listing, delete stay inside the screenshots folder")
 
+# clear: removes every screenshot and its small picture, leaves other files alone, counts what it removed
+assert L.shots_clear() == 1 and not [e for e in L.shots_list()]
+assert not os.listdir(os.path.join(d, "thumbs")) and os.path.exists(os.path.join(d, "secret.png"))
+assert L.shots_clear() == 0
+print("ok  clear all removes only the launcher's screenshots")
+
 assert L.shots_settings({}) == {"on": True, "key": "F9", "sound": True}
 assert L.shots_settings({"screenshot_key": "Delete"})["key"] == "F9"
 assert L.shots_settings({"screenshots_on": False, "screenshot_key": "F10"})["key"] == "F10"
@@ -42,3 +48,10 @@ print("ok  helper script is balanced and has no PowerShell expansion traps")
 ui = open(os.path.join(os.path.dirname(__file__), "..", "tools", "launcher", "ui", "index.html")).read()
 assert "'SCREENSHOTS'" in ui and "msel===3)return shPanel()" in ui and "shgrid" in ui
 print("ok  Extra menu has the SCREENSHOTS panel")
+
+# bug report links: mail goes to the maintainer's address, carries the version and the report, nothing from disc or saves
+mailto, gmail = L.bug_mail_urls()
+assert mailto.startswith("mailto:kingbackup1876@gmail.com?subject=") and "&body=" in mailto and len(mailto) < 1800
+assert gmail.startswith("https://mail.google.com/mail/?view=cm") and "to=kingbackup1876%40gmail.com" in gmail
+assert L.LAUNCHER_VERSION in mailto and "report" in mailto.lower() and " " not in mailto and "\n" not in mailto
+print("ok  bug report links hold the address, the version and the report")
