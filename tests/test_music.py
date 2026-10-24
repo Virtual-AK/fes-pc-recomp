@@ -2,6 +2,7 @@ import os, re, subprocess, shutil
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 js = open(root + '/tools/launcher/ui/music.js').read()
 assert 'window.LM' in js and 'setVolume' in js and 'setPaused' in js and 'build' in js
+assert 'setTrack' in js and js.count('function step')==3 and 'Rooftop Sun' in js and 'Velvet Hour' in js
 assert not re.search(r"\.(wav|mp3|ogg|flac|adx)\b", js, re.I) and 'fetch(' not in js, 'the music must be made in code, not loaded from files'
 if shutil.which('node'):
     r = subprocess.run(['node', '--check', root + '/tools/launcher/ui/music.js'], capture_output=True, text=True)

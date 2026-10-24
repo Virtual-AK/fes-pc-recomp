@@ -17,6 +17,7 @@ before('ps2run_trace_patch6.py', 'ps2run_trace_patch9.py')
 before('ps2run_trace_patch9.py', 'ps2gs_uploadclamp_patch.py')
 before('ps2gpu_tricenter_patch.py', 'ps2gpu_flipfix_patch.py')
 before('ps2run_controls_patch.py', 'ps2run_keyremap_patch.py')
+before('ps2run_keyremap_patch.py', 'ps2run_padremap_patch.py')
 before('ps2run_window_capture_patch.py', 'ps2run_window_savestate_patch.py')
 before('ps2run_window_savestate_patch.py', 'ps2web_autosave_patch.py')
 for a, b in [('ps2web_cardbackup_patch.py', 'ps2web_controls_patch.py'), ('ps2web_controls_patch.py', 'ps2web_keyremap_patch.py'),
