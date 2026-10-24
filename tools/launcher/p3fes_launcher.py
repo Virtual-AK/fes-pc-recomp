@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.35"
+LAUNCHER_VERSION = "0.37"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -43,6 +43,12 @@ KEY_DEFAULTS = {"cross": "K", "circle": "L", "square": "J", "triangle": "I", "l1
                 "start": "Return", "select": "Backspace"}
 KEY_OK = re.compile(r"^([A-Za-z0-9]|Up|Down|Left|Right|Return|Backspace|Space|Left Shift|Right Shift|Left Ctrl|Tab|Keypad [0-9]|none)$")
 KEYS_FILE = os.path.expanduser("~/.p3fes-keys.txt")
+# controller buttons for the PC window (lines "pad.NAME = BUTTON" in the same file, read by ps2run_padremap_patch.py; SDL button names)
+PAD_ROWS = ["cross", "circle", "square", "triangle", "l1", "r1", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right"]
+PAD_DEFAULTS = {"cross": "a", "circle": "b", "square": "x", "triangle": "y", "l1": "leftshoulder", "r1": "rightshoulder",
+                "l2": "lefttrigger", "r2": "righttrigger", "l3": "leftstick", "r3": "rightstick", "start": "start", "select": "back",
+                "up": "dpup", "down": "dpdown", "left": "dpleft", "right": "dpright"}
+PAD_OK = re.compile(r"^(a|b|x|y|back|guide|start|leftstick|rightstick|leftshoulder|rightshoulder|dpup|dpdown|dpleft|dpright|lefttrigger|righttrigger|none)$")
 
 
 def read_keys():
@@ -60,13 +66,37 @@ def read_keys():
     return m
 
 
-def write_keys(m):
-    lines = ["# Persona 3 FES launcher: PC window keys. Only keys that differ from the default are listed.",
-             "# Change them in the launcher (Settings > Controls) or add lines such as:  cross = K  (see docs/controls.md)"]
+def read_pad():
+    m = dict(PAD_DEFAULTS)
+    try:
+        with open(KEYS_FILE) as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if "=" in line:
+                    a, b = [x.strip() for x in line.split("=", 1)]
+                    a = a.lower()
+                    b = b.lower()
+                    if a.startswith("pad.") and a[4:] in m and PAD_OK.match(b):
+                        m[a[4:]] = b
+    except Exception:
+        pass
+    return m
+
+
+def write_keys(m, pad=None):
+    """Write the keys file: keyboard keys that differ from the default, then controller buttons that differ (pad=None keeps the ones already saved)."""
+    if pad is None:
+        pad = read_pad()
+    lines = ["# Persona 3 FES launcher: PC window keys and controller buttons. Only the ones that differ from the default are listed.",
+             "# Change them in the launcher (Settings > Controls and Controller) or add lines such as:  cross = K   pad.cross = b  (see docs/controls.md)"]
     for k in KEY_ROWS:
         v = m.get(k, KEY_DEFAULTS[k])
         if v != KEY_DEFAULTS[k] and KEY_OK.match(v):
             lines.append("%s = %s" % (k, v))
+    for k in PAD_ROWS:
+        v = pad.get(k, PAD_DEFAULTS[k])
+        if v != PAD_DEFAULTS[k] and PAD_OK.match(v):
+            lines.append("pad.%s = %s" % (k, v))
     with open(KEYS_FILE, "w") as f:
         f.write("\n".join(lines) + "\n")
 
@@ -88,7 +118,21 @@ def report():
         "browser build: %s   PC window build: %s" % (st.get("built") or "none", exe_t),
         "play in: %s   preferred browser: %s   resolution: %sx" % (st["mode"], st["browser"], st["scale"]),
         "keys changed: %s" % (", ".join("%s=%s" % (k, v) for k, v in read_keys().items() if v != KEY_DEFAULTS[k]) or "none"),
+        "widescreen: %s   packed-in mods mask: %s   file mods: %s" % ("on" if load_cfg().get("widescreen") else "off", packed_mask(), "on" if overlay_file() else "none"),
     ])
+
+
+BUG_EMAIL = "kingbackup1876@gmail.com"   # where Help > Bug Report sends mail (the maintainer's second address)
+
+
+def bug_mail_urls():
+    """(mailto link, Gmail compose link) for a bug report: a few lines to fill in, then the launcher report (no disc data, no saves)."""
+    subject = "P3FES launcher bug report (version %s)" % LAUNCHER_VERSION
+    body = "What went wrong:\n\n\nWhat I was doing when it happened:\n\n\nWhat I expected to happen:\n\n\n----- launcher report (made by the launcher) -----\n" + report() + "\n"
+    q = urllib.parse.quote
+    mailto = "mailto:%s?subject=%s&body=%s" % (BUG_EMAIL, q(subject, safe=""), q(body.replace("\n", "\r\n"), safe=""))
+    gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=%s&su=%s&body=%s" % (q(BUG_EMAIL, safe=""), q(subject, safe=""), q(body, safe=""))
+    return mailto, gmail
 
 
 def load_cfg():
@@ -192,7 +236,7 @@ def pieces_done():
         return 0
 
 
-THEMES_ALL = ("blue", "pink", "reload", "moon", "dawn", "seal", "daybreak", "horizon", "ceremony", "eclipse", "golden", "twelve")
+THEMES_ALL = ("blue", "pink", "reload", "moon", "dawn", "seal", "daybreak", "horizon", "ceremony", "eclipse", "golden", "bloodmoon", "lagoon", "persona1", "persona2is", "persona2ep", "persona5", "persona6", "twelve")
 
 
 def theme_now(cfg):
@@ -1164,8 +1208,8 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
-           "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "skip_launcher": bool(cfg.get("skip_launcher")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
+           "key_defaults": KEY_DEFAULTS, "pad": read_pad(), "pad_defaults": PAD_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
         out["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(web)))
@@ -2745,6 +2789,34 @@ def shots_delete(name):
     return ok
 
 
+def shots_clear():
+    """Delete every screenshot the capture helper made (and its small pictures). Returns how many pictures were removed."""
+    d = shots_dir()
+    n = 0
+    try:
+        names = os.listdir(d)
+    except Exception:
+        return 0
+    for name in names:
+        if SHOT_RE.match(name):
+            try:
+                os.remove(os.path.join(d, name))
+                n += 1
+            except Exception:
+                pass
+    td = os.path.join(d, "thumbs")
+    try:
+        for name in os.listdir(td):
+            if re.match(r"^P3FES_[0-9_\-]+\.jpg$", name):
+                try:
+                    os.remove(os.path.join(td, name))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return n
+
+
 # ------------------------------------------------------------------ http
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -3069,6 +3141,19 @@ class H(BaseHTTPRequestHandler):
             if c.get("screenshots_on", True) is not False:
                 shots_helper_start()
             return self.send(200, shots_info())
+        if self.path == "/api/shots/clear":
+            n = shots_clear()
+            return self.send(200, {"ok": True, "n": n, "msg": "Deleted %d screenshot%s." % (n, "" if n == 1 else "s")})
+        if self.path == "/api/bugreport":
+            mailto, gmail = bug_mail_urls()
+            kind = data.get("kind")
+            if kind == "mail":
+                how = win_open(mailto, prefer="default")
+                return self.send(200, {"ok": True, "to": BUG_EMAIL, "msg": "Opened your email app. If nothing opened, use GMAIL IN BROWSER or write to " + BUG_EMAIL + "."})
+            if kind == "gmail":
+                how = win_open(gmail, prefer=load_cfg().get("browser", "msedge"))
+                return self.send(200, {"ok": True, "to": BUG_EMAIL, "msg": "Opened Gmail in your browser. Sign in if it asks, then press Send."})
+            return self.send(200, {"ok": True, "to": BUG_EMAIL})
         if self.path == "/api/shots/delete":
             return self.send(200, {"ok": shots_delete(data.get("name"))})
         if self.path == "/api/shots/open":
@@ -3085,6 +3170,11 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/speedrun/reset":
             speedrun_reset()
             return self.send(200, {"ok": True, "msg": "Clock set back to 0:00:00.00 (it starts from zero the next time the PC window opens)."})
+        if self.path == "/api/skiplauncher":
+            c = load_cfg()
+            c["skip_launcher"] = bool(data.get("on"))
+            save_cfg(c)
+            return self.send(200, {"ok": True})
         if self.path == "/api/closeonplay":
             c = load_cfg()
             c["close_on_play"] = bool(data.get("on"))
@@ -3105,6 +3195,14 @@ class H(BaseHTTPRequestHandler):
             try:
                 write_keys(m)
                 return self.send(200, {"ok": True, "keys": read_keys()})
+            except Exception as e:
+                return self.send(200, {"ok": False, "msg": "Could not save: %s" % e})
+        if self.path == "/api/padkeys" and isinstance(data.get("map"), dict):
+            pad = dict(PAD_DEFAULTS)
+            pad.update({k: str(v).lower() for k, v in data["map"].items() if k in PAD_ROWS and PAD_OK.match(str(v).lower())})
+            try:
+                write_keys(read_keys(), pad=pad)
+                return self.send(200, {"ok": True, "pad": read_pad()})
             except Exception as e:
                 return self.send(200, {"ok": False, "msg": "Could not save: %s" % e})
         if self.path in ("/api/card/restore", "/api/card/delete"):
