@@ -80,6 +80,21 @@ def main():
 
     game = os.path.join(root, "games", MOD)
     os.makedirs(game, exist_ok=True)
+    for i, (m, files) in enumerate(mods):   # "skip_addrs": lines that write these addresses are left out (data values the PC window sets itself)
+        if m.get("skip_addrs"):
+            skip = {a.lower().lstrip("0") for a in m["skip_addrs"]}
+            outs = []
+            for j, f in enumerate(files):
+                kept = []
+                for ln in open(f, errors="replace").read().splitlines():
+                    t = ln.split("//")[0].strip().split(",")
+                    if len(t) >= 4 and t[0].strip().lower().startswith("patch") and t[2].strip().lower().lstrip("0") in skip:
+                        continue
+                    kept.append(ln)
+                out = os.path.join(game, "skip_%s_%d.pnach" % (m["id"], j))
+                open(out, "w").write("\n".join(kept) + "\n")
+                outs.append(out)
+            mods[i] = (m, outs)
     new_entries = os.path.join(game, "entries_new.txt")
     cmd = [sys.executable, os.path.join(HERE, "p3fes_pnach_apply.py"), vanilla]
     for m, files in mods:

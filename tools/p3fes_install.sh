@@ -89,6 +89,7 @@ ps2web_vubranch_patch.py
 ps2run_vif_v2zero_patch.py
 ps2gpu_tricenter_patch.py
 ps2gpu_flipfix_patch.py
+ps2gpu_edgetie_patch.py
 ps2gs_uploadclamp_patch.py
 ps2run_controls_patch.py
 ps2run_keyremap_patch.py
@@ -126,6 +127,7 @@ ps2web_turbo_patch.py
 ps2web_gamebeat_patch.py
 ps2recomp_modswitch_patch.py
 ps2port_modswitch_patch.py
+ps2run_poke_patch.py
 "
 # Patches are not all safe to run twice once later patches have changed their text, so remember which ones were applied.
 # A project folder patched by an older installer (no list yet) is put back to the original source first.

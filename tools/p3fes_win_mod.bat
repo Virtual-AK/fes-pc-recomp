@@ -13,7 +13,7 @@ echo == [0/3] Bringing the PC window source up to date (mod switches)
 wsl.exe bash "%HERE%/p3fes_win_prepare.sh"
 if errorlevel 1 exit /b 1
 echo == [1/3] Copying the packed-in mods game code from Ubuntu
-wsl.exe bash -c "ls $HOME/ps2-web-recomp/generated/p3fesmod/*.cpp >/dev/null 2>&1 || { echo STOPPED: no mods game code in ~/ps2-web-recomp/generated/p3fesmod. Press BUILD in the launcher under Mods and Packed-In Mods first.; exit 1; }; mkdir -p /mnt/c/p3fes/winbuild/generated/p3fesmod && cp -u $HOME/ps2-web-recomp/generated/p3fesmod/* /mnt/c/p3fes/winbuild/generated/p3fesmod/"
+wsl.exe bash "%HERE%/p3fes_win_copymod.sh"
 if errorlevel 1 exit /b 1
 echo == [2/3] Sharing the recorded graphics code with the normal build
 if exist "%ROOT%\generated\p3fes\vu1_*" copy /Y "%ROOT%\generated\p3fes\vu1_*" "%ROOT%\generated\p3fesmod\" >nul

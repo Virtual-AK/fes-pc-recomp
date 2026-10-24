@@ -349,7 +349,7 @@ def plan(iso, folder, move=False, loc=None):
         if o is None:
             out.append({"rel": rel, "path": p, "ok": False, "why": what, "key": key})
         elif rec and (size > s or move):
-            out.append({"rel": rel, "path": p, "ok": True, "move": True, "rec": rec, "size": size, "orig": s, "what": what, "key": key})
+            out.append({"rel": rel, "path": p, "ok": True, "move": True, "rec": rec, "offset": o, "size": size, "orig": s, "what": what, "key": key})
         elif size > s and tgt and (tgt["t"] is not None or rel.lower().endswith(".tmx")) and tmx_convertible(s, size):
             it = {"rel": rel, "path": p, "ok": True, "offset": o, "size": s, "orig": s, "convert": True,
                   "what": what + ", reduced to 256 colours to fit", "key": key}
@@ -510,12 +510,79 @@ def mod_root(folder, files):
     return best[1] if best else None
 
 
+def free_tail(iso):
+    """The unused zero-filled sectors at the end of the disc volume, after the last file: (first byte, end byte), or None.
+    A moved file is put there first: the game does not accept a start sector beyond the end of the volume (the PC window never
+    asked for a file placed after the end of the image), but it reads anything inside it."""
+    try:
+        with open(iso, "rb") as f:
+            outer = U.Window(f, 0, os.fstat(f.fileno()).st_size)
+            ents = U.list_files(outer)
+            if not ents:
+                return None
+            start = max(e["lba"] + (e["size"] + U.SECTOR - 1) // U.SECTOR for e in ents)
+            f.seek(16 * U.SECTOR + 80)
+            vol = struct.unpack("<I", f.read(4))[0]
+            vol = min(vol, os.fstat(f.fileno()).st_size // U.SECTOR)
+            s = start
+            while s < vol:
+                f.seek(s * U.SECTOR)
+                chunk = f.read(min(64, vol - s) * U.SECTOR)
+                if not chunk:
+                    break
+                if any(chunk):
+                    for k in range(0, len(chunk), U.SECTOR):
+                        if any(chunk[k:k + U.SECTOR]):
+                            return (start * U.SECTOR, (s + k // U.SECTOR) * U.SECTOR) if s + k // U.SECTOR > start else None
+                s += len(chunk) // U.SECTOR
+            return (start * U.SECTOR, vol * U.SECTOR) if vol > start else None
+    except (OSError, struct.error, Exception):
+        return None
+
+
+MOVES = []      # filled by entries_for: one dict per moved file (old and new start sector and size), see table_pokes
+
+
+def table_pokes(program, moves):
+    """The game keeps a table of the files it loads: size (4 bytes), 0 (4 bytes), start sector inside its CVM (4 bytes), then the name.
+    It reads a file from those numbers, not from the directory, so a moved file also needs its table entry changed.
+    program: the bytes of the game's boot program (an ELF). Returns ([(address, value)], [messages])."""
+    segs = []
+    if program[:4] == b"\x7fELF":
+        phoff, phsz, phn = struct.unpack_from("<I", program, 28)[0], struct.unpack_from("<H", program, 42)[0], struct.unpack_from("<H", program, 44)[0]
+        for k in range(phn):
+            t, off, va, _pa, fs, _ms = struct.unpack_from("<6I", program, phoff + k * phsz)
+            if t == 1:
+                segs.append((off, fs, va))
+    pokes, notes = [], []
+    for m in moves:
+        pat = struct.pack("<III", m["old_size"], 0, m["old_lba"])
+        hits, at = [], program.find(pat)
+        while at != -1:
+            hits.append(at)
+            at = program.find(pat, at + 1)
+        if len(hits) != 1:
+            notes.append("%s: %d table entries found (needs exactly 1), so the game will still read the old place" % (m.get("key", "?"), len(hits)))
+            continue
+        va = next((v + hits[0] - o for o, fs, v in segs if o <= hits[0] < o + fs), None)
+        if va is None:
+            notes.append("%s: table entry is not inside the program image" % m.get("key", "?"))
+            continue
+        pokes.append((va, m["new_size"]))
+        pokes.append((va + 8, m["new_lba"]))
+    return pokes, notes
+
+
 def entries_for(items, iso_size, iso=None):
     """List of (absolute offset, bytes) to write. Moved files are appended after the end of the image
     (sector aligned) and their directory records are pointed at the new place. Containers that hold a file that grew are
     rebuilt from the original plus all edits to them (all mods together), and moved the same way."""
     out = []
+    MOVES[:] = []
     end = (iso_size + U.SECTOR - 1) // U.SECTOR * U.SECTOR
+    free = free_tail(iso) if iso else None      # [next free byte, end of the free area]
+    free = list(free) if free else None
+    reach = {}      # CVM base -> highest sector (inside that CVM) a moved file reaches
     groups = {}
     for i in items:
         if i.get("tgt"):
@@ -524,7 +591,7 @@ def entries_for(items, iso_size, iso=None):
     todo = [i for i in items if not (i.get("tgt") and i["tgt"]["c"] in rebuilt)]
     for c in sorted(rebuilt):
         g = groups[c]
-        todo.append({"move": True, "rec": g[0]["tgt"]["rec"], "data": rebuild_for(iso, g)})
+        todo.append({"move": True, "rec": g[0]["tgt"]["rec"], "data": rebuild_for(iso, g), "offset": g[0]["tgt"]["co"], "orig": g[0]["tgt"]["cs"], "key": c})
     for i in todo:
         data = i["data"] if "data" in i else open(i["path"], "rb").read()
         if i.get("convert"):
@@ -533,12 +600,43 @@ def entries_for(items, iso_size, iso=None):
                 data = tmx_to_8bit(f.read(i["orig"]), data)
         if i.get("move"):
             rec_off, base = i["rec"]
-            lba = (end - base) // U.SECTOR
-            out.append((end, data + b"\0" * ((-len(data)) % U.SECTOR)))
+            need = (len(data) + U.SECTOR - 1) // U.SECTOR * U.SECTOR
+            if free and free[0] + need <= free[1]:
+                at = free[0]
+                free[0] += need
+            else:
+                at = end
+                end += need
+            lba = (at - base) // U.SECTOR
+            reach[base] = max(reach.get(base, 0), lba + need // U.SECTOR)
+            if i.get("offset") is not None and i.get("orig") is not None:
+                MOVES.append({"key": i.get("key", ""), "old_lba": (i["offset"] - base) // U.SECTOR, "old_size": i["orig"], "new_lba": lba, "new_size": len(data)})
+            out.append((at, data + b"\0" * ((-len(data)) % U.SECTOR)))
             out.append((rec_off + 2, struct.pack("<I", lba) + struct.pack(">I", lba) + struct.pack("<I", len(data)) + struct.pack(">I", len(data))))
-            end += (len(data) + U.SECTOR - 1) // U.SECTOR * U.SECTOR
         else:
             out.append((i["offset"], data))
+    # the game does not read beyond the volume size its CVM states (the first sector of the CVM's own volume descriptor says how big that is),
+    # so a CVM that got a moved file past its old end is told it is bigger
+    for base, top in reach.items():
+        try:
+            with open(iso, "rb") as f:
+                f.seek(base + 16 * U.SECTOR)
+                pvd = f.read(U.SECTOR)
+            old_size = struct.unpack_from("<I", pvd, 80)[0]
+            if pvd[1:6] == b"CD001" and top > old_size:
+                out.append((base + 16 * U.SECTOR + 80, struct.pack("<I", top) + struct.pack(">I", top)))
+        except (OSError, TypeError, struct.error):
+            pass
+        try:   # the same for the size the disc's directory gives the CVM file itself (the file system library may check against it)
+            with open(iso, "rb") as f:
+                for e in U.list_files(U.Window(f, 0, os.fstat(f.fileno()).st_size)):
+                    if e["path"].upper().endswith(".CVM") and e["lba"] * U.SECTOR <= base < e["lba"] * U.SECTOR + e["size"]:
+                        need_bytes = (base // U.SECTOR - e["lba"] + top) * U.SECTOR
+                        if need_bytes > e["size"]:
+                            out.append((e["recpos"] + 10, struct.pack("<I", need_bytes) + struct.pack(">I", need_bytes)))
+                        break
+        except Exception:
+            pass
     return out, end
 
 
