@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.31"
+LAUNCHER_VERSION = "0.35"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -277,9 +277,50 @@ def lm_rebuild(iso, loc):
     if not merged:
         if os.path.exists(ovl):
             os.remove(ovl)
+        try:
+            os.remove(os.path.join(lm_dir(), "active.pokes"))
+        except OSError:
+            pass
         return 0
     M.write_overlay(list(merged.values()), os.path.getsize(iso), ovl, iso)
+    lm_write_pokes(M, iso, loc, os.path.join(lm_dir(), "active.pokes"))
     return len(merged)
+
+
+def lm_write_pokes(M, iso, loc, path):
+    """A moved file also needs the game's own file table changed (see table_pokes in p3fes_modmap.py). Writes ADDR=VALUE,... for the PC window, or removes the file."""
+    text = ""
+    try:
+        moves = list(getattr(M, "MOVES", []))
+        if moves and hasattr(M, "table_pokes"):
+            ent = (loc[0] if loc else {}).get("/SLUS_216.21")
+            program = b""
+            if ent:
+                with open(iso, "rb") as f:
+                    f.seek(ent[0])
+                    program = f.read(ent[1])
+            pokes, notes = M.table_pokes(program, moves)
+            text = ",".join("%08X=%08X" % (a, v) for a, v in pokes)
+            lm_work["pokes"] = notes
+    except Exception:
+        text = ""
+    try:
+        if text:
+            with open(path, "w") as f:
+                f.write(text)
+        elif os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def lm_pokes_text():
+    try:
+        with open(os.path.join(lm_dir(), "active.pokes")) as f:
+            t = f.read().strip()
+        return t if re.match(r"^[0-9A-Fa-f]{8}=[0-9A-Fa-f]{8}(,[0-9A-Fa-f]{8}=[0-9A-Fa-f]{8})*$", t) else ""
+    except OSError:
+        return ""
 
 
 def lm_extract_zip(zpath, dest):
@@ -526,9 +567,48 @@ def packed_mask():
         return 0
     m = 0
     for r in packed_registry():
-        if r.get("kind") == "code" and r["id"] in built and packed_on(r["id"]):
+        if r.get("kind") == "code" and r["id"] in built and packed_active(r):
             m |= 1 << built[r["id"]]
     return m
+
+
+def packed_active(r):
+    """Is this code mod switched on? A mod with "follows": "widescreen" has no switch of its own: it is on when Settings > Widescreen is on."""
+    if r.get("follows") == "widescreen":
+        if not load_cfg().get("widescreen") or r["id"] in ws_parts_off():
+            return False
+        return (not r.get("default_off")) or r["id"] in ws_parts_on()
+    return packed_on(r["id"])
+
+
+def ws_parts_line(key):
+    """Research: a line like P3F_WS_OFF=ws2,ws5 (or P3F_WS_ON=ws7) in ~/.p3fes-window-env, no rebuild needed."""
+    try:
+        with open(os.path.expanduser("~/.p3fes-window-env")) as f:
+            for ln in f:
+                if ln.strip().startswith(key + "="):
+                    return {t.strip().lower() for t in ln.split("=", 1)[1].split(",") if t.strip()}
+    except OSError:
+        pass
+    return set()
+
+
+def ws_parts_off():
+    """Parts of the widescreen patch left off (P3F_WS_OFF=ws2,ws5)."""
+    return ws_parts_line("P3F_WS_OFF")
+
+
+def ws_parts_on():
+    """Parts that are off by default and are switched on (P3F_WS_ON=ws7)."""
+    return ws_parts_line("P3F_WS_ON")
+
+
+def ws_menus_status():
+    """Settings > Widescreen: is the community patch for menus and the HUD in the mod build? -> built | needbuild | nofile"""
+    built, legacy = packed_built()
+    if "widescreen" in built and not legacy:
+        return "built"
+    return "needbuild" if packed_pnach("widescreen") else "nofile"
 
 
 def packed_wanted():
@@ -562,6 +642,8 @@ def packed_state():
     cfg = packed_cfg()
     rows, need = [], []
     for r in packed_registry():
+        if r.get("hidden"):
+            continue
         row = {"id": r["id"], "name": r["name"], "kind": r.get("kind", "code"), "by": r.get("by", ""), "desc": r.get("desc", ""),
                "cheat": bool(r.get("cheat")),
                "url": ("https://gamebanana.com/mods/%d" % cfg["gb"][packed_src(r["id"])]) if isinstance(cfg.get("gb"), dict) and cfg["gb"].get(packed_src(r["id"])) else ""}
@@ -1082,7 +1164,7 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
            "key_defaults": KEY_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
@@ -1732,6 +1814,12 @@ def widescreen_env(env):
     return False
 
 
+def web_pokes_param(ovl):
+    """The file-mod table pokes (mods\\active.pokes) as a page parameter, for the browser game; only when the server lays the overlay over the disc."""
+    pk = lm_pokes_text() if ovl else ""
+    return "&PS2_POKE=" + urllib.parse.quote(pk, safe="") if pk else ""
+
+
 def web_params(cfg=None):
     """Settings that the browser game reads from its page address: widescreen, volumes (only when below 100) and the speedrun clock."""
     cfg = cfg if cfg is not None else load_cfg()
@@ -2228,6 +2316,13 @@ def play_windows(exe, resume=None, mod=False):
                             names.append(k)
     except OSError:
         pass
+    pk = lm_pokes_text() if overlay_file() else ""
+    if pk:   # a moved file mod: the game's file table gets the new place and size (ps2run_poke_patch.py)
+        if env.get("PS2_POKE"):   # a PS2_POKE line in ~/.p3fes-window-env is added to the mod pokes
+            pk = pk + "," + env["PS2_POKE"]
+        env["PS2_POKE"] = pk
+        if "PS2_POKE" not in names:
+            names.append("PS2_POKE")
     env["WSLENV"] = (env.get("WSLENV", "") + ":" if env.get("WSLENV") else "") + ":".join(names)
     asdir = pc_as_dir(exe)
     try:
@@ -2313,7 +2408,7 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
             env["PS2_MODS"] = str(packed_mask())
         children.append(subprocess.Popen(cmd, cwd=DIR, env=env))
         return {"ok": True, "msg": "Started the PC window. Its memory card is in " + saves_dir() + ". If none appears, check VcXsrv is running."}
-    ovl = None if mod else overlay_path()
+    ovl = overlay_path()   # file mods work with the packed-in mods build too (same disc, same overlay)
     want = (name, ovl, os.path.getmtime(ovl) if ovl else None)
     if port_open(GAME_PORT) and serving[0] not in (None, want):
         # the other build is being served: stop our server so this one can take the port
@@ -2339,6 +2434,7 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
     url = "http://localhost:%d/?PS2_SCALE=%s&cardsync=%d" % (GAME_PORT, scale, SERVER_PORT[0]) + web_params()
     if mod and packed_mask():
         url += "&PS2_MODS=%d" % packed_mask()
+    url += web_pokes_param(ovl)
     if resume:
         url += "&resume=%d" % resume
     if load_cfg().get("speedrun_zero_web"):

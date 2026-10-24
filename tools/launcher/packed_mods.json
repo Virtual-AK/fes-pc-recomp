@@ -1,22 +1,356 @@
 [
- {"id": "directcmd", "bit": 0, "kind": "code", "name": "Direct Commands", "by": "TGE",
-  "desc": "Control party members in battle (also fixes the skill list in Fusion).", "extra_entries": ["69ac94"]},
- {"id": "modernswitch", "bit": 1, "kind": "code", "name": "Modern Persona Switch", "by": "",
-  "desc": "On your turn you can switch Personas as often as you like. After a 1 More you keep that Persona until the enemy has had its turn."},
- {"id": "alwayscutin", "bit": 2, "kind": "code", "name": "Always Cut-In", "by": "", "exclude": ["crit"],
-  "desc": "Every critical hit and every weakness strike gets its cut-in, instead of leaving it to chance."},
- {"id": "alwayscrit", "bit": 5, "kind": "code", "cheat": true, "source": "alwayscutin", "match": ["crit"], "name": "Always Critical", "by": "",
-  "desc": "Every attack is a critical hit. This is a cheat, so it is off until you turn it on. It comes from the same GameBanana download as Always Cut-In."},
- {"id": "partyxp", "bit": 3, "kind": "code", "name": "Share Party Experience", "by": "",
-  "desc": "The whole party gets experience after a battle, not only the members in the fight."},
- {"id": "nevertired", "bit": 4, "kind": "code", "name": "Never Tired", "by": "Sir Toasterpastry",
-  "desc": "Characters never get tired."},
- {"id": "faststart", "kind": "files", "name": "Fast Start", "by": "",
-  "desc": "Skips the questions at the start about transferring data and what FES added."},
- {"id": "skillinherit", "bit": 6, "kind": "code", "with_files": true, "pick": ["fes"], "avoid": ["portable"], "name": "Manual Skill Inheritance", "by": "teolicht, RVRZERO",
-  "desc": "Choose which skills carry over in Fusion, instead of leaving it to chance."},
- {"id": "classroom", "kind": "cheat", "name": "Classroom Cheat Sheet", "by": "",
-  "desc": "Shows the answers to class questions and exams."},
- {"id": "sociallink", "kind": "cheat", "name": "Social Link Cheat Sheet", "by": "",
-  "desc": "Shows the best answers in Social Link conversations."}
+ {
+  "id": "directcmd",
+  "bit": 0,
+  "kind": "code",
+  "name": "Direct Commands",
+  "by": "TGE",
+  "desc": "Control party members in battle (also fixes the skill list in Fusion).",
+  "extra_entries": [
+   "69ac94"
+  ]
+ },
+ {
+  "id": "modernswitch",
+  "bit": 1,
+  "kind": "code",
+  "name": "Modern Persona Switch",
+  "by": "",
+  "desc": "On your turn you can switch Personas as often as you like. After a 1 More you keep that Persona until the enemy has had its turn."
+ },
+ {
+  "id": "alwayscutin",
+  "bit": 2,
+  "kind": "code",
+  "name": "Always Cut-In",
+  "by": "",
+  "exclude": [
+   "crit"
+  ],
+  "desc": "Every critical hit and every weakness strike gets its cut-in, instead of leaving it to chance."
+ },
+ {
+  "id": "alwayscrit",
+  "bit": 5,
+  "kind": "code",
+  "cheat": true,
+  "source": "alwayscutin",
+  "match": [
+   "crit"
+  ],
+  "name": "Always Critical",
+  "by": "",
+  "desc": "Every attack is a critical hit. This is a cheat, so it is off until you turn it on. It comes from the same GameBanana download as Always Cut-In."
+ },
+ {
+  "id": "partyxp",
+  "bit": 3,
+  "kind": "code",
+  "name": "Share Party Experience",
+  "by": "",
+  "desc": "The whole party gets experience after a battle, not only the members in the fight."
+ },
+ {
+  "id": "nevertired",
+  "bit": 4,
+  "kind": "code",
+  "name": "Never Tired",
+  "by": "Sir Toasterpastry",
+  "desc": "Characters never get tired."
+ },
+ {
+  "id": "faststart",
+  "kind": "files",
+  "name": "Fast Start",
+  "by": "",
+  "desc": "Skips the questions at the start about transferring data and what FES added."
+ },
+ {
+  "id": "skillinherit",
+  "bit": 6,
+  "kind": "code",
+  "with_files": true,
+  "pick": [
+   "fes"
+  ],
+  "avoid": [
+   "portable"
+  ],
+  "name": "Manual Skill Inheritance",
+  "by": "teolicht, RVRZERO",
+  "desc": "Choose which skills carry over in Fusion, instead of leaving it to chance."
+ },
+ {
+  "id": "classroom",
+  "kind": "cheat",
+  "name": "Classroom Cheat Sheet",
+  "by": "",
+  "desc": "Shows the answers to class questions and exams."
+ },
+ {
+  "id": "sociallink",
+  "kind": "cheat",
+  "name": "Social Link Cheat Sheet",
+  "by": "",
+  "desc": "Shows the best answers in Social Link conversations."
+ },
+ {
+  "id": "widescreen",
+  "bit": 7,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws1_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen core: HUD and portrait art",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws2",
+  "bit": 8,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws2_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen in-game menu portraits and shadows",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws3a",
+  "default_off": true,
+  "bit": 9,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws3a_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen clock and popup portraits",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws4",
+  "bit": 10,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws4_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen Arcana cards, Shuffle Time",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws5",
+  "bit": 11,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws5_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen Social Link screens",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws6",
+  "bit": 12,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws6_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen battle portraits and effects",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws7",
+  "bit": 13,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws7_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen title menu (off by default: shades the right side of the title screen)",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen.",
+  "default_off": true
+ },
+ {
+  "id": "ws8",
+  "bit": 14,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws8_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen font fix (off by default: spacing errors around names and items)",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen.",
+  "default_off": true
+ },
+ {
+  "id": "ws9",
+  "bit": 15,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws9_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen FMV fix",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws10",
+  "bit": 16,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws10_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen 480p part",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws11",
+  "bit": 17,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws11_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen 3D zoom fix",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws3b",
+  "bit": 18,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws3b_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen in-game menu portraits switch",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws3c",
+  "default_off": true,
+  "bit": 19,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws3c_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen scene-change zoom",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws5a",
+  "bit": 20,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws5a_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen Social Link screens",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "ws5e",
+  "bit": 21,
+  "kind": "code",
+  "hidden": true,
+  "follows": "widescreen",
+  "source": "widescreen",
+  "match": [
+   "ws5e_"
+  ],
+  "skip_addrs": [
+   "007cad1c"
+  ],
+  "name": "Widescreen Social Link screens",
+  "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ }
 ]
