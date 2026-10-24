@@ -23,7 +23,7 @@ L.play_inner = lambda mode, resume=None, mod=False, pcresume=None: (calls.append
 
 # nothing built, nothing downloaded: normal game, nothing is on except the old Direct Commands default
 st = L.packed_state()
-assert [r['id'] for r in st['list']] == ids and st['mask'] == 0 and st['legacy'] is True
+assert [r['id'] for r in st['list']] == [r['id'] for r in reg if not r.get('hidden')] and st['mask'] == 0 and st['legacy'] is True
 assert not any(r['have'] for r in st['list'])
 r = L.play('browser'); assert calls[-1][2] is False
 
@@ -90,3 +90,34 @@ pg = [{'_sFile': 'manual_inheritance_portable.zip'}, {'_sFile': 'manual_inherita
 assert L.packed_pick_archive(sk, pg)['_sFile'] == 'manual_inheritance_fes_version.zip'
 assert L.packed_pick_archive({}, pg)['_sFile'] == 'manual_inheritance_portable.zip'
 print('ok   archive choice by name words')
+
+# widescreen menus: a hidden code mod (switch 7) that follows Settings > Widescreen, never listed
+ws = next(r for r in reg if r['id'] == 'widescreen')
+assert ws['hidden'] and ws['follows'] == 'widescreen' and ws['bit'] == 7 and ws['kind'] == 'code'
+os.makedirs(os.path.join(d, 'games', L.MOD_NAME), exist_ok=True)
+open(os.path.join(d, 'games', L.MOD_NAME, 'variants.txt'), 'w').write('M directcmd 0\nM widescreen 7\n')
+c = L.load_cfg(); c['widescreen'] = False; L.save_cfg(c)
+assert L.packed_mask() & 128 == 0 and 'widescreen' not in [r['id'] for r in L.packed_state()['list']]
+assert L.ws_menus_status() == 'built'
+c['widescreen'] = True; L.save_cfg(c)
+assert L.packed_mask() & 128 == 128
+open(os.path.join(d, 'games', L.MOD_NAME, 'variants.txt'), 'w').write('M directcmd 0\n')
+assert L.ws_menus_status() == 'nofile'
+touch(os.path.join(L.packed_dir(), 'widescreen', 'ws1_core.pnach'))
+assert L.ws_menus_status() == 'needbuild' and L.packed_mask() & 128 == 0
+# the eleven parts: bits 7..17, each owns the files whose name holds its tag; a P3F_WS_OFF line leaves parts off
+parts = [r for r in reg if r.get('follows') == 'widescreen']
+assert sorted(r['bit'] for r in parts) == list(range(7, 22)) and all(r['hidden'] and r['source'] == 'widescreen' for r in parts)
+touch(os.path.join(L.packed_dir(), 'widescreen', 'ws5_slink.pnach'))
+touch(os.path.join(L.packed_dir(), 'widescreen', 'ws10_480p.pnach'))   # ws1 must not take ws10 (the tags end with _)
+assert [os.path.basename(f) for f in L.packed_pnach('ws5')] == ['ws5_slink.pnach'] and [os.path.basename(f) for f in L.packed_pnach('widescreen')] == ['ws1_core.pnach'] and [os.path.basename(f) for f in L.packed_pnach('ws10')] == ['ws10_480p.pnach']
+open(os.path.join(d, 'games', L.MOD_NAME, 'variants.txt'), 'w').write(''.join('M %s %d\n' % (r['id'], r['bit']) for r in parts))
+c['widescreen'] = True; L.save_cfg(c)
+assert L.packed_mask() == 0x3FFF80 & ~(1 << 13) & ~(1 << 14) & ~(1 << 9) & ~(1 << 19)   # ws7, ws8, ws3a, ws3c are off by default
+home = os.environ.get('HOME'); os.environ['HOME'] = d
+open(os.path.join(d, '.p3fes-window-env'), 'w').write('P3F_WS_OFF=ws2, ws5\n')
+assert L.ws_parts_off() == {'ws2', 'ws5'} and L.packed_mask() == 0x3FFF80 & ~(1 << 13) & ~(1 << 14) & ~(1 << 9) & ~(1 << 19) & ~(1 << 8) & ~(1 << 11)
+open(os.path.join(d, '.p3fes-window-env'), 'w').write('P3F_WS_ON=ws7\n')
+assert L.ws_parts_on() == {'ws7'} and L.packed_mask() == 0x3FFF80 & ~(1 << 14) & ~(1 << 9) & ~(1 << 19)
+os.environ['HOME'] = home
+print('ok   widescreen menus mod follows the setting')
