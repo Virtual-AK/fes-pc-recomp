@@ -1,4 +1,4 @@
-"""Live on/off switches for packed-in mods. Patches recomp/ (the translator) and runtime/src/system.cpp.
+"""Live on/off switches for essential mods. Patches recomp/ (the translator) and runtime/src/system.cpp.
 
 What it adds
   * eerecomp --variants FILE --vanilla ELF : FILE is the table written by p3fes_pnach_apply.py --variants. For every code word a mod
