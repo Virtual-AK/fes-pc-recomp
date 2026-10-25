@@ -1,6 +1,6 @@
 # Widescreen (PC window and browser)
 
-Settings → Widescreen → ON. Works in the PC window and the browser game. The 3D view and the picture need `ps2run_widescreen_patch.py` (and `ps2run_widescreen_web_patch.py` for the browser; the installer applies both); the menus, HUD, portraits and Social Link screens come from the community patch parts below, which need the packed-in mods build (Mods → BUILD, then `p3fes_win_mod.bat` for the PC window).
+Settings → Widescreen → ON. Works in the PC window and the browser game. The 3D view and the picture need `ps2run_widescreen_patch.py` (and `ps2run_widescreen_web_patch.py` for the browser; the installer applies both); the menus, HUD, portraits and Social Link screens come from the community patch parts below, which need the essential mods build (Mods → BUILD, then `p3fes_win_mod.bat` for the PC window).
 
 ## What it does
 * **Display**: the picture is shown at 16:9 instead of 4:3 (`PS2_ASPECT=16:9`). The game still draws a 4:3-shaped image.

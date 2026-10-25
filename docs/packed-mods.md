@@ -1,6 +1,6 @@
-# Packed-in mods (launcher 0.29)
+# Essential mods (called Packed-In Mods before 0.40; launcher 0.29)
 
-Mods > PACKED-IN MODS lists community mods with an ON/OFF button each, and Mods > CHEATS lists two cheat sheets (off by default).
+Mods > ESSENTIAL MODS lists community mods with an ON/OFF button each, and Mods > CHEATS lists two cheat sheets (off by default).
 Nothing from these mods is in this repository: the launcher downloads each one from its author's GameBanana page onto your computer
 (`C:\p3fes\packed\<mod>\` for the patch files, FILE MODS for the file mods), and the author is credited and linked on its row.
 
@@ -10,6 +10,7 @@ Nothing from these mods is in this repository: the launcher downloads each one f
 | Modern Persona Switch | code | same |
 | Always Cut-In (the Always Cutins file) | code | same |
 | Always Critical (the Always Critical file, a cheat in Mods > Cheats, off by default) | code | same build, switch bit 5; it shares the download of Always Cut-In (`source` / `match` / `exclude` in `packed_mods.json` pick the files by a word in the file name) |
+| EXP Increase (a cheat, off by default; bundled: the patch text is in `packed_mods.json`, no download) | code | switch bit 22. Replaces the last five words of the battle EXP function (001fbf68 to 001fbf78): result x the number at 00007000, capped at 65535. The strength (3, 5 or 10) is written to 00007000 at start-up by `PS2_POKE` (`levels` / `level_addr` in `packed_mods.json`); the value kept in the patch is the default for a page that passes no poke |
 | Share Party Experience | code | same |
 | Never Tired | code | same |
 | Fast Start, Manual Skill Inheritance | game files | ordinary FILE MODS, instant on/off |
@@ -46,3 +47,16 @@ Changes to data, and `patch=0` lines (such as "expand executable memory"), are w
 - Mods can only be used together if they do not change the same instruction. The tool checks this when it builds.
 - The cheat sheets and Fast Start are game-file mods: their rows download the archive from GameBanana and add it to FILE MODS; the launcher
   has not seen those files yet, so whether each one fits the disc is shown on its row after the download.
+
+
+## Bundled cheats (0.39)
+
+A registry entry with `"pnach"` holds its patch text itself; `p3fes_packed_build.py` writes it to `games/p3fesmod/bundled_<id>.pnach` and bakes it like a download. Entries with `"levels"` (value, label, 32-bit hex poke) get a strength picker in Mods > Cheats; the launcher keeps the choice in `packed.level` of its settings and adds `ADDR=VALUE` to `PS2_POKE` (PC window and page address) for every such cheat that is built in and on. The cells at 00007000 and 00007004 are in low memory, which the game and the runner never use (zero in every memory dump taken so far); the patch lines for them make the build add them as a small block of new memory.
+Untested in the game when written (24 Oct 2026): both patches were checked against the boot program (all original words match) and through the patch tool (no clash), not played.
+
+## One button (0.41)
+
+`/api/packed/build` now starts `essentials_work()` in the launcher: (1) downloads each non-cheat mod that has a GameBanana number (the player's link, else `"gb"` in `packed_mods.json`) and is not there yet; (2) runs `p3fes_packed_build.py` if a code mod is not in the build; (3) when the PC window exists and its mod build is missing or older than the mods build, writes `_essentials_win.bat` next to the saves (`call vcvars64.bat` from the Build Tools that `vswhere` finds, then `call tools\p3fes_win_mod.bat`) and runs it with `cmd.exe`. All output goes to `~/.p3fes-essentials.log`; the page shows `auto` from `packed_state()` (busy, step, last line, what is left). Nothing about the game is shipped: the generated code is still made from the player's disc.
+
+## Voice language (0.49)
+The Japanese Dub (GameBanana 292547) is a hidden `files` entry (`undub`) of `packed_mods.json`: it has no row in Essential Mods, is not part of the one button (about 500 MB), and its file mod is hidden from FILE MODS and its page from BROWSE GAMEBANANA like the other built-in mods. Settings > Audio > VOICE LANGUAGE calls `/api/dub` with `lang` `ja` (downloads it the first time, then switches the file mod on) or `en` (switches it off). The mod uses the Aemulus layout (`DATA/SOUND/V*.AFS`, `BTL/...`), which the file-mod planner already maps (`DATA` means `DATA.CVM`); all 505 files fit the NTSC-U disc.

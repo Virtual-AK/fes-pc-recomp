@@ -1,6 +1,6 @@
 # Dialogue Log (backlog): plan
 
-**Status (20 Oct): built and tested by the maintainers.** Launcher > LOG lists every line with speaker and icon, and clicking a speaker icon replays the voice. The sections below are the research notes in the order they happened; later sections correct earlier ones. Open: a Log key inside the game window, more speaker names.
+**Status (20 Oct): built and tested by the maintainers.** Launcher > LOG lists every line with speaker and icon, and clicking a speaker icon replays the voice. The sections below are the research notes in the order they happened; later sections correct earlier ones. Log key inside the game window: TAB (ps2run_logkey_patch.py, 24 Oct, untested in game). Open: more speaker names.
 
 Goal: a window that lists the last lines of dialogue, each with a speaker icon (voiced) or a crossed speaker (not voiced), and
 lets you replay the voice. Needs three things from the running game:
@@ -62,7 +62,7 @@ disc read with its frame number into `~/.p3fes-window.log`. Play one voiced and 
 * The launcher starts the PC window with `PS2_DIALOG_LOG=C:\p3fes\saves\dialog_log.tsv` (a line in `~/.p3fes-window-env` wins) and has a LOG screen
   on Home that reads it every 2 seconds: speaker name, text, speaker icon (crossed = no voice), a heading per play session, CLEAR LOG.
 * Speaker numbers known: 3 Yukari, 5 Mitsuru, 6 Junpei, 8 Akihiko, 12 Shuji. Others show as "Speaker N" until a log shows who they are.
-* Still open: voice replay (needs the voice file format), a Log key inside the game window.
+* Still open: voice replay (needs the voice file format).
 
 ## Voice replay (20 Oct)
 * `p3fes_afsinfo.py` on SOUND/V129001.AFS: 68 entries, every one standard CRI ADX (header `80 00 00 24 03 12 04 01`, 24 kHz mono, 4-bit,
@@ -71,3 +71,7 @@ disc read with its frame number into `~/.p3fes-window.log`. Play one voiced and 
   (it reads the file table of your own disc) and the LOG screen plays the clip: `/api/voice?afs=V129001&n=2` decodes the ADX to WAV on demand.
   Nothing from the disc is stored; the clip is decoded in memory when you click the speaker icon.
 * The disc reads come from `ps2run_dialoglog_patch.py` (now also patches disc.cpp/disc.hpp); the PC window needs one more rebuild.
+
+## Log key (24 Oct)
+* `ps2run_logkey_patch.py`: the dialogue log code also keeps the last 40 pages in memory; TAB in the PC window opens a borderless always-on-top second SDL window over the bottom of the game with the last lines (own 8x16 bitmap font, no extra libraries). A second window works whichever way the game itself is drawn (WebGPU or SDL). It takes the keyboard focus, so the game gets no keys while it is open. Voice replay stays in the launcher. Needs more speaker names (only 3, 5, 6, 8, 12 known).
+* (24 Oct) The record moved: in a later dump it sits at 0x1169484, not in 0x1060000..0x1070000. The recorder now scans all memory for the pattern (every 30 frames until found, then every 900), done by ps2run_logkey_patch.py on top of the dialogue log patch.

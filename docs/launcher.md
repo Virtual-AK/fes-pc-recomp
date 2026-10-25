@@ -84,7 +84,7 @@ the list. It needs the PC window built with `ps2run_dialoglog_patch.py` (the ins
 - **TV icon:** a small static TV with "To be continued" on the home screen. It does nothing; it is a teaser for what comes after this project.
 
 ## Direct Commands switch (0.3)
-*Since 0.29 Direct Commands is one of the packed-in mods: see [packed-mods.md](packed-mods.md). Mods > PACKED-IN MODS replaces Mods > Direct Commands.*
+*Since 0.29 Direct Commands is one of the essential mods: see [packed-mods.md](packed-mods.md). Mods > ESSENTIAL MODS replaces Mods > Direct Commands.*
 
 Mods > Direct Commands is now a switch, on by default. While it is on, Play (and Resume in the PC window) starts the Direct Commands build of the
 game whenever it is built for the way you are playing, otherwise the normal game, with a note saying so. The browser version comes from the
@@ -178,6 +178,7 @@ The launcher adds the PC window's settings to the browser game's address: widesc
 - **Controller panel** (Settings > Controller): reads and writes the `pad.` lines of `~/.p3fes-keys.txt` through `/api/padkeys`, and keeps the keyboard lines. Capture uses the browser's Gamepad API; labels switch between PlayStation, Xbox and Nintendo names from the pad's id.
 - **Clear screenshots**: `/api/shots/clear` deletes every `P3FES_*` picture and thumbnail; the button needs two clicks.
 - **Themes**: Blood Moon (black and deep red with a glowing red moon), Lagoon (sea-glass teal with a coral banner), Seven Sisters (Persona 1: cobalt blue and silver), Innocence (Persona 2 Innocent Sin: orange and cream), Punishment (Persona 2 Eternal Punishment: rose pink from the PSP cover art's colours, with a crimson banner and black), Phantom (Persona 5: red, black and white with stripes) and Graveyard (Persona 6: graveyard green with a neon-green glow and banner; green is the colour shown in its announcement trailer). Only colours and CSS, nothing from the games. The Theme and Audio panels scroll when they are taller than the screen.
+- **100% guide (0.38)**: Extra > Guides > 100% GUIDE (TICK BOXES). Content lives in `tools/launcher/ui/guide100.js` (`window.G100.chapters`: `intro` HTML, `items` {id,t,d,vf}, `links` for the 22 Social Links with two boxes each). Item ids are permanent because saved ticks refer to them; add new items with new ids, never rename. `vf` shows a yellow "verify" flag. Viewer: `g1*` functions in `index.html` using the Guides drawer (`GD.kind='own'`). Ticks: `POST /api/guide100` with `{}` (read), `{id,on}` or `{reset:true}`; file `~/.p3fes-guide100.json`, mirrored in `localStorage` key `p3f_g100`. Test: `tests/test_guide100.py`. To add a chapter or fix a fact, edit `guide100.js` only.
 - **Music**: `music.js` has three tracks; `LM.setTrack(-1|0|1|2)`; Settings > Audio > Launcher track stores the choice in `localStorage` (`p3f_mtrack`).
 
 The saved theme names stay `persona1`, `persona2is`, `persona2ep`, `persona5`, `persona6` (so a saved choice survives the renaming); `lagoon` is the old teal-and-rose Persona 1 look under its own name.
