@@ -2,7 +2,7 @@ import json, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'launcher'))
 import p3fes_launcher as L
 
-# the list of packed-in mods: unique ids and switch bits, bits inside a 32-bit number
+# the list of essential mods: unique ids and switch bits, bits inside a 32-bit number
 reg = L.packed_registry()
 ids = [r['id'] for r in reg]; bits = [r['bit'] for r in reg if r['kind'] == 'code']
 assert len(set(ids)) == len(ids) and len(set(bits)) == len(bits) and all(0 <= b < 32 for b in bits), reg
@@ -24,13 +24,13 @@ L.play_inner = lambda mode, resume=None, mod=False, pcresume=None: (calls.append
 # nothing built, nothing downloaded: normal game, nothing is on except the old Direct Commands default
 st = L.packed_state()
 assert [r['id'] for r in st['list']] == [r['id'] for r in reg if not r.get('hidden')] and st['mask'] == 0 and st['legacy'] is True
-assert not any(r['have'] for r in st['list'])
+assert not any(r['have'] for r in st['list'] if not r['bundled'])   # only our own cheats (EXP Increase, Run Faster) need no download
 r = L.play('browser'); assert calls[-1][2] is False
 
 # an older build (made before there were switches) holds Direct Commands only, always on: the old behaviour
 touch(os.path.join(d, 'build', 'web-' + L.MOD_NAME, 'ps2web.html'))
 assert L.packed_built() == ({'directcmd': 0}, True) and L.packed_mask() == 0
-r = L.play('browser'); assert calls[-1][2] is True and 'Packed-in mods are on' in r['msg']
+r = L.play('browser'); assert calls[-1][2] is True and 'Essential mods are on' in r['msg']
 L.packed_toggle('directcmd', False); r = L.play('browser'); assert calls[-1][2] is False
 
 # a switchable build: PS2_MODS has one bit per mod that is built in AND on; mods not built in are reported
@@ -67,7 +67,7 @@ L.lm_save([{'id': 'fs-test', 'kind': 'ZIP', 'name': 'x', 'enabled': False, 'fit'
 c = L.load_cfg(); c['packed']['lm'] = {'faststart': 'fs-test'}; L.save_cfg(c)
 row = [r for r in L.packed_state()['list'] if r['id'] == 'faststart'][0]
 assert row['have'] and not row['on'] and row['fit'] == 3
-print('ok   packed-in mods list: switch bits, old build still works, mask only holds built-in mods that are on, stale PC window build, links, file mods')
+print('ok   essential mods list: switch bits, old build still works, mask only holds built-in mods that are on, stale PC window build, links, file mods')
 
 
 # Always Cut-In and Always Critical share one download but are two switches: the file name decides which file belongs to which

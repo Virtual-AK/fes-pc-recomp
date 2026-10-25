@@ -6,7 +6,7 @@ node = shutil.which("node")
 html = open(os.path.join(ui, "index.html")).read()
 scripts = re.findall(r"<script>([\s\S]*?)</script>", html)
 assert scripts, "no inline script found"
-files = [(i, s) for i, s in enumerate(scripts)] + [("music", open(os.path.join(ui, "music.js")).read())]
+files = [(i, s) for i, s in enumerate(scripts)] + [("music", open(os.path.join(ui, "music.js")).read()), ("guide100", open(os.path.join(ui, "guide100.js")).read())]
 if node:
     for i, s in files:
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
