@@ -17,7 +17,7 @@ r = L.play('browser'); assert calls[-1] == ('browser', None, False, None) and r[
 
 # browser mod built: on -> modded build, with a note; off -> normal build
 touch(os.path.join(d, 'build', 'web-' + L.MOD_NAME, 'ps2web.html'))
-r = L.play('browser'); assert calls[-1][2] is True and 'Packed-in mods are on' in r['msg'], (calls, r)
+r = L.play('browser'); assert calls[-1][2] is True and 'Essential mods are on' in r['msg'], (calls, r)
 json.dump({'direct_on': False}, open(L.CFG, 'w'))
 r = L.play('browser'); assert calls[-1][2] is False and r['msg'] == 'started'
 json.dump({}, open(L.CFG, 'w'))
