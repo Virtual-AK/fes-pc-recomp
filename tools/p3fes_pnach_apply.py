@@ -17,7 +17,7 @@ Two ways to use it:
   1. One patch, always on (the old way):
         p3fes_pnach_apply.py SLUS_216.21 mod.pnach [more.pnach ...] -o patched.elf [--entries extra.txt]
 
-  2. Several mods with live on/off switches in ONE build (Packed-In Mods):
+  2. Several mods with live on/off switches in ONE build (Essential Mods):
         p3fes_pnach_apply.py SLUS_216.21 --mod NAME:BIT=a.pnach[,b.pnach] --mod ... -o combined.elf
                              --entries extra.txt --variants variants.txt
      BIT is the number (0-31) of the switch bit of that mod. The recompiler (eerecomp --variants) then builds both the

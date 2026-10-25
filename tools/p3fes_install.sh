@@ -13,6 +13,7 @@
 # No game data is downloaded or included. Everything it makes stays on your computer.
 #
 # Options:  --patches-only   stop after step 3 (checks that every patch fits)
+#           --new-patches    apply only the tool patches not applied yet, then stop (the launcher uses this after an update)
 #           --dir PATH       install somewhere other than ~/ps2-web-recomp
 #           --name NAME      game name (default p3fes)
 set -u
@@ -22,13 +23,15 @@ DIR="$HOME/ps2-web-recomp"
 NAME=p3fes
 ISO=""
 PATCHES_ONLY=0
+NEW_ONLY=0
 PIN=c628ae843209f6e4cef34ec04efb6267a1618882   # tested version of snuri00/ps2-web-recomp (16 Oct 2026)
 while [ $# -gt 0 ]; do
   case "$1" in
     --patches-only) PATCHES_ONLY=1 ;;
+    --new-patches) NEW_ONLY=1 ;;
     --dir) DIR="$2"; shift ;;
     --name) NAME="$2"; shift ;;
-    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     -*) echo "Unknown option $1"; exit 2 ;;
     *) ISO="$1" ;;
   esac
@@ -42,8 +45,8 @@ fail() { printf '\nSTOPPED: %s\n' "$*" >&2; exit 1; }
 say "[1/5] Ubuntu packages"
 PKGS="xz-utils git cmake ninja-build clang python3 python3-pip p7zip-full libsdl2-dev curl unzip build-essential mesa-vulkan-drivers vulkan-tools"
 missing=""
-if [ "$PATCHES_ONLY" = 1 ]; then
-  echo "skipped (patch check only)"
+if [ "$PATCHES_ONLY" = 1 ] || [ "$NEW_ONLY" = 1 ]; then
+  echo "skipped (patch step only)"
 elif command -v dpkg >/dev/null 2>&1; then
   for p in $PKGS; do dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; done
   if [ -n "$missing" ]; then
@@ -104,6 +107,7 @@ ps2run_widescreen_web_patch.py
 ps2run_probe_patch.py
 ps2run_disclog_patch.py
 ps2run_dialoglog_patch.py
+ps2run_logkey_patch.py
 ps2run_commtrace_patch.py
 ps2run_discslow_patch.py
 ps2run_storewatch_patch.py
@@ -131,11 +135,17 @@ ps2run_poke_patch.py
 # Patches are not all safe to run twice once later patches have changed their text, so remember which ones were applied.
 # A project folder patched by an older installer (no list yet) is put back to the original source first.
 APPLIED="$DIR/.p3fes_applied"
-if [ "$PATCHES_ONLY" != 1 ] && [ ! -f "$APPLIED" ] && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+if [ "$PATCHES_ONLY" != 1 ] && [ "$NEW_ONLY" != 1 ] && [ ! -f "$APPLIED" ] && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
   echo "Putting the project source back to the original before applying the patches (an earlier run changed it)"
   git checkout -q -- . || fail "could not restore the original project source."
 fi
+# --new-patches on a folder that has no list of applied patches (made by an older installer): only the patches in LATE are tried; each of them
+# checks its own source and says "already patched", so running it twice is safe. Nothing is written to the list in that case.
+LATE="ps2run_logkey_patch.py"
+LISTLESS=0
+if [ "$NEW_ONLY" = 1 ] && [ ! -f "$APPLIED" ]; then LISTLESS=1; fi
 for f in $PATCHES; do
+  if [ "$LISTLESS" = 1 ]; then case " $LATE " in *" $f "*) ;; *) continue ;; esac; fi
   if [ "$PATCHES_ONLY" != 1 ] && grep -qx "$f" "$APPLIED" 2>/dev/null; then
     echo "$f: applied earlier"
     continue
@@ -147,10 +157,11 @@ for f in $PATCHES; do
     echo "$out" | tail -5
     fail "$f did not fit the downloaded project (it may have changed). Send me this screen."
   fi
-  [ "$PATCHES_ONLY" = 1 ] || echo "$f" >> "$APPLIED"
+  [ "$PATCHES_ONLY" = 1 ] || [ "$LISTLESS" = 1 ] || echo "$f" >> "$APPLIED"
 done
 [ "$PATCHES_ONLY" = 1 ] || touch "$DIR/.tools-ok"   # the launcher reads this to show "get the tools: done"
 if [ "$PATCHES_ONLY" = 1 ]; then echo; echo "All patches fit."; exit 0; fi
+if [ "$NEW_ONLY" = 1 ]; then echo; echo "New patches applied."; exit 0; fi
 
 # ---------------------------------------------------------------- 4. disc
 say "[4/5] Your disc image"

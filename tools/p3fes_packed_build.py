@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-p3fes_packed_build.py - build the "Packed-In Mods" version of the game: ONE build holding every code mod you downloaded, each with its own
+p3fes_packed_build.py - build the "Essential Mods" version of the game: ONE build holding every code mod you downloaded, each with its own
 on/off switch that the launcher sets when you press Play (no rebuild to change what is on).
 
 What it does (run it inside the ps2-web-recomp folder, or let the launcher's BUILD button do it):
@@ -71,6 +71,8 @@ def main():
         if m.get("kind") != "code":
             continue
         files = [f for f in pnach_files(os.path.join(args.packed, m.get("source") or m["id"])) if name_ok(m, os.path.basename(f))]
+        if m.get("pnach"):   # a bundled cheat: its patch text is part of packed_mods.json
+            files = ["@bundled"]
         if files:
             mods.append((m, files))
             names.append(m["name"])
@@ -80,6 +82,11 @@ def main():
 
     game = os.path.join(root, "games", MOD)
     os.makedirs(game, exist_ok=True)
+    for i, (m, files) in enumerate(mods):   # bundled cheats: write their patch text to a file next to the others
+        if files == ["@bundled"]:
+            out = os.path.join(game, "bundled_%s.pnach" % m["id"])
+            open(out, "w").write(m["pnach"])
+            mods[i] = (m, [out])
     for i, (m, files) in enumerate(mods):   # "skip_addrs": lines that write these addresses are left out (data values the PC window sets itself)
         if m.get("skip_addrs"):
             skip = {a.lower().lstrip("0") for a in m["skip_addrs"]}
@@ -134,7 +141,7 @@ def main():
     if not os.path.isfile(eer) or os.path.getmtime(eer) < os.path.getmtime(src):
         run(["ninja", "-C", os.path.join(root, "build", "tools"), "eerecomp"])
     run(["bash", os.path.join(root, "scripts", "port.sh"), MOD, os.path.join(root, "games", NAME, "disc.iso"), "--no-explore"])
-    print("\nDONE. Built: " + ", ".join(names) + ".\nIn the launcher: Mods > Packed-In Mods. Turn mods on or off there, then press Play.", flush=True)
+    print("\nDONE. Built: " + ", ".join(names) + ".\nIn the launcher: Mods > Essential Mods. Turn mods on or off there, then press Play.", flush=True)
 
 
 if __name__ == "__main__":
