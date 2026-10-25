@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.37"
+LAUNCHER_VERSION = "0.49"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -118,7 +118,7 @@ def report():
         "browser build: %s   PC window build: %s" % (st.get("built") or "none", exe_t),
         "play in: %s   preferred browser: %s   resolution: %sx" % (st["mode"], st["browser"], st["scale"]),
         "keys changed: %s" % (", ".join("%s=%s" % (k, v) for k, v in read_keys().items() if v != KEY_DEFAULTS[k]) or "none"),
-        "widescreen: %s   packed-in mods mask: %s   file mods: %s" % ("on" if load_cfg().get("widescreen") else "off", packed_mask(), "on" if overlay_file() else "none"),
+        "widescreen: %s   essential mods mask: %s   file mods: %s" % ("on" if load_cfg().get("widescreen") else "off", packed_mask(), "on" if overlay_file() else "none"),
     ])
 
 
@@ -281,7 +281,8 @@ def lm_save(lst):
 
 
 def lm_state():
-    lst = lm_load()
+    mine = set((packed_cfg().get("lm") or {}).values())   # file mods that belong to Essential Mods / Cheats are managed there
+    lst = [m for m in lm_load() if m.get("id") not in mine]
     return {"list": lst, "busy": lm_work["busy"], "msg": lm_work["msg"], "on": sum(1 for m in lst if m.get("enabled")),
             "serve_ok": serve_has_overlay()}
 
@@ -522,7 +523,7 @@ def lm_start(target, *args):
 
 
 
-# ------------------------------------------------------------------ packed-in mods
+# ------------------------------------------------------------------ essential mods
 # Community mods that ship with a switch in the launcher. Code mods (.pnach files) are baked into ONE extra build of the game, each with its own
 # on/off switch (tools/p3fes_packed_build.py, docs/packed-mods.md); file mods (Fast Start, cheat sheets ...) are ordinary FILE MODS that can be
 # toggled instantly. The mod files are downloaded from the authors' GameBanana pages onto this computer and are never part of our repository.
@@ -564,10 +565,63 @@ def packed_name_ok(reg, filename):
 
 def packed_pnach(mid):
     reg = next((r for r in packed_registry() if r["id"] == mid), {})
+    if reg.get("pnach"):   # a bundled cheat: the patch text is part of packed_mods.json (the builder writes it to a file)
+        return ["(bundled)"]
     out = []
     for dp, dn, fn in os.walk(os.path.join(packed_dir(), packed_src(mid))):
         out += [os.path.join(dp, x) for x in sorted(fn) if x.lower().endswith(".pnach") and packed_name_ok(reg, x)]
     return out
+
+
+def packed_gb(mid):
+    """GameBanana page number of a mod's download: the player's own link, else the one in packed_mods.json ("gb"), else 0."""
+    src = packed_src(mid)
+    g = packed_cfg().get("gb")
+    if isinstance(g, dict) and g.get(src):
+        return int(g[src])
+    reg = next((r for r in packed_registry() if r["id"] == src), None)
+    return int((reg or {}).get("gb") or 0)
+
+
+def packed_levels(r):
+    return r.get("levels") if isinstance(r.get("levels"), list) else []
+
+
+def packed_level(r):
+    """The chosen strength of a cheat with levels (EXP x3 / x5 / x10, run speed ...): the saved value, else the default, else the first."""
+    lv = packed_levels(r)
+    if not lv:
+        return ""
+    want = (packed_cfg().get("level") or {}).get(r["id"])
+    ok = [x["v"] for x in lv]
+    return want if want in ok else (r.get("level_default") if r.get("level_default") in ok else ok[0])
+
+
+def packed_set_level(mid, v):
+    reg = next((r for r in packed_registry() if r["id"] == mid), None)
+    if not reg or v not in [x["v"] for x in packed_levels(reg)]:
+        return {"ok": False, "msg": "Unknown choice."}
+    c = load_cfg()
+    p = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+    p.setdefault("level", {})[mid] = v
+    c["packed"] = p
+    save_cfg(c)
+    return {"ok": True, "msg": "%s: %s. It applies the next time you press Play." % (reg["name"], next(x["label"] for x in packed_levels(reg) if x["v"] == v))}
+
+
+def packed_cheat_pokes(built=None):
+    """PS2_POKE text for the code cheats that have levels: ADDR=VALUE for each one that is built in and on (the game keeps the strength in memory)."""
+    if built is None:
+        built, legacy = packed_built()
+        if legacy:
+            return ""
+    out = []
+    for r in packed_registry():
+        if r.get("kind") == "code" and packed_levels(r) and r["id"] in built and packed_active(r):
+            v = packed_level(r)
+            val = next(x["poke"] for x in packed_levels(r) if x["v"] == v)
+            out.append("%s=%s" % (r["level_addr"].zfill(8).upper(), val.zfill(8).upper()))
+    return ",".join(out)
 
 
 def packed_built():
@@ -690,7 +744,11 @@ def packed_state():
             continue
         row = {"id": r["id"], "name": r["name"], "kind": r.get("kind", "code"), "by": r.get("by", ""), "desc": r.get("desc", ""),
                "cheat": bool(r.get("cheat")),
-               "url": ("https://gamebanana.com/mods/%d" % cfg["gb"][packed_src(r["id"])]) if isinstance(cfg.get("gb"), dict) and cfg["gb"].get(packed_src(r["id"])) else ""}
+               "url": ("https://gamebanana.com/mods/%d" % packed_gb(r["id"])) if packed_gb(r["id"]) else ""}
+        if packed_levels(r):
+            row["levels"] = [{"v": x["v"], "label": x["label"]} for x in packed_levels(r)]
+            row["level"] = packed_level(r)
+        row["bundled"] = bool(r.get("pnach"))
         if row["kind"] == "code":
             have = len(packed_pnach(r["id"]))
             row.update({"have": have > 0 or (legacy and r["id"] == "directcmd" and r["id"] in built), "built": r["id"] in built, "on": packed_on(r["id"])})
@@ -704,8 +762,65 @@ def packed_state():
             row.update({"have": bool(m), "built": bool(m), "on": bool(m and m.get("enabled")), "fit": (m or {}).get("fit"), "total": (m or {}).get("total")})
         rows.append(row)
     return {"list": rows, "legacy": legacy, "busy": lm_work["busy"], "msg": lm_work["msg"], "build": packed_build_status(), "need_build": need,
+            "auto": {"busy": auto["busy"], "state": auto["state"], "step": auto["step"], "msg": auto["msg"], "last": auto_last() if auto["busy"] or auto["state"] == "failed" else "", "need": essentials_need()},
             "win_stale": win_mod_stale(), "mask": packed_mask(), "mod_page": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "has_winexe": bool(win_exe()),
-            "win_mod": bool(win_mod_exe())}
+            "win_mod": bool(win_mod_exe()), "dub": dub_state()}
+
+
+# ------------------------------------------------------------------ voice language (Settings > Audio)
+DUB_ID = "undub"   # the Japanese Dub file mod (GameBanana 292547): a hidden entry of packed_mods.json, downloaded when Japanese is chosen
+
+
+def dub_state():
+    m = packed_lm(DUB_ID)
+    return {"have": bool(m), "on": bool(m and m.get("enabled")), "busy": lm_work["busy"], "msg": lm_work["msg"],
+            "fit": (m or {}).get("fit"), "total": (m or {}).get("total"), "gb": packed_gb(DUB_ID) or 0}
+
+
+def dub_work(download):
+    """Thread: download the Japanese Dub when it is not there, then switch it on."""
+    try:
+        if download:
+            gb = packed_gb(DUB_ID)
+            if not gb:
+                lm_work["msg"] = "The Japanese Dub has no GameBanana link."
+                return
+            packed_get_work(DUB_ID, gb)         # downloads and adds it (off); sets lm_work["msg"] and clears busy
+            lm_work["busy"] = True
+        m = packed_lm(DUB_ID)
+        if not m:
+            lm_work["busy"] = False
+            return
+        if not m.get("enabled"):
+            lm_work["msg"] = "Switching to the Japanese voices…"
+            lm_change_work(m["id"], False)      # switches it on and rebuilds the disc overlay; clears busy
+        m = packed_lm(DUB_ID) or {}
+        note = ""
+        if m.get("fit") != m.get("total"):
+            note = " Only %s of %s of its files fit your disc, so some voices stay English." % (m.get("fit"), m.get("total"))
+        lm_work["msg"] = "Japanese voices are on. They apply the next time you press Play." + note
+    except Exception as e:
+        lm_work["msg"] = "Could not switch the voices: %s" % str(e)[:100]
+    finally:
+        lm_work["busy"] = False
+
+
+def dub_set(lang):
+    m = packed_lm(DUB_ID)
+    if lang == "ja":
+        if not find_iso():
+            return {"ok": False, "msg": "Finish the setup first: the Japanese voices are laid over your own disc."}
+        if m and m.get("enabled"):
+            return {"ok": True, "msg": ""}
+        r = lm_start(dub_work, not m)
+        if r["ok"] and not m:
+            r["msg"] = "Downloading the Japanese voices (about 500 MB). This takes a few minutes."
+        return r
+    if lang == "en":
+        if not (m and m.get("enabled")):
+            return {"ok": True, "msg": ""}
+        return lm_start(lm_change_work, m["id"], False)
+    return {"ok": False, "msg": "Unknown language."}
 
 
 def packed_link(mid, text):
@@ -768,7 +883,7 @@ def packed_add_files(mid, reg, archive):
     for m in lst:
         if m["id"] == now[0]["id"]:
             m["name"] = reg["name"]
-            m["enabled"] = False   # packed-in mods start off
+            m["enabled"] = False   # essential mods start off
     lm_save(lst)
     try:
         lm_rebuild(find_iso(), lm_locate(find_iso()))
@@ -839,7 +954,7 @@ def packed_get_work(mid, gbid):
                 nm = base if base not in used else "%d_%s" % (k, base)
                 used.add(nm)
                 shutil.copyfile(src, os.path.join(out, nm))
-            lm_work["msg"] = "Downloaded %d patch file%s for %s. Press BUILD to put it into the game." % (len(found[:12]), "" if len(found) == 1 else "s", reg["name"])
+            lm_work["msg"] = "Downloaded %d patch file%s for %s. Press SET UP ESSENTIAL MODS to put it into the game." % (len(found[:12]), "" if len(found) == 1 else "s", reg["name"])
             if data_zip:   # the same download also carries game files: lay them over the disc as a file mod
                 packed_add_files(mid, reg, data_zip)
                 lm_work["msg"] += " Its game files were added too."
@@ -876,7 +991,7 @@ def packed_toggle(mid, flag):
         if m and bool(m.get("enabled")) != bool(flag):   # its game files follow the switch
             lm_start(lm_change_work, m["id"], False)
         if flag and mid not in built:
-            return {"ok": True, "msg": "On, but it is not in the build yet. Press BUILD (after downloading it) first."}
+            return {"ok": True, "msg": "On, but it is not in the build yet. Press SET UP ESSENTIAL MODS first."}
         return {"ok": True, "msg": "%s is %s. It applies the next time you press Play." % (reg["name"], "on" if flag else "off")}
     m = packed_lm(mid)
     if not m:
@@ -890,6 +1005,8 @@ def packed_remove(mid):
     reg = next((r for r in packed_registry() if r["id"] == mid), None)
     if not reg:
         return {"ok": False, "msg": "Unknown mod."}
+    if reg.get("pnach"):
+        return {"ok": False, "msg": "This one is part of the launcher, so there is nothing to remove. Turn it off instead."}
     if reg.get("kind") == "code":
         if reg.get("source") or reg.get("match") or reg.get("exclude"):   # a mod that shares its download: remove only its own files
             for f in packed_pnach(mid):
@@ -902,7 +1019,7 @@ def packed_remove(mid):
         m = packed_lm(mid) if reg.get("with_files") else None
         if m:
             lm_start(lm_change_work, m["id"], True)
-        return {"ok": True, "msg": "Removed. The game keeps it until the next BUILD."}
+        return {"ok": True, "msg": "Removed. The game keeps it until the next SET UP."}
     m = packed_lm(mid)
     if not m:
         return {"ok": False, "msg": "Nothing to remove."}
@@ -923,6 +1040,211 @@ def packed_build_start():
     except OSError as e:
         return {"ok": False, "msg": "Could not start the build: %s" % e}
     return {"ok": True, "msg": "Building. This takes a while (about as long as the first game build). You can keep using the launcher."}
+
+
+# ------------------------------------------------------------------ one button: download, build, build the PC window
+# "SET UP ESSENTIAL MODS" does every step that used to be separate: download the mods that have a GameBanana link (and are not cheats),
+# build the essential mods game in Ubuntu (tools/p3fes_packed_build.py), then build the PC window's copy with the Visual Studio tools
+# (the same steps as tools\p3fes_win_mod.bat, started through vcvars64 so nobody has to open the Native Tools prompt).
+auto = {"busy": False, "state": "idle", "step": "", "msg": "", "log": os.path.expanduser("~/.p3fes-essentials.log"), "need": []}
+
+
+def auto_say(step=None, msg=None):
+    if step is not None:
+        auto["step"] = step
+    if msg is not None:
+        auto["msg"] = msg
+
+
+def auto_last():
+    try:
+        with open(auto["log"], errors="replace") as f:
+            lines = [x.strip() for x in f.read()[-4000:].splitlines() if x.strip()]
+        return lines[-1][:140] if lines else ""
+    except OSError:
+        return ""
+
+
+# Patches that may be added by an update and are safe on a project folder made by an older installer (no list of applied patches):
+# patch name -> (source file, text that is only there once it is applied). The installer's LATE list names the same patches.
+LATE_TOOL_PATCHES = {"ps2run_logkey_patch.py": ("host/window.cpp", "SDL_WINDOWEVENT_CLOSE && g_window")}
+
+
+def tool_patches_pending():
+    """Tool patches listed in p3fes_install.sh that this computer's project folder has not had applied yet (a launcher update can add some)."""
+    inst = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "p3fes_install.sh"))
+    applied = os.path.join(DIR, ".p3fes_applied")
+    try:
+        txt = open(inst).read()
+    except OSError:
+        return []
+    a = txt.find('PATCHES="')
+    if a < 0 or not os.path.isdir(os.path.join(DIR, "runtime")):
+        return []
+    body = [x for x in txt[a + 9:txt.find('"', a + 9)].split() if x.endswith(".py")]
+    try:
+        have = set(open(applied).read().split())
+    except OSError:      # an older installer left no list: look at the source itself, for the patches that are safe to try
+        out = []
+        for name, (rel, mark) in LATE_TOOL_PATCHES.items():
+            try:
+                if name in body and mark not in open(os.path.join(DIR, rel), errors="replace").read():
+                    out.append(name)
+            except OSError:
+                pass
+        return out
+    return [x for x in body if x not in have]
+
+
+def tools_newer_than(path):
+    """A tool patch changed the project source after this file was made, so it has to be made again. Looks at the list of applied patches
+    and at the runner's own source files (an older install has no list, but the patched source still carries its date)."""
+    try:
+        mine = os.path.getmtime(path)
+    except OSError:
+        return False
+    for rel in (".p3fes_applied", "host/window.cpp", "runtime/src/system.cpp"):
+        try:
+            if mine < os.path.getmtime(os.path.join(DIR, rel)):
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def essentials_need():
+    """What is left to do, as short phrases: downloads with a known link, a build of the essential mods game, a build of the PC window."""
+    out = []
+    built, legacy = packed_built()
+    for r in packed_registry():
+        if r.get("hidden") or r.get("pnach") or r.get("source") or r.get("kind") not in ("code", "files", "cheat"):   # "source": it comes with another mod's download
+            continue
+        if r.get("kind") == "code" and not packed_pnach(r["id"]) and packed_gb(r["id"]) and not (legacy and r["id"] == "directcmd" and r["id"] in built):
+            out.append("download " + r["name"])
+        elif r.get("kind") in ("files", "cheat") and not packed_lm(r["id"]) and packed_gb(r["id"]):
+            out.append("download " + r["name"])
+    code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
+    if code_have and tool_patches_pending():
+        out.insert(0, "update the game tools")
+    if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tool_patches_pending()):
+        out.append("build the essential mods game")
+    if win_exe() and code_have and (not win_mod_exe() or win_mod_stale()):
+        out.append("build the PC window")
+    return out
+
+
+def vcvars_win():
+    """Windows path of vcvars64.bat from the Visual Studio Build Tools that p3fes_win_setup.bat installed, or None."""
+    vsw = "/mnt/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+    if not os.path.isfile(vsw):
+        return None
+    try:
+        out = subprocess.run([vsw, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Llvm.Clang",
+                              "Microsoft.VisualStudio.Component.VC.CMake.Project", "-property", "installationPath"],
+                             capture_output=True, text=True, timeout=60, cwd=WINCWD).stdout.strip().splitlines()
+    except Exception:
+        return None
+    base = (out[0].strip() if out else "")
+    return (base + "\\VC\\Auxiliary\\Build\\vcvars64.bat") if base else None
+
+
+def auto_run(cmd, logf, cwd=None):
+    """Run a command with its output going to the log; returns the exit code."""
+    return subprocess.run(cmd, cwd=cwd, stdout=logf, stderr=subprocess.STDOUT).returncode
+
+
+def essentials_work():
+    try:
+        tools = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        with open(auto["log"], "w") as logf:
+            need = essentials_need()
+            auto["need"] = need
+            if not need:
+                auto.update(state="done", step="", msg="Everything is already set up.")
+                return
+            # 1. downloads
+            missing = []
+            for r in packed_registry():
+                if r.get("hidden") or r.get("pnach") or r.get("source") or r.get("kind") not in ("code", "files", "cheat"):
+                    continue
+                have = bool(packed_pnach(r["id"])) if r.get("kind") == "code" else bool(packed_lm(r["id"]))
+                if have:
+                    continue
+                gb = packed_gb(r["id"])
+                if not gb:
+                    missing.append(r["name"])
+                    continue
+                auto_say("Downloading " + r["name"], "")
+                logf.write("download %s (GameBanana %d)\n" % (r["name"], gb)); logf.flush()
+                lm_work["busy"] = True
+                packed_get_work(r["id"], gb)       # sets lm_work["msg"], clears busy
+                logf.write(lm_work.get("msg", "") + "\n"); logf.flush()
+            # 1b. new tool patches (a launcher update can add some; the PC window gets them from the patched project folder)
+            if tool_patches_pending() and get_state()["state"] == "ready":
+                auto_say("Updating the game tools", "")
+                inst = os.path.join(tools, "p3fes_install.sh")
+                logf.write("== applying new tool patches: %s\n" % ", ".join(tool_patches_pending())); logf.flush()
+                if auto_run(["bash", inst, "--new-patches"], logf, DIR) != 0:
+                    logf.flush()
+                    try:
+                        why = " | ".join(l.strip() for l in open(auto["log"], errors="replace").read().splitlines()[-6:] if l.strip())[-300:]
+                    except OSError:
+                        why = ""
+                    auto.update(state="failed", msg="A new tool patch did not fit. " + why + " (full log: ~/.p3fes-essentials.log; send it to us)")
+                    return
+            # 2. the essential mods game, in Ubuntu
+            built, legacy = packed_built()
+            code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
+            if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt"))):
+                auto_say("Building the essential mods game (takes a while)", "")
+                if get_state()["state"] != "ready":
+                    auto.update(state="failed", msg="Finish the setup first.")
+                    return
+                script = os.path.join(tools, "p3fes_packed_build.py")
+                if not os.path.isfile(script):
+                    auto.update(state="failed", msg="p3fes_packed_build.py is missing from the tools folder.")
+                    return
+                logf.write("== building the essential mods game\n"); logf.flush()
+                if auto_run([sys.executable, script, "--packed", packed_dir()], logf, DIR) != 0:
+                    auto.update(state="failed", msg="The build stopped. The last lines are in ~/.p3fes-essentials.log.")
+                    return
+            # 3. the PC window's copy
+            code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
+            if win_exe() and code_have and (not win_mod_exe() or win_mod_stale()):
+                auto_say("Building the PC window version (takes a while)", "")
+                vc = vcvars_win()
+                if not vc:
+                    auto.update(state="failed", msg="The Visual Studio build tools were not found. Run tools\\p3fes_win_setup.bat once, then try again.")
+                    return
+                wb = to_win(os.path.join(tools, "p3fes_win_mod.bat"))
+                if not wb or not WINCWD:
+                    auto.update(state="failed", msg="Could not find tools\\p3fes_win_mod.bat for Windows.")
+                    return
+                wrap = os.path.join(os.path.dirname(saves_dir()), "_essentials_win.bat")
+                with open(wrap, "w", newline="") as f:
+                    f.write("@echo off\r\ncall \"%s\" >nul\r\nif errorlevel 1 exit /b 1\r\ncall \"%s\"\r\nexit /b %%errorlevel%%\r\n" % (vc, wb))
+                logf.write("== building the PC window version\n"); logf.flush()
+                if auto_run(["cmd.exe", "/c", to_win(wrap)], logf, WINCWD) != 0:
+                    auto.update(state="failed", msg="The PC window build stopped. The last lines are in ~/.p3fes-essentials.log.")
+                    return
+            note = ""
+            if missing:
+                note = " No GameBanana link yet for: %s (use ADD LINK on its row)." % ", ".join(missing)
+            auto.update(state="done", step="", msg="Done." + note)
+    except Exception as e:
+        auto.update(state="failed", msg="Stopped: %s" % str(e)[:140])
+    finally:
+        auto["busy"] = False
+
+
+def essentials_start():
+    if auto["busy"] or (packed_build["proc"] is not None and packed_build["proc"].poll() is None):
+        return {"ok": False, "msg": "This is already running."}
+    if lm_work["busy"]:
+        return {"ok": False, "msg": "Still working on the last change."}
+    auto.update(busy=True, state="running", step="Starting", msg="")
+    threading.Thread(target=essentials_work, daemon=True).start()
+    return {"ok": True, "msg": "Working. You can keep using the launcher; the steps are listed under the buttons."}
 
 
 # ------------------------------------------------------------------ GameBanana browsing
@@ -971,6 +1293,15 @@ def gb_fetch_all():
     return mods
 
 
+def packed_gb_ids():
+    """GameBanana pages of the mods that Essential Mods and Cheats manage (built-in numbers and the player's own links)."""
+    ids = {int(r["gb"]) for r in packed_registry() if r.get("gb")}
+    g = packed_cfg().get("gb")
+    if isinstance(g, dict):
+        ids |= {int(v) for v in g.values() if str(v).isdigit()}
+    return ids
+
+
 def gb_view(q="", sort="new", page=0, refresh=False):
     with gb_lock:
         if refresh or not gb_cache["mods"] or time.time() - gb_cache["t"] > 900:
@@ -980,7 +1311,8 @@ def gb_view(q="", sort="new", page=0, refresh=False):
                 gb_cache["err"] = "" if gb_cache["mods"] else "GameBanana returned no mods."
             except Exception as e:
                 gb_cache["err"] = "Could not reach GameBanana (%s)." % str(e)[:80]
-        mods = list(gb_cache["mods"])
+        hide = packed_gb_ids()
+        mods = [x for x in gb_cache["mods"] if x.get("id") not in hide]
         err = gb_cache["err"]
     q = (q or "").strip().lower()
     if q:
@@ -1097,6 +1429,10 @@ def gb_image(url):
 
 def gb_install_work(mid, fid=0):
     tmp = os.path.join(lm_dir(), "_dl")
+    if mid in packed_gb_ids():
+        lm_work["msg"] = "That mod is managed in Mods > Essential Mods or Cheats. Use SET UP ESSENTIAL MODS there."
+        lm_work["busy"] = False
+        return
     try:
         lm_work["msg"] = "Asking GameBanana for the files…"
         info = gb_get("%s/Mod/%d/ProfilePage" % (GB_API, mid))
@@ -1396,6 +1732,41 @@ def update_install():
         return {"ok": False, "msg": "The update did not install (%s). Nothing was changed." % str(e)[:120]}
     return {"ok": True, "installed": True, "version": ver, "msg": "Updated to %s (%d files). Restart the launcher to use it. The old version is kept in %s." % (ver, n, os.path.join(UPDATE_BACKUP, LAUNCHER_VERSION))}
 
+
+GUIDE100_FILE = os.path.expanduser("~/.p3fes-guide100.json")   # tick boxes of the built-in 100% guide
+GUIDE100_ID = re.compile(r"^[a-z0-9._-]{1,40}$")
+
+def guide100_load():
+    try:
+        with open(GUIDE100_FILE, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        ids = [x for x in d.get("done", []) if isinstance(x, str) and GUIDE100_ID.match(x)]
+        return sorted(set(ids))
+    except Exception:
+        return []
+
+def guide100_apply(data):
+    """data: {} (just read) | {id, on} (tick or untick one box) | {reset: true}. Returns the ticked ids."""
+    done = set(guide100_load())
+    if data.get("reset"):
+        done = set()
+    elif isinstance(data.get("id"), str) and GUIDE100_ID.match(data["id"]):
+        if data.get("on"):
+            if len(done) < 2000:
+                done.add(data["id"])
+        else:
+            done.discard(data["id"])
+    else:
+        return sorted(done)
+    ids = sorted(done)
+    try:
+        tmp = GUIDE100_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"done": ids}, f)
+        os.replace(tmp, GUIDE100_FILE)
+    except Exception:
+        pass
+    return ids
 
 GUIDES_DIR = os.path.expanduser("~/.p3fes-guides")   # wiki pages the player saved for offline reading
 WIKI_BASES = {"mt": "https://megamitensei.fandom.com/wiki/", "sm": "https://shin-megami-tensei-persona.fandom.com/wiki/"}
@@ -1858,9 +2229,12 @@ def widescreen_env(env):
     return False
 
 
-def web_pokes_param(ovl):
-    """The file-mod table pokes (mods\\active.pokes) as a page parameter, for the browser game; only when the server lays the overlay over the disc."""
+def web_pokes_param(ovl, mod=False):
+    """The file-mod table pokes (mods\\active.pokes) as a page parameter, for the browser game; only when the server lays the overlay over the disc.
+    Cheat strengths (EXP x5 ...) are pokes too, when the mods build is the one that starts."""
     pk = lm_pokes_text() if ovl else ""
+    cp = packed_cheat_pokes() if mod and packed_mask() else ""
+    pk = ",".join(x for x in (pk, cp) if x)
     return "&PS2_POKE=" + urllib.parse.quote(pk, safe="") if pk else ""
 
 
@@ -1946,21 +2320,21 @@ def win_mod_exe():
 
 
 def direct_on():
-    """Direct Commands is a toggle, on unless switched off (Mods > Packed-In Mods)."""
+    """Direct Commands is a toggle, on unless switched off (Mods > Essential Mods)."""
     return packed_on("directcmd")
 
 
 def win_mod_stale():
-    """The PC window's mod build was made before the newest BUILD of the packed-in mods, so it would not have the mods that were added since."""
+    """The PC window's mod build was made before the newest BUILD of the essential mods (or before the newest tool patch), so it would not have what was added since."""
     exe = win_mod_exe()
     try:
-        return bool(exe) and os.path.getmtime(exe) < os.path.getmtime(os.path.join(DIR, "games", MOD_NAME, "variants.txt"))
+        return bool(exe) and (os.path.getmtime(exe) < os.path.getmtime(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tools_newer_than(exe))
     except OSError:
         return False
 
 
 def direct_available(mode):
-    """Is the packed-in mods build there for this way of playing?"""
+    """Is the essential mods build there for this way of playing?"""
     if mode == "exe":
         if win_exe():
             return bool(win_mod_exe()) and not win_mod_stale()
@@ -2361,6 +2735,8 @@ def play_windows(exe, resume=None, mod=False):
     except OSError:
         pass
     pk = lm_pokes_text() if overlay_file() else ""
+    cp = packed_cheat_pokes() if mod and packed_mask() else ""   # cheat strengths (EXP x5, run speed ...): numbers the patched code reads from memory
+    pk = ",".join(x for x in (pk, cp) if x)
     if pk:   # a moved file mod: the game's file table gets the new place and size (ps2run_poke_patch.py)
         if env.get("PS2_POKE"):   # a PS2_POKE line in ~/.p3fes-window-env is added to the mod pokes
             pk = pk + "," + env["PS2_POKE"]
@@ -2401,20 +2777,20 @@ def play_windows(exe, resume=None, mod=False):
 
 
 def play(mode, resume=None, mod=False, pcresume=None):
-    """Start the game. The packed-in mods build (a separate build of the game) is used when a mod in it is turned on and it is built for this way of
+    """Start the game. The essential mods build (a separate build of the game) is used when a mod in it is turned on and it is built for this way of
     playing; a browser autosave resume always uses the normal build (a state only fits the build that made it)."""
     note = ""
     if not mod and packed_wanted() and not resume:
         if direct_available(mode):
             mod = True
-            note = " Packed-in mods are on."
+            note = " Essential mods are on."
         elif direct_available("browser" if mode == "exe" else "exe"):
-            note = " Packed-in mods are on, but they are not built for the %s yet (see Mods > Packed-In Mods)." % ("PC window" if mode == "exe" else "browser")
+            note = " Essential mods are on, but they are not built for the %s yet (see Mods > Essential Mods)." % ("PC window" if mode == "exe" else "browser")
     built, legacy = packed_built()
     if not resume and not legacy:
         need = packed_state()["need_build"]
         if need:
-            note += " Not in the build yet: %s (press BUILD in Mods > Packed-In Mods)." % ", ".join(need)
+            note += " Not in the build yet: %s (press SET UP ESSENTIAL MODS in Mods > Essential Mods)." % ", ".join(need)
     r = play_inner(mode, resume, mod, pcresume)
     if r.get("ok") and note:
         r["msg"] = (r.get("msg") or "") + note
@@ -2450,9 +2826,12 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
             return {"ok": False, "msg": problem}
         if mod and packed_mask():
             env["PS2_MODS"] = str(packed_mask())
+            cp = packed_cheat_pokes()
+            if cp:
+                env["PS2_POKE"] = (env["PS2_POKE"] + "," + cp) if env.get("PS2_POKE") else cp
         children.append(subprocess.Popen(cmd, cwd=DIR, env=env))
         return {"ok": True, "msg": "Started the PC window. Its memory card is in " + saves_dir() + ". If none appears, check VcXsrv is running."}
-    ovl = overlay_path()   # file mods work with the packed-in mods build too (same disc, same overlay)
+    ovl = overlay_path()   # file mods work with the essential mods build too (same disc, same overlay)
     want = (name, ovl, os.path.getmtime(ovl) if ovl else None)
     if port_open(GAME_PORT) and serving[0] not in (None, want):
         # the other build is being served: stop our server so this one can take the port
@@ -2478,7 +2857,7 @@ def play_inner(mode, resume=None, mod=False, pcresume=None):
     url = "http://localhost:%d/?PS2_SCALE=%s&cardsync=%d" % (GAME_PORT, scale, SERVER_PORT[0]) + web_params()
     if mod and packed_mask():
         url += "&PS2_MODS=%d" % packed_mask()
-    url += web_pokes_param(ovl)
+    url += web_pokes_param(ovl, mod)
     if resume:
         url += "&resume=%d" % resume
     if load_cfg().get("speedrun_zero_web"):
@@ -3060,11 +3439,17 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if self.path == "/api/packed/on":
             return self.send(200, packed_toggle(str(data.get("id", "")), bool(data.get("on"))))
+        if self.path == "/api/dub":
+            return self.send(200, dub_set(str(data.get("lang", ""))))
         if self.path == "/api/packed/link":
             return self.send(200, packed_link(str(data.get("id", "")), str(data.get("url", "")).strip()[:200]))
+        if self.path == "/api/packed/level":
+            return self.send(200, packed_set_level(str(data.get("id", "")), str(data.get("v", ""))))
         if self.path == "/api/packed/get":
             mid = packed_src(str(data.get("id", "")))
-            gb = (packed_cfg().get("gb") or {}).get(mid)
+            if any(r["id"] == mid and r.get("pnach") for r in packed_registry()):
+                return self.send(200, {"ok": False, "msg": "This one is part of the launcher, so there is nothing to download."})
+            gb = packed_gb(mid)
             if not PACKED_ID.match(mid) or not any(r["id"] == mid for r in packed_registry()):
                 return self.send(200, {"ok": False, "msg": "Unknown mod."})
             if not gb:
@@ -3073,14 +3458,14 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/packed/remove":
             return self.send(200, packed_remove(str(data.get("id", ""))))
         if self.path == "/api/packed/build":
-            return self.send(200, packed_build_start())
+            return self.send(200, essentials_start())
         if self.path == "/api/packed/folder":
             mid = packed_src(str(data.get("id", "")))
             d = os.path.join(packed_dir(), mid if PACKED_ID.match(mid) else "")
             os.makedirs(d, exist_ok=True)
             try:
                 subprocess.Popen(["explorer.exe", to_win(d)], cwd=WINCWD if os.path.isdir("/mnt/c") else None)
-                return self.send(200, {"ok": True, "msg": "Opened the folder. Put the mod's .pnach files in it, then press BUILD."})
+                return self.send(200, {"ok": True, "msg": "Opened the folder. Put the mod's .pnach files in it, then press SET UP ESSENTIAL MODS."})
             except Exception as e:
                 return self.send(200, {"ok": False, "msg": "Could not open the folder: %s" % e})
         if self.path == "/api/steam/state":
@@ -3170,6 +3555,8 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/speedrun/reset":
             speedrun_reset()
             return self.send(200, {"ok": True, "msg": "Clock set back to 0:00:00.00 (it starts from zero the next time the PC window opens)."})
+        if self.path == "/api/guide100":
+            return self.send(200, {"ok": True, "done": guide100_apply(data)})
         if self.path == "/api/skiplauncher":
             c = load_cfg()
             c["skip_launcher"] = bool(data.get("on"))

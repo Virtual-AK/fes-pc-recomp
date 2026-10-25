@@ -3,6 +3,7 @@
   "id": "directcmd",
   "bit": 0,
   "kind": "code",
+  "gb": 426860,
   "name": "Direct Commands",
   "by": "TGE",
   "desc": "Control party members in battle (also fixes the skill list in Fusion).",
@@ -14,6 +15,7 @@
   "id": "modernswitch",
   "bit": 1,
   "kind": "code",
+  "gb": 541011,
   "name": "Modern Persona Switch",
   "by": "",
   "desc": "On your turn you can switch Personas as often as you like. After a 1 More you keep that Persona until the enemy has had its turn."
@@ -22,6 +24,7 @@
   "id": "alwayscutin",
   "bit": 2,
   "kind": "code",
+  "gb": 704069,
   "name": "Always Cut-In",
   "by": "",
   "exclude": [
@@ -43,9 +46,40 @@
   "desc": "Every attack is a critical hit. This is a cheat, so it is off until you turn it on. It comes from the same GameBanana download as Always Cut-In."
  },
  {
+  "id": "expmult",
+  "bit": 22,
+  "kind": "code",
+  "cheat": true,
+  "bundled": true,
+  "name": "EXP Increase",
+  "by": "Persona 3 FES PC Recomp",
+  "pnach": "// EXP Increase (cheat). Our own patch, not from a download.\n// The game works out the experience of every battle in one function (001fbdf0). Its last step limits the result to 65535;\n// these five words replace that step with: result x (the number stored at 00007000), then limit to 65535.\n// The launcher writes the chosen multiplier into 00007000 when the game starts (PS2_POKE); 3 is the default kept here.\npatch=1,EE,001fbf68,word,8c017000 // original 3c010001  lui $1,1       -> lw $1,0x7000($0)\npatch=1,EE,001fbf6c,word,00411018 // original 0041082a  slt $1,$2,$1   -> mult $2,$2,$1\npatch=1,EE,001fbf70,word,00020c02 // original 14200002  bnez $1,+12    -> srl $1,$2,16\npatch=1,EE,001fbf74,word,3403ffff // original 00000000  nop            -> ori $3,$0,65535\npatch=1,EE,001fbf78,word,0061100b // original 3402ffff  ori $2,$0,65535 -> movn $2,$3,$1\npatch=1,EE,00007000,word,00000003\n",
+  "desc": "Battle experience is multiplied (still capped at 65535 per fight). Pick x3, x5 or x10 below.",
+  "levels": [
+   {
+    "v": "3",
+    "label": "x3",
+    "poke": "00000003"
+   },
+   {
+    "v": "5",
+    "label": "x5",
+    "poke": "00000005"
+   },
+   {
+    "v": "10",
+    "label": "x10",
+    "poke": "0000000A"
+   }
+  ],
+  "level_addr": "00007000",
+  "level_default": "3"
+ },
+ {
   "id": "partyxp",
   "bit": 3,
   "kind": "code",
+  "gb": 533989,
   "name": "Share Party Experience",
   "by": "",
   "desc": "The whole party gets experience after a battle, not only the members in the fight."
@@ -54,6 +88,7 @@
   "id": "nevertired",
   "bit": 4,
   "kind": "code",
+  "gb": 474418,
   "name": "Never Tired",
   "by": "Sir Toasterpastry",
   "desc": "Characters never get tired."
@@ -61,6 +96,7 @@
  {
   "id": "faststart",
   "kind": "files",
+  "gb": 390790,
   "name": "Fast Start",
   "by": "",
   "desc": "Skips the questions at the start about transferring data and what FES added."
@@ -69,6 +105,7 @@
   "id": "skillinherit",
   "bit": 6,
   "kind": "code",
+  "gb": 531295,
   "with_files": true,
   "pick": [
    "fes"
@@ -85,14 +122,16 @@
   "kind": "cheat",
   "name": "Classroom Cheat Sheet",
   "by": "",
-  "desc": "Shows the answers to class questions and exams."
+  "desc": "Shows the answers to class questions and exams.",
+  "gb": 50309
  },
  {
   "id": "sociallink",
   "kind": "cheat",
   "name": "Social Link Cheat Sheet",
   "by": "",
-  "desc": "Shows the best answers in Social Link conversations."
+  "desc": "Shows the best answers in Social Link conversations.",
+  "gb": 50310
  },
  {
   "id": "widescreen",
@@ -352,5 +391,13 @@
   "name": "Widescreen Social Link screens",
   "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
   "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+ },
+ {
+  "id": "undub",
+  "kind": "files",
+  "hidden": true,
+  "gb": 292547,
+  "name": "Japanese Dub",
+  "by": "Fei, wxnder, Phoenix"
  }
 ]
