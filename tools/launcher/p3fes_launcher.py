@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.49"
+LAUNCHER_VERSION = "0.51"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -161,7 +161,7 @@ def find_iso():
         return chosen
     cands = sorted(glob.glob("/mnt/c/p3fes/*.iso")) + [os.path.expanduser("~/p3fes.iso")] + sorted(glob.glob(os.path.expanduser("~/*.iso")))
     for c in cands:
-        if os.path.isfile(c):
+        if os.path.isfile(c) and "t-esp" not in os.path.basename(c).lower():   # the Spanish copy made by the translation patcher is not your original disc
             return c
     return None
 
@@ -764,7 +764,7 @@ def packed_state():
     return {"list": rows, "legacy": legacy, "busy": lm_work["busy"], "msg": lm_work["msg"], "build": packed_build_status(), "need_build": need,
             "auto": {"busy": auto["busy"], "state": auto["state"], "step": auto["step"], "msg": auto["msg"], "last": auto_last() if auto["busy"] or auto["state"] == "failed" else "", "need": essentials_need()},
             "win_stale": win_mod_stale(), "mask": packed_mask(), "mod_page": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "has_winexe": bool(win_exe()),
-            "win_mod": bool(win_mod_exe()), "dub": dub_state()}
+            "win_mod": bool(win_mod_exe()), "dub": dub_state(), "lang": es_state(), "prompts": pr_state()}
 
 
 # ------------------------------------------------------------------ voice language (Settings > Audio)
@@ -821,6 +821,303 @@ def dub_set(lang):
             return {"ok": True, "msg": ""}
         return lm_start(lm_change_work, m["id"], False)
     return {"ok": False, "msg": "Unknown language."}
+
+
+# ------------------------------------------------------------------ text language (Settings > Audio)
+ES_ID = "spanish"   # the Spanish text: a hidden file mod the launcher builds from a disc the player patched with the TraduSquare patcher (docs/translation-spanish.md)
+ES_HELP = ("Spanish needs a Spanish copy of your own disc, made with the free TraduSquare / Tio Victor patcher (tiovictor.romhackhispano.org/persona-3-fes). "
+           "Run it on your disc, keep the new .iso (its name ends with [T-Esp]) in C:\\p3fes next to your disc, then press SPANISH again.")
+
+
+def es_find():
+    """The Spanish copy of the disc: one the player chose, else a [T-Esp] .iso next to their disc."""
+    c = load_cfg().get("es_iso")
+    if c and os.path.isfile(c):
+        return c
+    iso = find_iso()
+    sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+    import p3fes_translate
+    folders = ([os.path.dirname(iso)] if iso else []) + ["/mnt/c/p3fes", os.path.expanduser("~")]
+    return p3fes_translate.find_patched(folders, iso)
+
+
+def es_state():
+    m = packed_lm(ES_ID)
+    return {"have": bool(m), "on": bool(m and m.get("enabled")), "busy": lm_work["busy"], "msg": lm_work["msg"],
+            "fit": (m or {}).get("fit"), "total": (m or {}).get("total")}
+
+
+def es_work(patched):
+    """Thread: build the Spanish file mod from the patched disc, add it (hidden), switch it on."""
+    try:
+        iso = find_iso()
+        sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        import p3fes_translate as T
+        out = os.path.join(lm_dir(), ES_ID)
+        shutil.rmtree(out, ignore_errors=True)
+        files = os.path.join(out, "files")
+        os.makedirs(files)
+        lm_work["msg"] = "Comparing the Spanish disc with yours (a few minutes)…"
+        try:
+            n, total = T.extract(iso, patched, files, progress=lambda t: lm_work.__setitem__("msg", t))
+        except T.ToolError as e:
+            shutil.rmtree(out, ignore_errors=True)
+            lm_work["msg"] = "That disc cannot be used: %s." % e
+            return
+        if not n:
+            shutil.rmtree(out, ignore_errors=True)
+            lm_work["msg"] = "No Spanish files were found on that disc. Is it the patched copy?"
+            return
+        lm_work["msg"] = "Checking the files against your disc…"
+        loc = lm_locate(iso)
+        items = [i for i in lm_modmap().plan(iso, files, loc=loc) if "/" in i["rel"] or i["ok"]]
+        fit = sum(1 for i in items if i["ok"])
+        lst = [m for m in lm_load() if m.get("id") != ES_ID]
+        lst.insert(0, {"id": ES_ID, "kind": "DISC", "name": "Spanish Translation", "enabled": fit > 0, "fit": fit, "total": len(items),
+                       "skipped": [("%s: %s" % (i["rel"], i["why"]))[:140] for i in items if not i["ok"]][:6]})
+        lm_save(lst)
+        c = load_cfg()
+        pk = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+        pk.setdefault("lm", {})[ES_ID] = ES_ID
+        c["packed"] = pk
+        save_cfg(c)
+        lm_work["msg"] = "Building…"
+        lm_rebuild(iso, loc)
+        lm_work["msg"] = ("Spanish is on (%d files). It applies the next time you press Play. The battle command menu and the results screen stay English." % fit) if fit else "None of the Spanish files fit your disc."
+    except Exception as e:
+        lm_work["msg"] = "Could not set up Spanish: %s" % str(e)[:100]
+    finally:
+        lm_work["busy"] = False
+
+
+def es_set(lang):
+    m = packed_lm(ES_ID)
+    if lang == "es":
+        if not find_iso():
+            return {"ok": False, "msg": "Finish the setup first: the Spanish text is laid over your own disc."}
+        if m and m.get("enabled"):
+            return {"ok": True, "msg": ""}
+        if m:
+            return lm_start(lm_change_work, m["id"], False)
+        p = es_find()
+        if not p:
+            return {"ok": False, "msg": ES_HELP}
+        r = lm_start(es_work, p)
+        if r["ok"]:
+            r["msg"] = "Building Spanish from %s. This takes a few minutes." % os.path.basename(p)
+        return r
+    if lang == "en":
+        if not (m and m.get("enabled")):
+            return {"ok": True, "msg": ""}
+        return lm_start(lm_change_work, m["id"], False)
+    return {"ok": False, "msg": "Unknown language."}
+
+
+# ------------------------------------------------------------------ button prompts (Settings > Controls)
+PR_ID = "prompts"   # a hidden file mod: the game's own button pictures redrawn as keyboard keys or Xbox / Switch buttons (tools/p3fes_prompts.py)
+PR_SRC = ["/DATA.CVM/CAMP", "/DATA.CVM/FACILITY", "/BTL.CVM/BATTLE/PANEL", "/BTL.CVM/BATTLE/SHUFFLE", "/BTL.CVM/SND_BENC"]
+PR_STYLES = ("auto", "keyboard", "xbox", "switch", "playstation")
+PR_TOOL_VERSION = 1       # raise when p3fes_prompts.py draws something differently, so every prompt mod is rebuilt
+pr_pad = {"fam": "", "t": 0.0}   # the controller family the launcher page last saw (xbox, nintendo, ps, other, or "" for none)
+pr_lock = threading.Lock()
+
+
+def pr_dir():
+    d = os.path.join(os.path.dirname(saves_dir()), "prompts")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def pr_state_file():
+    return os.path.join(pr_dir(), "built.json")
+
+
+def pr_resolve(setting=None):
+    """The style to draw now: the player's choice, and for AUTO the controller the launcher page sees (keyboard when there is none)."""
+    cfg = load_cfg()
+    s = setting or cfg.get("prompt_style", "auto")
+    if s not in PR_STYLES:
+        s = "auto"
+    if s != "auto":
+        return s
+    fam = pr_pad["fam"] if pr_pad["t"] and time.time() - pr_pad["t"] < 600 else ""
+    return {"xbox": "xbox", "nintendo": "switch", "ps": "playstation", "other": "xbox"}.get(fam, "keyboard")
+
+
+def pr_signature(style):
+    """What the built pictures depend on: the style, the keys / buttons that show, and the drawing code."""
+    k, p = read_keys(), read_pad()
+    use = {"style": style, "v": PR_TOOL_VERSION}
+    if style == "keyboard":
+        use["keys"] = [k[a] for a in ("cross", "circle", "square", "triangle", "l1", "r1")]
+    elif style in ("xbox", "switch"):
+        use["pad"] = [p[a] for a in ("cross", "circle", "square", "triangle", "l1", "r1")]
+    return json.dumps(use, sort_keys=True)
+
+
+def pr_built():
+    try:
+        with open(pr_state_file()) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def pr_have_src():
+    return os.path.isdir(os.path.join(pr_dir(), "src", "DATA.CVM", "CAMP")) and os.path.isfile(os.path.join(pr_dir(), "src", ".done"))
+
+
+def pr_tools():
+    sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+    import p3fes_prompts
+    return p3fes_prompts
+
+
+def pr_modules_ok(say):
+    """numpy and OpenCV are needed to find the pictures. Installs them for this user when they are missing."""
+    try:
+        import numpy, cv2   # noqa: F401
+        return True
+    except ImportError:
+        pass
+    say("Installing the picture tools (one time, needs the internet)…")
+    for pkgs in (["numpy", "opencv-python-headless"], ["numpy", "opencv-python"]):
+        r = subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--break-system-packages", "-q"] + pkgs, capture_output=True, text=True, timeout=600)
+        if r.returncode == 0:
+            break
+    try:
+        import numpy, cv2   # noqa: F401,F811
+        return True
+    except ImportError:
+        return False
+
+
+def pr_extract(iso, say):
+    """Copy the few folders that hold button pictures out of the player's own disc (about 80 MB, kept on this computer only)."""
+    src = os.path.join(pr_dir(), "src")
+    shutil.rmtree(src, ignore_errors=True)
+    tools = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    cmd = [sys.executable, os.path.join(tools, "p3fes_unpack.py"), iso, "-o", src, "--containers", "--skip-video"]
+    for p in PR_SRC:
+        cmd += ["--only", p]
+    say("Reading the button pictures from your disc (a minute or two)…")
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    if r.returncode != 0 or not os.path.isdir(os.path.join(src, "DATA.CVM", "CAMP")):
+        shutil.rmtree(src, ignore_errors=True)
+        raise RuntimeError("could not read the pictures from your disc (%s)" % ((r.stdout + r.stderr).strip().splitlines() or ["?"])[-1][:100])
+    open(os.path.join(src, ".done"), "w").write("ok")
+
+
+def pr_set_mod(enabled, fit=0, total=0):
+    lst = [m for m in lm_load() if m.get("id") != PR_ID]
+    if enabled:
+        lst.append({"id": PR_ID, "kind": "DISC", "name": "Button Prompts", "enabled": True, "fit": fit, "total": total, "skipped": []})   # last = lowest priority: a translation wins
+    lm_save(lst)
+    c = load_cfg()
+    pk = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+    if enabled:
+        pk.setdefault("lm", {})[PR_ID] = PR_ID
+    else:
+        pk.get("lm", {}).pop(PR_ID, None)
+    c["packed"] = pk
+    save_cfg(c)
+
+
+def pr_apply(style, say=lambda t: None):
+    """Make the mod for `style` (or remove it for the PlayStation originals). Returns a sentence for the player."""
+    with pr_lock:
+        iso = find_iso()
+        if not iso:
+            return "Finish the setup first: the button pictures come from your own disc."
+        sig = pr_signature(style)
+        built = pr_built()
+        if style == "playstation":
+            if packed_lm(PR_ID):
+                pr_set_mod(False)
+                shutil.rmtree(os.path.join(lm_dir(), PR_ID), ignore_errors=True)
+                lm_rebuild(iso, lm_locate(iso))
+            json.dump({"sig": sig, "style": style}, open(pr_state_file(), "w"))
+            return "The game's own PlayStation buttons are shown."
+        if built.get("sig") == sig and packed_lm(PR_ID) and os.path.isdir(os.path.join(lm_dir(), PR_ID, "files")):
+            return ""
+        if not pr_modules_ok(say):
+            return "The picture tools could not be installed. Check your internet connection and try again."
+        if not pr_have_src():
+            pr_extract(iso, say)
+        P = pr_tools()
+        say("Drawing the %s buttons…" % style)
+        hits_file = os.path.join(pr_dir(), "hits.json")
+        hits = None
+        try:
+            d = json.load(open(hits_file))
+            if d.get("version") == P.HITS_VERSION:
+                hits = {rel: [(k, [(n, b, sc) for n, b, sc in hl]) for k, hl in per] for rel, per in d["hits"].items()}
+        except Exception:
+            hits = None
+        if hits is None:
+            say("Finding every button picture in the game (a few minutes, only the first time)…")
+        out = os.path.join(pr_dir(), "out")
+        shutil.rmtree(out, ignore_errors=True)
+        hits, report, n_arch = P.build(os.path.join(pr_dir(), "src"), out, style, read_keys(), read_pad(), hits)
+        json.dump({"version": P.HITS_VERSION, "hits": hits}, open(hits_file, "w"))
+        if not n_arch:
+            return "No button pictures were found in your disc."
+        dst = os.path.join(lm_dir(), PR_ID)
+        shutil.rmtree(dst, ignore_errors=True)
+        os.makedirs(dst)
+        shutil.move(os.path.join(out, "files"), os.path.join(dst, "files"))
+        loc = lm_locate(iso)
+        items = [i for i in lm_modmap().plan(iso, os.path.join(dst, "files"), loc=loc) if "/" in i["rel"] or i["ok"]]
+        fit = sum(1 for i in items if i["ok"])
+        pr_set_mod(fit > 0, fit, len(items))
+        say("Applying…")
+        lm_rebuild(iso, loc)
+        json.dump({"sig": sig, "style": style, "files": fit}, open(pr_state_file(), "w"))
+        return "%s buttons are ready (%d files). They show the next time the game starts." % (style.capitalize(), fit) if fit else "None of the button files fit your disc."
+
+
+def pr_work(setting):
+    try:
+        lm_work["msg"] = pr_apply(pr_resolve(setting), lambda t: lm_work.__setitem__("msg", t)) or "Button prompts are up to date."
+    except Exception as e:
+        lm_work["msg"] = "Could not make the button prompts: %s" % str(e)[:120]
+    finally:
+        lm_work["busy"] = False
+
+
+def pr_set(setting):
+    if setting not in PR_STYLES:
+        return {"ok": False, "msg": "Unknown choice."}
+    c = load_cfg()
+    c["prompt_style"] = setting
+    save_cfg(c)
+    if not find_iso():
+        return {"ok": True, "msg": "Saved. The pictures are made from your disc once the setup is finished."}
+    r = lm_start(pr_work, setting)
+    if r["ok"]:
+        r["msg"] = "Making the button pictures…"
+    return r
+
+
+def pr_before_play():
+    """Called when Play is pressed: bring the button pictures in line with the current choice, keys and controller, before the game starts.
+    Done right here (not in the background): the launcher may close itself on Play, which would stop a background job half way.
+    A few seconds when only the style or the keys changed; about a minute the first time (it reads the pictures from the disc)."""
+    try:
+        if not find_iso() or lm_work["busy"]:
+            return ""
+        style = pr_resolve()
+        if pr_built().get("sig") == pr_signature(style) and (style == "playstation" or packed_lm(PR_ID)):
+            return ""
+        return " " + pr_apply(style).replace(" They show the next time the game starts.", "")
+    except Exception as e:
+        return " (Button pictures: %s)" % str(e)[:80]
+
+
+def pr_state():
+    b = pr_built()
+    return {"setting": load_cfg().get("prompt_style", "auto"), "using": pr_resolve(), "built": b.get("style", ""), "have": bool(packed_lm(PR_ID)),
+            "pad": pr_pad["fam"], "busy": lm_work["busy"], "msg": lm_work["msg"]}
 
 
 def packed_link(mid, text):
@@ -1544,7 +1841,7 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "skip_launcher": bool(cfg.get("skip_launcher")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "ui_lang": "es" if cfg.get("ui_lang") == "es" else "en", "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "skip_launcher": bool(cfg.get("skip_launcher")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
            "key_defaults": KEY_DEFAULTS, "pad": read_pad(), "pad_defaults": PAD_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
@@ -2791,6 +3088,8 @@ def play(mode, resume=None, mod=False, pcresume=None):
         need = packed_state()["need_build"]
         if need:
             note += " Not in the build yet: %s (press SET UP ESSENTIAL MODS in Mods > Essential Mods)." % ", ".join(need)
+    if not resume:
+        note += pr_before_play()
     r = play_inner(mode, resume, mod, pcresume)
     if r.get("ok") and note:
         r["msg"] = (r.get("msg") or "") + note
@@ -3432,6 +3731,11 @@ class H(BaseHTTPRequestHandler):
             c["theme"] = data["theme"]
             save_cfg(c)
             return self.send(200, {"ok": True})
+        if self.path == "/api/uilang" and data.get("lang") in ("en", "es"):
+            c = load_cfg()
+            c["ui_lang"] = data["lang"]
+            save_cfg(c)
+            return self.send(200, {"ok": True})
         if self.path == "/api/dialoglog/clear":
             return self.send(200, {"ok": dialog_log_clear()})
         if self.path == "/api/direct":
@@ -3441,6 +3745,15 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, packed_toggle(str(data.get("id", "")), bool(data.get("on"))))
         if self.path == "/api/dub":
             return self.send(200, dub_set(str(data.get("lang", ""))))
+        if self.path == "/api/lang":
+            return self.send(200, es_set(str(data.get("lang", ""))))
+        if self.path == "/api/prompts":
+            return self.send(200, pr_set(str(data.get("style", ""))))
+        if self.path == "/api/padfam":
+            fam = str(data.get("fam", ""))
+            pr_pad["fam"] = fam if fam in ("xbox", "nintendo", "ps", "other") else ""
+            pr_pad["t"] = time.time()
+            return self.send(200, {"ok": True})
         if self.path == "/api/packed/link":
             return self.send(200, packed_link(str(data.get("id", "")), str(data.get("url", "")).strip()[:200]))
         if self.path == "/api/packed/level":

@@ -399,5 +399,12 @@
   "gb": 292547,
   "name": "Japanese Dub",
   "by": "Fei, wxnder, Phoenix"
+ },
+ {
+  "id": "spanish",
+  "kind": "files",
+  "hidden": true,
+  "name": "Spanish Translation",
+  "by": "IlDucci, TraduSquare, Tio Victor and the translation team"
  }
 ]
