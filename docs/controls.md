@@ -68,3 +68,23 @@ only shows a pad after a button press, so press one first).
 Click the game picture to capture the mouse, then move it sideways: it turns the camera (right stick, and it taps L1 or R1, which is what
 Persona 3 uses in Tartarus). Esc, or switching to another window, gives the mouse back. This is the same as the browser build. The PC
 window also opens maximized; put `PS2_NO_MAXIMIZE=1` in `~/.p3fes-window-env` if you prefer the small window. F11 toggles real full screen.
+
+## Button prompts (launcher)
+
+The game's own "press this button" pictures show PlayStation buttons. Settings > Controls > BUTTON PROMPTS in the launcher redraws them
+from your own disc (`tools/p3fes_prompts.py`, nothing of the game's art is stored in this project):
+
+- **KEYBOARD** the keys from the key list (a letter, or a symbol for Enter, Backspace, Shift, Space, Tab, Ctrl and the arrows).
+- **XBOX** A B X Y in the Xbox colours, LB / RB, named for the controller buttons you set under Controller.
+- **SWITCH** the same buttons named the Nintendo way (the bottom button is B, the right one A), L / R.
+- **PLAYSTATION** the game as it is. **AUTO** (default) uses the controller the launcher page sees when you press Play, else the keyboard.
+
+How it works: the launcher reads the folders with the pictures out of your disc once (about 80 MB, in `C:\p3fes\prompts`), finds every
+icon by picture matching (the result is kept in `hits.json`, so a later change of style or keys takes seconds), and lays the result over
+the disc as a hidden file mod with the lowest priority. It needs `numpy` and `opencv-python` (the launcher installs them for you).
+By hand: `py p3fes_prompts.py EXTRACTED -o OUT --style keyboard|xbox|switch --keys ~/.p3fes-keys.txt --hits hits.json`.
+
+Known gaps: the Square STATUS prompt in the battle Persona list is a text character the tool could not find, so it stays the PlayStation
+square; Start/Select, L2/R2 and a few small pictures are not redrawn yet; small colour-limited sheets (16 colours) draw the controller
+buttons in the sheet's own blues instead of Xbox colours; a translation mod that changes the same picture wins over the prompts.
+The browser game follows the launcher's settings here, not its own Keys button, and the style is fixed when the game starts.
