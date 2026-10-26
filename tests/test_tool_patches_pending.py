@@ -23,8 +23,10 @@ assert not L.tools_newer_than(os.path.join(d, 'missing'))
 os.makedirs(os.path.join(d, 'host')); sysf = os.path.join(d, 'host', 'window.cpp'); open(sysf, 'w').write('void poll(){}\n')
 assert L.tool_patches_pending() == []   # (list present here)
 os.remove(os.path.join(d, '.p3fes_applied'))
-assert L.tool_patches_pending() == ['ps2run_logkey_patch.py']
+assert L.tool_patches_pending() == ['ps2run_logkey_patch.py', 'ps2run_subs_patch.py']
 open(sysf, 'w').write('SDL_WINDOWEVENT_CLOSE && g_window\n')
+assert L.tool_patches_pending() == ['ps2run_subs_patch.py']
+open(sysf, 'w').write('SDL_WINDOWEVENT_CLOSE && g_window subs_draw(g_window)\n')
 assert L.tool_patches_pending() == []
 # an older install has no list: the patched runner source still dates the patch
 w = os.path.join(d, 'host', 'window.cpp'); open(w, 'w').write('x')
