@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.51"
+LAUNCHER_VERSION = "0.52"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -764,7 +764,7 @@ def packed_state():
     return {"list": rows, "legacy": legacy, "busy": lm_work["busy"], "msg": lm_work["msg"], "build": packed_build_status(), "need_build": need,
             "auto": {"busy": auto["busy"], "state": auto["state"], "step": auto["step"], "msg": auto["msg"], "last": auto_last() if auto["busy"] or auto["state"] == "failed" else "", "need": essentials_need()},
             "win_stale": win_mod_stale(), "mask": packed_mask(), "mod_page": os.path.exists(os.path.join(DIR, "build", "web-" + MOD_NAME, "ps2web.html")), "has_winexe": bool(win_exe()),
-            "win_mod": bool(win_mod_exe()), "dub": dub_state(), "lang": es_state(), "prompts": pr_state()}
+            "win_mod": bool(win_mod_exe()), "dub": dub_state(), "lang": es_state(), "prompts": pr_state(), "subs": subs_state()}
 
 
 # ------------------------------------------------------------------ voice language (Settings > Audio)
@@ -1120,6 +1120,66 @@ def pr_state():
             "pad": pr_pad["fam"], "busy": lm_work["busy"], "msg": lm_work["msg"]}
 
 
+def subs_dir():
+    """Subtitle packs: one folder per language in the p3fes folder (subs/Spanish/P3CTOP.srt ...), see docs/subtitles.md."""
+    d = os.path.join(os.path.dirname(saves_dir()), "subs")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
+    return d
+
+
+def subs_packs():
+    out = []
+    try:
+        for n in sorted(os.listdir(subs_dir())):
+            p = os.path.join(subs_dir(), n)
+            if os.path.isdir(p):
+                out.append({"name": n, "files": len([f for f in os.listdir(p) if f.lower().endswith(".srt")])})
+    except OSError:
+        pass
+    return out
+
+
+def subs_state():
+    sel = load_cfg().get("subs", "")
+    packs = subs_packs()
+    return {"setting": sel if any(x["name"] == sel for x in packs) else "", "packs": packs, "dir": to_win(subs_dir()) or subs_dir()}
+
+
+def subs_set(name):
+    name = str(name or "")
+    if name and not any(x["name"] == name for x in subs_packs()):
+        return {"ok": False, "msg": "There is no subtitle folder with that name."}
+    c = load_cfg()
+    c["subs"] = name
+    save_cfg(c)
+    return {"ok": True, "msg": ("Subtitles: " + name + ". They show over the movies the next time the PC window starts.") if name else "Subtitles are off."}
+
+
+def subs_env(env, names):
+    """Play: tell the PC window which subtitle folder to use (and list the movies of the disc there, once). Returns "" or a short note."""
+    pack = subs_state()["setting"]
+    if not pack:
+        return ""
+    p = os.path.join(subs_dir(), pack)
+    try:
+        iso = find_iso()
+        mv = os.path.join(p, "movies.txt")
+        if iso and (not os.path.exists(mv) or os.path.getmtime(mv) < os.path.getmtime(iso)):
+            sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+            import p3fes_subs
+            p3fes_subs.write_movies(iso, p)
+        w = to_win(p)
+        if w:
+            env["PS2_SUBS"] = w
+            names.append("PS2_SUBS")
+    except Exception as e:
+        return " (Subtitles: %s)" % str(e)[:80]
+    return ""
+
+
 def packed_link(mid, text):
     mid = packed_src(mid)
     mt = re.search(r"gamebanana\.com/mods/(\d+)", text or "")
@@ -1364,7 +1424,8 @@ def auto_last():
 
 # Patches that may be added by an update and are safe on a project folder made by an older installer (no list of applied patches):
 # patch name -> (source file, text that is only there once it is applied). The installer's LATE list names the same patches.
-LATE_TOOL_PATCHES = {"ps2run_logkey_patch.py": ("host/window.cpp", "SDL_WINDOWEVENT_CLOSE && g_window")}
+LATE_TOOL_PATCHES = {"ps2run_logkey_patch.py": ("host/window.cpp", "SDL_WINDOWEVENT_CLOSE && g_window"),
+                     "ps2run_subs_patch.py": ("host/window.cpp", "subs_draw(g_window)")}
 
 
 def tool_patches_pending():
@@ -1400,13 +1461,27 @@ def tools_newer_than(path):
         mine = os.path.getmtime(path)
     except OSError:
         return False
-    for rel in (".p3fes_applied", "host/window.cpp", "runtime/src/system.cpp"):
+    for rel in (".p3fes_applied", "host/window.cpp", "runtime/src/system.cpp", "host/subs.inc"):
         try:
             if mine < os.path.getmtime(os.path.join(DIR, rel)):
                 return True
         except OSError:
             pass
     return False
+
+
+def subs_patch_path():
+    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ps2run_subs_patch.py"))
+
+
+def subs_src_stale():
+    """host/subs.inc in the project folder is not what the current ps2run_subs_patch.py would write (a launcher update changed it)."""
+    try:
+        m = re.search(r"SUBS_INC = r'''(.*?)'''\n\nFONT_B64", open(subs_patch_path(), errors="replace").read(), re.S)
+        cur = os.path.join(DIR, "host", "subs.inc")
+        return bool(m) and os.path.isfile(cur) and open(cur, errors="replace").read() != m.group(1).lstrip("\n")
+    except OSError:
+        return False
 
 
 def essentials_need():
@@ -1423,9 +1498,11 @@ def essentials_need():
     code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
     if code_have and tool_patches_pending():
         out.insert(0, "update the game tools")
+    elif code_have and subs_src_stale():
+        out.insert(0, "update the subtitle files")
     if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tool_patches_pending()):
         out.append("build the essential mods game")
-    if win_exe() and code_have and (not win_mod_exe() or win_mod_stale()):
+    if win_exe() and code_have and (not win_mod_exe() or win_mod_stale() or subs_src_stale()):
         out.append("build the PC window")
     return out
 
@@ -1489,6 +1566,9 @@ def essentials_work():
                         why = ""
                     auto.update(state="failed", msg="A new tool patch did not fit. " + why + " (full log: ~/.p3fes-essentials.log; send it to us)")
                     return
+            if subs_src_stale():   # a launcher update changed the subtitle sources: write them into the project folder again (the patch is safe to repeat)
+                auto_say("Updating the subtitle files", "")
+                auto_run([sys.executable, subs_patch_path(), DIR], logf, DIR)
             # 2. the essential mods game, in Ubuntu
             built, legacy = packed_built()
             code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
@@ -3012,6 +3092,7 @@ def play_windows(exe, resume=None, mod=False):
         if sr:
             env["PS2_SPEEDRUN"] = sr
             names.append("PS2_SPEEDRUN")
+    subs_env(env, names)   # Settings > Subtitles: the folder of .srt files for the movies (ps2run_subs_patch.py)
     try:   # research switches: lines like PS2_LOG_DISC=1 in ~/.p3fes-window-env (only PS2_ names are passed on)
         with open(os.path.expanduser("~/.p3fes-window-env")) as f:
             for ln in f:
@@ -3749,6 +3830,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, es_set(str(data.get("lang", ""))))
         if self.path == "/api/prompts":
             return self.send(200, pr_set(str(data.get("style", ""))))
+        if self.path == "/api/subs":
+            return self.send(200, subs_set(str(data.get("name", ""))))
         if self.path == "/api/padfam":
             fam = str(data.get("fam", ""))
             pr_pad["fam"] = fam if fam in ("xbox", "nintendo", "ps", "other") else ""
