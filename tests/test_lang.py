@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import p3fes_launcher as L
 import p3fes_translate as T
 
-assert L.LAUNCHER_VERSION == '0.51'
+assert L.LAUNCHER_VERSION == '0.52'
 reg = {r['id']: r for r in L.packed_registry()}
 assert reg['spanish']['hidden'] and reg['spanish']['kind'] == 'files'
 assert 'spanish' not in [r['id'] for r in L.packed_state()['list']]
