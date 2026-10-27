@@ -25,6 +25,10 @@ Two ways to use it:
      Rules: two mods may not change the same instruction to different values (the tool says which and stops); patch=0
      lines, and changes to data (not code), are written into memory at start-up by the runtime when their mod is on.
 
+  Options for a mod that is large or only for one setting (the Spanish program):  --strict NAME  its start-up writes are applied only when
+  that mod itself is on (normally they also apply when any mod with code in new memory is on);  --weak NAME  where it changes a word that
+  another mod also changes, the other mod wins and that word is left out of it (instead of refusing to build).
+
 variants.txt lines:   C ADDR MASK ORIG NEW      a code word that differs per mod   (MASK = the mod bits that change it)
                       D ADDR SIZE VALUE MASK    a data write applied at start-up when (PS2_MODS & MASK) != 0
                       M NAME BIT                the mod table, for reference
@@ -179,7 +183,7 @@ def add_blocks(elf, blocks):
     return bytes(out)
 
 
-def build(image, mods):
+def build(image, mods, strict=(), weak=()):
     """mods = [(name, bit, ops)] -> (words C, K, D lists, conflicts)"""
     per_mod = {}
     data_writes = {}      # (addr,size,value) per mod for patch=0 lines
@@ -188,6 +192,18 @@ def build(image, mods):
         boot = [o for o in ops if o[0] == 0]
         per_mod[name] = (bit, byte_writes(now))
         data_writes[name] = (bit, boot)
+    dropped = {}
+    if weak:   # a weak mod gives way: its changes to words that any other mod changes are left out
+        taken = {a & ~3 for n, (_b, w) in per_mod.items() if n not in weak for a in w}
+        for n in weak:
+            if n in per_mod:
+                bit, w = per_mod[n]
+                gone = [a for a in w if (a & ~3) in taken]
+                for a in gone:
+                    del w[a]
+                if gone:
+                    dropped[n] = len({a & ~3 for a in gone})
+    build.dropped = dropped
     owners = {}           # byte -> {value: mask}
     for name, (bit, writes) in per_mod.items():
         for a, v in writes.items():
@@ -234,8 +250,8 @@ def build(image, mods):
         cave_mask |= m
     for name, (bit, boot) in data_writes.items():
         for _when, addr, size, value in boot:
-            # start-up writes ("expand executable memory") are needed by every mod that has code in new memory
-            data.append((addr, size, value, (1 << bit) | cave_mask))
+            # start-up writes ("expand executable memory") are needed by every mod that has code in new memory (not for a strict mod)
+            data.append((addr, size, value, (1 << bit) | (0 if name in strict else cave_mask)))
     return code, free, data, conflicts
 
 
@@ -247,6 +263,8 @@ def main():
     ap.add_argument("-o", "--out", required=True)
     ap.add_argument("--entries", help="write jump targets of the patched code here (one hex address per line)")
     ap.add_argument("--variants", help="write the live-switch table here (needed with --mod)")
+    ap.add_argument("--strict", action="append", default=[], help="mod NAME whose start-up writes apply only when it is on")
+    ap.add_argument("--weak", action="append", default=[], help="mod NAME that gives way where another mod changes the same word")
     args = ap.parse_args()
     elf = bytes(open(args.elf, "rb").read())
     image = Image(elf)
@@ -283,7 +301,9 @@ def main():
             print("MISMATCH at %08X: the program has %08X, the patch notes say the original was %08X" % (addr, int.from_bytes(elf[off:off + 4], "little"), want))
     print("original-word checks from the patch comments: %d match, %d differ" % (ok, bad))
 
-    code, free, data, conflicts = build(image, [(n, b, o) for n, b, o, _x in mods])
+    code, free, data, conflicts = build(image, [(n, b, o) for n, b, o, _x in mods], set(args.strict), set(args.weak))
+    for n, k in sorted(getattr(build, "dropped", {}).items()):
+        print("%s gives way to another mod at %d words (left out of it)" % (n, k))
     if conflicts:
         for a, who in conflicts:
             print("CONFLICT at %08X: %s" % (a, ", ".join(who)))

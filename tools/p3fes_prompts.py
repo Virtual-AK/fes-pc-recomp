@@ -141,6 +141,9 @@ FIXED = {
     ("i_battle02.spr", 1): [((54, 83, 70, 99), "triangle")],
     ("i_battle01.spr", 3): [((3, 103, 19, 120), "triangle")],
     ("i_battle01.spr", 9): [((33, 3, 57, 25), "circle"), ((62, 3, 86, 25), "cross")],
+    # the name entry screen: the greyed Del circle, the Start arrow in End (active and greyed) and the four L1 / R1 tabs (the whole tab text is redrawn)
+    ("i_nameent01.spr", 0): [((325, 122, 343, 140), "circle"), ((324, 76, 344, 96), "start"), ((324, 191, 344, 211), "start"),
+                             ((393, 70, 456, 88), "L1tab"), ((393, 93, 456, 111), "R1tab"), ((393, 184, 456, 202), "L1tab"), ((393, 207, 456, 225), "R1tab")],
 }
 
 
@@ -210,7 +213,7 @@ def draw_key(tex, box, label, style="keyboard", action="cross"):
     RING_, FILL_, INK_ = palette_roles(tex)
     small_sheet = tex.fmt == 0x14                      # 16 colours: only the sheet's own colours are available
     side = min(w, h) - (4 if min(w, h) >= 18 else 2)     # the keys are 17 wide for the 23 wide icons
-    pill = action in ("L1", "R1")
+    pill = action in ("L1", "R1", "L1tab", "R1tab", "L2", "R2")
     kw = w - (4 if min(w, h) >= 18 else 2) if pill else side
     kx, ky = x0 + (w - kw) // 2, y0 + (h - side) // 2
     if style in ("xbox", "switch") and not pill:       # a round button
@@ -359,24 +362,29 @@ def prompt_labels(style, keys=None, pad=None):
     keys = dict(KEY_DEFAULTS, **(keys or {}))
     pad = dict(PAD_DEFAULTS, **(pad or {}))
     out = {}
-    for icon in ("cross", "circle", "square", "triangle", "L1", "R1"):
+    for icon in ("cross", "circle", "square", "triangle", "L1", "R1", "L2", "R2", "start", "select"):
         if style == "keyboard":
             out[icon] = GL.key_label(keys[icon.lower()])
         else:
             out[icon] = GL.pad_label(style, pad[icon.lower()])
+    # the name entry tabs read "<L1" and "R1>": the arrow stays next to the new label when it is short
+    out["L1tab"] = "<" + out["L1"] if len(out["L1"]) <= 2 else out["L1"]
+    out["R1tab"] = out["R1"] + ">" if len(out["R1"]) <= 2 else out["R1"]
     if style == "keyboard":
         out["dleft"], out["dright"] = "<", ">"
     return out
 
 
-KEY_DEFAULTS = {"cross": "K", "circle": "L", "square": "J", "triangle": "I", "l1": "Q", "r1": "E"}
-PAD_DEFAULTS = {"cross": "a", "circle": "b", "square": "x", "triangle": "y", "l1": "leftshoulder", "r1": "rightshoulder"}
-HITS_VERSION = 3
+KEY_DEFAULTS = {"cross": "K", "circle": "L", "square": "J", "triangle": "I", "l1": "Q", "r1": "E", "l2": "1", "r2": "3", "start": "Return", "select": "Backspace"}
+PAD_DEFAULTS = {"cross": "a", "circle": "b", "square": "x", "triangle": "y", "l1": "leftshoulder", "r1": "rightshoulder",
+                "l2": "lefttrigger", "r2": "righttrigger", "start": "start", "select": "back"}
+HITS_VERSION = 4
 
 
-def scan(root, report=None):
-    """Find every icon in every sprite under root: {relative path: [(texture number, [(name, box, score)])]}."""
-    tpls = load_templates(root)
+def scan(root, report=None, template_root=None):
+    """Find every icon in every sprite under root: {relative path: [(texture number, [(name, box, score)])]}.
+    template_root: take the icon cut-outs from this folder instead (another language's pictures are searched with the original's icons)."""
+    tpls = load_templates(template_root or root)
     found = {}
     for dp, _, fs in os.walk(root):
         for f in sorted(fs):

@@ -106,6 +106,10 @@ def main():
     cmd = [sys.executable, os.path.join(HERE, "p3fes_pnach_apply.py"), vanilla]
     for m, files in mods:
         cmd += ["--mod", "%s:%d=%s" % (m["id"], m["bit"], ",".join(files))]
+        if m.get("strict"):
+            cmd += ["--strict", m["id"]]
+        if m.get("weak"):
+            cmd += ["--weak", m["id"]]
     cmd += ["-o", os.path.join(game, "core.elf"), "--entries", new_entries, "--variants", os.path.join(game, "variants.txt")]
     run(cmd)
     shutil.copyfile(vanilla, os.path.join(game, "vanilla.elf"))
