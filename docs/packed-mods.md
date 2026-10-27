@@ -11,6 +11,7 @@ Nothing from these mods is in this repository: the launcher downloads each one f
 | Always Cut-In (the Always Cutins file) | code | same |
 | Always Critical (the Always Critical file, a cheat in Mods > Cheats, off by default) | code | same build, switch bit 5; it shares the download of Always Cut-In (`source` / `match` / `exclude` in `packed_mods.json` pick the files by a word in the file name) |
 | EXP Increase (a cheat, off by default; bundled: the patch text is in `packed_mods.json`, no download) | code | switch bit 22. Replaces the last five words of the battle EXP function (001fbf68 to 001fbf78): result x the number at 00007000, capped at 65535. The strength (3, 5 or 10) is written to 00007000 at start-up by `PS2_POKE` (`levels` / `level_addr` in `packed_mods.json`); the value kept in the patch is the default for a page that passes no poke |
+| Spanish game program (hidden, made on the player's PC from the two discs, never shipped) | code | switch bit 23, `"follows": "spanish"`, `strict` (its start-up values apply only when it is on) and `weak` (where another mod changes the same word, the other wins). On while Settings > Language > TEXT LANGUAGE is SPANISH and the hidden file mod `spanishcore` exists; see docs/translation-spanish.md |
 | Share Party Experience | code | same |
 | Never Tired | code | same |
 | Fast Start, Manual Skill Inheritance | game files | ordinary FILE MODS, instant on/off |
