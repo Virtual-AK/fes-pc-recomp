@@ -406,5 +406,16 @@
   "hidden": true,
   "name": "Spanish Translation",
   "by": "IlDucci, TraduSquare, Tio Victor and the translation team"
+ },
+ {
+  "id": "spanishprog",
+  "bit": 23,
+  "kind": "code",
+  "hidden": true,
+  "follows": "spanish",
+  "strict": true,
+  "weak": true,
+  "name": "Spanish game program",
+  "desc": "The translation's changes to the game program (title, battle menu, results, item names). Made on your PC from your two discs; never shipped."
  }
 ]

@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.52"
+LAUNCHER_VERSION = "0.54"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -313,8 +313,18 @@ def lm_rebuild(iso, loc):
     M = lm_modmap()
     ovl = os.path.join(lm_dir(), "active.ovl")
     merged = {}
-    for m in reversed(lm_load()):            # the list is shown with the highest priority on top; apply from the lowest up so it wins
-        if m.get("enabled") and LM_ID.match(m.get("id", "")):
+    lst = lm_load()
+    es_on = any(m.get("id") == ES_ID and m.get("enabled") for m in lst)
+    ordered = [m for i in ES_LAYERS for m in lst if m.get("id") == i] + [m for m in lst if m.get("id") not in ES_LAYERS]   # the Spanish layers always win
+    for m in reversed(ordered):              # the list is shown with the highest priority on top; apply from the lowest up so it wins
+        if m.get("id") == ES2_ID:            # the extra Spanish title and battle files (an earlier test build made them): never laid over the disc, they hang the game
+            continue
+        elif m.get("id") in ES_LAYERS:
+            if not es_on:                    # they are part of the Spanish text: on and off with it
+                continue
+        elif not m.get("enabled"):
+            continue
+        if LM_ID.match(m.get("id", "")):
             for it in M.plan(iso, os.path.join(lm_dir(), m["id"], "files"), loc=loc):
                 if it["ok"]:
                     merged.pop(it["key"], None)
@@ -672,6 +682,9 @@ def packed_mask():
 
 def packed_active(r):
     """Is this code mod switched on? A mod with "follows": "widescreen" has no switch of its own: it is on when Settings > Widescreen is on."""
+    if r.get("follows") == "spanish":   # the Spanish game program: on when the Spanish text is on and its extra files are there
+        m = packed_lm(ES_ID)
+        return bool(m and m.get("enabled") and packed_pnach(r["id"]))
     if r.get("follows") == "widescreen":
         if not load_cfg().get("widescreen") or r["id"] in ws_parts_off():
             return False
@@ -841,6 +854,168 @@ def es_find():
     return p3fes_translate.find_patched(folders, iso)
 
 
+ES2_ID = "spanishcore"   # a second hidden file mod: the Spanish files that only work together with the Spanish game program (the "spanishprog" code mod)
+es_core_why = [""]
+
+
+def es_core(iso, patched, T, loc):
+    """Make the Spanish game program mod from the two discs: a patch file for the mod build (packed\\spanishprog). Made here on the player's PC, never shipped.
+    The extra title and battle files that need the program are NOT laid over the disc (tested 26 Oct 2026: they hang the boot or the results screen, see docs/translation-spanish.md). -> True when it was made, else False (es_core_why[0] says why); Spanish then stays as before."""
+    try:
+        pn, _info = T.program_pnach(T.read_program(iso), T.read_program(patched))
+    except T.ToolError as e:
+        es_core_why[0] = str(e)[:100]
+        return False
+    pd = os.path.join(packed_dir(), "spanishprog")
+    os.makedirs(pd, exist_ok=True)
+    with open(os.path.join(pd, "esp_program.pnach.tmp"), "w", newline="\n") as f:
+        f.write(pn)
+    os.replace(os.path.join(pd, "esp_program.pnach.tmp"), os.path.join(pd, "esp_program.pnach"))
+    return True
+
+
+def es_core_missing():
+    """An older Spanish setup (before the game program mod) that can be upgraded: Spanish is there, the game program mod is not, and the patched disc is still around."""
+    if not (packed_lm(ES_ID) and es_find()):
+        return False
+    if not packed_pnach("spanishprog"):
+        return True
+    try:   # made by an older tool (the words it chose have changed since)?
+        with open(os.path.join(packed_dir(), "spanishprog", "esp_program.pnach"), errors="replace") as f:
+            first = f.readline().strip()
+        sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        import p3fes_translate as T
+        return first != "// version %d" % T.PROG_VERSION
+    except Exception:
+        return False
+
+
+def es_core_upgrade(logf=None):
+    """Make the game program mod for a Spanish that was set up earlier. -> True when it is there afterwards."""
+    iso, patched = find_iso(), es_find()
+    if not (iso and patched):
+        return False
+    sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+    import p3fes_translate as T
+    ok = es_core(iso, patched, T, lm_locate(iso))
+    lm_work["msg"] = ""      # the "Comparing …" progress text of the step above is done
+    if logf:
+        logf.write("Spanish game program mod: %s\n" % ("made" if ok else "not possible (%s)" % es_core_why[0])); logf.flush()
+    if ok:
+        lm_rebuild(iso, lm_locate(iso))
+        try:
+            es_layers_sync(iso)
+        except Exception as e:
+            if logf:
+                logf.write("Spanish battle and title layers: %s\n" % str(e)[:100]); logf.flush()
+    return ok
+
+
+ES_LAYERS = ("spanishbattle", "spanishprompts")   # hidden file mods, highest priority first: [0] the battle, title and result screens, [1] the button prompts on the Spanish pictures
+ES_LAYER_NAMES = {"spanishbattle": "Spanish battle and title screens", "spanishprompts": "Button prompts on the Spanish pictures"}
+ES_LAYER_VERSION = 4       # raise when p3fes_spanish_battle.py / p3fes_spanish_prompts.py write something different, so they are made again
+
+
+def es_layers_file():
+    return os.path.join(pr_dir(), "es_layers.json")
+
+
+def es_layers_set(entries):
+    """Put the Spanish layer mods (a list of (id, fit, total), highest priority first) at the top of the mod list, hidden like the Spanish mod itself."""
+    lst = [m for m in lm_load() if m.get("id") not in ES_LAYERS]
+    lst = [{"id": i, "kind": "DISC", "name": ES_LAYER_NAMES[i], "enabled": True, "fit": fit, "total": total, "skipped": []} for i, fit, total in entries] + lst
+    lm_save(lst)
+    c = load_cfg()
+    pk = c.get("packed") if isinstance(c.get("packed"), dict) else {}
+    lmp = pk.setdefault("lm", {})
+    for i in ES_LAYERS:
+        lmp.pop(i, None)
+    for i, _f, _t in entries:
+        lmp[i] = i
+    c["packed"] = pk
+    save_cfg(c)
+
+
+def es_layers_sync(iso, say=lambda t: None):
+    """Make the two Spanish layers when they are missing or out of date: (1) the battle, title and result screens from the original disc's own files
+    with the Spanish text and pictures put in (tools/p3fes_spanish_battle.py), (2) the translation's pictures with the current button prompts drawn
+    on them (tools/p3fes_spanish_prompts.py), so the keyboard / Xbox / Switch buttons show on the Spanish screens too. Both are made on this
+    computer from the two discs. They are on and off with the Spanish text. -> a sentence for the player, or "" when nothing was to do."""
+    m = packed_lm(ES_ID)
+    if not iso or not (m and m.get("enabled")):
+        return ""          # English text: nothing to make (the layers stay as they are and are skipped by lm_rebuild)
+    patched = es_find()
+    if not patched:
+        return ""
+    with pr_lock:
+        style = pr_resolve()
+        pdir = os.path.join(lm_dir(), PR_ID, "files")
+        use_prompts = style != "playstation" and bool(packed_lm(PR_ID)) and os.path.isdir(pdir)
+        sig = json.dumps({"v": ES_LAYER_VERSION, "prog": 0, "disc": [iso, os.path.getsize(iso), os.path.getmtime(iso)],
+                          "es": [patched, os.path.getsize(patched), os.path.getmtime(patched)],
+                          "prompts": (pr_built().get("sig", "") + "|" + json.dumps(read_keys(), sort_keys=True)) if use_prompts else ""}, sort_keys=True)
+        want = [ES_LAYERS[0]] + ([ES_LAYERS[1]] if use_prompts else [])
+        try:
+            with open(es_layers_file()) as f:
+                done = json.load(f)
+        except Exception:
+            done = {}
+        have = [m["id"] for m in lm_load()]
+        if done.get("sig") == sig and all(i in have and os.path.isdir(os.path.join(lm_dir(), i, "files")) for i in want):
+            return ""
+        sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        import p3fes_spanish_battle as B
+        if use_prompts and not pr_modules_ok(say):
+            use_prompts, want = False, want[:1]
+        loc = lm_locate(iso)
+        M = lm_modmap()
+        entries = []
+        say("Making the Spanish battle and title screens…")
+        out = os.path.join(lm_dir(), ES_LAYERS[0])
+        shutil.rmtree(out, ignore_errors=True)
+        B.build(iso, patched, out, pdir if use_prompts else None)
+        items = [i for i in M.plan(iso, os.path.join(out, "files"), loc=loc) if "/" in i["rel"] or i["ok"]]
+        entries.append((ES_LAYERS[0], sum(1 for i in items if i["ok"]), len(items)))
+        out2 = os.path.join(lm_dir(), ES_LAYERS[1])
+        shutil.rmtree(out2, ignore_errors=True)
+        if use_prompts:
+            import p3fes_spanish_prompts as SP
+            import p3fes_prompts as P
+            if not pr_have_src():
+                pr_extract(iso, say)
+            src_es = os.path.join(pr_dir(), "src_es")
+            key = json.dumps([patched, os.path.getsize(patched), os.path.getmtime(patched)])
+            try:
+                same = open(os.path.join(src_es, ".done")).read() == key
+            except OSError:
+                same = False
+            if not same:
+                pr_extract(patched, say, "src_es")
+                open(os.path.join(src_es, ".done"), "w").write(key)
+            hits_file = os.path.join(pr_dir(), "hits_es.json")
+            hits = None
+            try:
+                d = json.load(open(hits_file))
+                if d.get("version") == P.HITS_VERSION and d.get("key") == key:
+                    hits = {rel: [(k, [(n, b, sc) for n, b, sc in hl]) for k, hl in per] for rel, per in d["hits"].items()}
+            except Exception:
+                hits = None
+            if hits is None:
+                say("Finding the button pictures in the Spanish files (a few minutes, only the first time)…")
+            say("Drawing the buttons on the Spanish pictures…")
+            hits, _rep, n = SP.build(os.path.join(pr_dir(), "src"), src_es, os.path.join(lm_dir(), ES_ID, "files"), out2, style, read_keys(), read_pad(), hits)
+            json.dump({"version": P.HITS_VERSION, "key": key, "hits": hits}, open(hits_file, "w"))
+            if n:
+                items = [i for i in M.plan(iso, os.path.join(out2, "files"), loc=loc) if "/" in i["rel"] or i["ok"]]
+                entries.append((ES_LAYERS[1], sum(1 for i in items if i["ok"]), len(items)))
+        entries.sort(key=lambda e: ES_LAYERS.index(e[0]))
+        es_layers_set(entries)
+        lm_rebuild(iso, loc)
+        with open(es_layers_file(), "w") as f:
+            json.dump({"sig": sig}, f)
+        return "Spanish battle, title and button screens are ready."
+
+
 def es_state():
     m = packed_lm(ES_ID)
     return {"have": bool(m), "on": bool(m and m.get("enabled")), "busy": lm_work["busy"], "msg": lm_work["msg"],
@@ -881,9 +1056,23 @@ def es_work(patched):
         pk.setdefault("lm", {})[ES_ID] = ES_ID
         c["packed"] = pk
         save_cfg(c)
+        lm_work["msg"] = "Making the Spanish game program mod…"
+        core = es_core(iso, patched, T, loc)
         lm_work["msg"] = "Building…"
         lm_rebuild(iso, loc)
-        lm_work["msg"] = ("Spanish is on (%d files). It applies the next time you press Play. The battle command menu and the results screen stay English." % fit) if fit else "None of the Spanish files fit your disc."
+        layers_note = ""
+        try:
+            pr_apply(pr_resolve(), lambda t: lm_work.__setitem__("msg", t))    # the button prompts the Spanish screens will copy
+            es_layers_sync(iso, lambda t: lm_work.__setitem__("msg", t))
+        except Exception as e:
+            layers_note = " The battle and title screens could not be made yet (%s); they are tried again at the next Play." % str(e)[:80]
+        if not fit:
+            lm_work["msg"] = "None of the Spanish files fit your disc."
+        elif core:
+            lm_work["msg"] = ("Spanish is on (%d files). Press SET UP ESSENTIAL MODS once to add the Spanish game program (item names, Tactics, locations, memory card), then Play." % fit
+                                  + (layers_note or " The title, battle and results screens and the button prompts are Spanish too."))
+        else:
+            lm_work["msg"] = "Spanish is on (%d files). The game program part could not be made from this disc (%s)." % (fit, es_core_why[0])
     except Exception as e:
         lm_work["msg"] = "Could not set up Spanish: %s" % str(e)[:100]
     finally:
@@ -917,9 +1106,9 @@ def es_set(lang):
 PR_ID = "prompts"   # a hidden file mod: the game's own button pictures redrawn as keyboard keys or Xbox / Switch buttons (tools/p3fes_prompts.py)
 PR_SRC = ["/DATA.CVM/CAMP", "/DATA.CVM/FACILITY", "/BTL.CVM/BATTLE/PANEL", "/BTL.CVM/BATTLE/SHUFFLE", "/BTL.CVM/SND_BENC"]
 PR_STYLES = ("auto", "keyboard", "xbox", "switch", "playstation")
-PR_TOOL_VERSION = 1       # raise when p3fes_prompts.py draws something differently, so every prompt mod is rebuilt
+PR_TOOL_VERSION = 2       # raise when p3fes_prompts.py draws something differently, so every prompt mod is rebuilt
 pr_pad = {"fam": "", "t": 0.0}   # the controller family the launcher page last saw (xbox, nintendo, ps, other, or "" for none)
-pr_lock = threading.Lock()
+pr_lock = threading.RLock()
 
 
 def pr_dir():
@@ -992,9 +1181,9 @@ def pr_modules_ok(say):
         return False
 
 
-def pr_extract(iso, say):
+def pr_extract(iso, say, name="src"):
     """Copy the few folders that hold button pictures out of the player's own disc (about 80 MB, kept on this computer only)."""
-    src = os.path.join(pr_dir(), "src")
+    src = os.path.join(pr_dir(), name)
     shutil.rmtree(src, ignore_errors=True)
     tools = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     cmd = [sys.executable, os.path.join(tools, "p3fes_unpack.py"), iso, "-o", src, "--containers", "--skip-video"]
@@ -1078,7 +1267,9 @@ def pr_apply(style, say=lambda t: None):
 
 def pr_work(setting):
     try:
-        lm_work["msg"] = pr_apply(pr_resolve(setting), lambda t: lm_work.__setitem__("msg", t)) or "Button prompts are up to date."
+        msg = pr_apply(pr_resolve(setting), lambda t: lm_work.__setitem__("msg", t))
+        es = es_layers_sync(find_iso(), lambda t: lm_work.__setitem__("msg", t))
+        lm_work["msg"] = (msg + (" " + es if es else "")).strip() or "Button prompts are up to date."
     except Exception as e:
         lm_work["msg"] = "Could not make the button prompts: %s" % str(e)[:120]
     finally:
@@ -1099,6 +1290,13 @@ def pr_set(setting):
     return r
 
 
+play_progress = {"msg": ""}   # what the launcher is doing between pressing Play and the game starting (the page asks for it while it waits)
+
+
+def pr_say(text):
+    play_progress["msg"] = "Getting ready: " + text
+
+
 def pr_before_play():
     """Called when Play is pressed: bring the button pictures in line with the current choice, keys and controller, before the game starts.
     Done right here (not in the background): the launcher may close itself on Play, which would stop a background job half way.
@@ -1107,11 +1305,15 @@ def pr_before_play():
         if not find_iso() or lm_work["busy"]:
             return ""
         style = pr_resolve()
-        if pr_built().get("sig") == pr_signature(style) and (style == "playstation" or packed_lm(PR_ID)):
-            return ""
-        return " " + pr_apply(style).replace(" They show the next time the game starts.", "")
+        msg = ""
+        if not (pr_built().get("sig") == pr_signature(style) and (style == "playstation" or packed_lm(PR_ID))):
+            msg = " " + pr_apply(style, pr_say).replace(" They show the next time the game starts.", "")
+        es = es_layers_sync(find_iso(), pr_say)      # the Spanish screens copy the prompts: follow a change of style, keys or controller
+        return msg + (" " + es if es else "")
     except Exception as e:
         return " (Button pictures: %s)" % str(e)[:80]
+    finally:
+        play_progress["msg"] = ""
 
 
 def pr_state():
@@ -1484,6 +1686,14 @@ def subs_src_stale():
         return False
 
 
+def es_prog_newer():
+    """The Spanish game program patch file was made after the mod build."""
+    try:
+        return os.path.getmtime(os.path.join(packed_dir(), "spanishprog", "esp_program.pnach")) > os.path.getmtime(os.path.join(DIR, "games", MOD_NAME, "variants.txt"))
+    except OSError:
+        return False
+
+
 def essentials_need():
     """What is left to do, as short phrases: downloads with a known link, a build of the essential mods game, a build of the PC window."""
     out = []
@@ -1495,12 +1705,15 @@ def essentials_need():
             out.append("download " + r["name"])
         elif r.get("kind") in ("files", "cheat") and not packed_lm(r["id"]) and packed_gb(r["id"]):
             out.append("download " + r["name"])
+    if es_core_missing():
+        out.insert(0, "add the Spanish game program")
     code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
     if code_have and tool_patches_pending():
         out.insert(0, "update the game tools")
     elif code_have and subs_src_stale():
         out.insert(0, "update the subtitle files")
-    if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tool_patches_pending()):
+    if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tool_patches_pending()
+                      or es_prog_newer()):
         out.append("build the essential mods game")
     if win_exe() and code_have and (not win_mod_exe() or win_mod_stale() or subs_src_stale()):
         out.append("build the PC window")
@@ -1569,10 +1782,13 @@ def essentials_work():
             if subs_src_stale():   # a launcher update changed the subtitle sources: write them into the project folder again (the patch is safe to repeat)
                 auto_say("Updating the subtitle files", "")
                 auto_run([sys.executable, subs_patch_path(), DIR], logf, DIR)
+            if es_core_missing():   # a Spanish set up before the game program mod existed
+                auto_say("Adding the Spanish game program", "")
+                es_core_upgrade(logf)
             # 2. the essential mods game, in Ubuntu
             built, legacy = packed_built()
             code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
-            if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt"))):
+            if code_have and (legacy or any(r["id"] not in built for r in code_have) or tools_newer_than(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or es_prog_newer()):
                 auto_say("Building the essential mods game (takes a while)", "")
                 if get_state()["state"] != "ready":
                     auto.update(state="failed", msg="Finish the setup first.")
@@ -1585,6 +1801,10 @@ def essentials_work():
                 if auto_run([sys.executable, script, "--packed", packed_dir()], logf, DIR) != 0:
                     auto.update(state="failed", msg="The build stopped. The last lines are in ~/.p3fes-essentials.log.")
                     return
+                if packed_lm(ES2_ID):   # the Spanish game program files go in only while the program is in the build
+                    iso = find_iso()
+                    if iso:
+                        lm_rebuild(iso, lm_locate(iso))
             # 3. the PC window's copy
             code_have = [r for r in packed_registry() if r.get("kind") == "code" and packed_pnach(r["id"])]
             if win_exe() and code_have and (not win_mod_exe() or win_mod_stale()):
@@ -3743,6 +3963,8 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith("/api/guide/get?"):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             return self.send(200, guide_get(q.get("slug", [""])[0]))
+        if self.path == "/api/play/progress":
+            return self.send(200, {"msg": play_progress["msg"]})
         if self.path == "/api/state":
             last_ping[0] = time.time()
             return self.send(200, get_state())
