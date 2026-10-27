@@ -42,3 +42,12 @@ try:
 except ImportError:
     print('numpy / opencv not installed: skipped the drawing checks')
 print('ok prompts: key and controller names, glyph sizes, labels and drawing')
+
+# 0.54: Start, Select, L2, R2 and the name entry tabs have labels in every style
+import p3fes_prompts as _P
+_k = _P.prompt_labels('keyboard', {'l1': 'Q', 'start': 'Return'})
+assert _k['start'] == 'ENTER' and _k['L1tab'] == '<Q' and _k['R1tab'] == 'E>' and _k['L2'] == '1' and _k['select'] == 'BACK', _k
+_x = _P.prompt_labels('xbox')
+assert _x['start'] == 'MENU' and _x['L1tab'] == '<LB' and _x['R2'] == 'RT', _x
+assert any(k == ('i_nameent01.spr', 0) for k in _P.FIXED)
+print('ok prompts: start / select / L2 / R2 labels and the name entry tabs')
