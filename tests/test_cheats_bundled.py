@@ -10,7 +10,7 @@ reg = {r['id']: r for r in L.packed_registry()}
 exp = reg['expmult']
 assert 'runfast' not in reg
 assert exp['kind'] == 'code' and exp['cheat'] and exp['bundled']
-assert exp['bit'] not in [r['bit'] for r in reg.values() if r['id'] != 'expmult' and r['kind'] == 'code'] and 23 not in [r['bit'] for r in reg.values() if r['kind'] == 'code']
+assert exp['bit'] not in [r['bit'] for r in reg.values() if r['id'] != 'expmult' and r['kind'] == 'code'] and 23 not in [r['bit'] for r in reg.values() if r['kind'] == 'code' and r['id'] != 'spanishprog']
 
 # the patch text parses, nothing is skipped, and the two cheats touch different places
 d = tempfile.mkdtemp()

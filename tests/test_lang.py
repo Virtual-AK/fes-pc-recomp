@@ -1,11 +1,11 @@
 """Text language in Settings > Audio (0.50): Spanish is a hidden file mod built from the player's own Spanish copy of the disc."""
-import json, os, sys, tempfile, time
+import json, os, shutil, sys, tempfile, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'launcher'))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools'))
 import p3fes_launcher as L
 import p3fes_translate as T
 
-assert L.LAUNCHER_VERSION == '0.52'
+assert L.LAUNCHER_VERSION == '0.54'
 reg = {r['id']: r for r in L.packed_registry()}
 assert reg['spanish']['hidden'] and reg['spanish']['kind'] == 'files'
 assert 'spanish' not in [r['id'] for r in L.packed_state()['list']]
@@ -34,10 +34,14 @@ r = L.es_set('es'); assert r['ok'] is False and 'T-Esp' in r['msg'] and 'patcher
 # with the copy: built, added hidden, switched on
 mods = []
 calls = []
-def fake_extract(iso, patched, out, progress=None):
+def fake_extract(iso, patched, out, progress=None, core=False):
+    assert not core, 'the extra title and battle files are not made any more'
     calls.append((iso, patched)); os.makedirs(os.path.join(out, 'DATA.CVM')); open(os.path.join(out, 'DATA.CVM', 'a.bin'), 'wb').write(b'1')
     progress('Copying the Spanish files… 50 of 99'); return 99, 12345
 T.extract = fake_extract
+T.read_program = lambda path: b'prog'
+T.program_pnach = lambda a, b: ('// version %d\npatch=1,EE,00100010,word,03E00008\n' % T.PROG_VERSION, {})
+L.packed_dir = lambda: d
 class FakeMM:
     @staticmethod
     def plan(iso, folder, loc=None):
@@ -59,10 +63,15 @@ def wait():
 
 r = L.es_set('es'); assert r['ok'] and 'orig[T-Esp].iso' in r['msg'], r
 wait()
-assert calls == [('/x/orig.iso', '/x/orig[T-Esp].iso')]
+assert calls == [('/x/orig.iso', '/x/orig[T-Esp].iso')], calls
 st = L.es_state()
 assert st['have'] and st['on'] and st['fit'] == 98 and st['total'] == 99, st
-assert 'Spanish is on (98 files)' in L.lm_work['msg'] and 'English' in L.lm_work['msg'], L.lm_work['msg']
+assert 'Spanish is on (98 files)' in L.lm_work['msg'] and 'SET UP ESSENTIAL MODS' in L.lm_work['msg'], L.lm_work['msg']
+assert os.path.exists(os.path.join(d, 'spanishprog', 'esp_program.pnach')) and not os.path.exists(os.path.join(d, 'spanishprog', 'esp_program.pnach.tmp'))
+assert [m['id'] for m in mods] == ['spanish'] and not os.path.exists(os.path.join(d, 'spanishcore'))
+sp = next(r for r in L.packed_registry() if r['id'] == 'spanishprog')
+assert L.packed_active(sp) is True                  # Spanish on and its patch file there
+assert L.es_core_missing() is False
 assert mods[0]['id'] == 'spanish' and not any(m['id'] == 'spanish' for m in L.lm_state()['list'])   # hidden from File Mods
 assert json.load(open(L.CFG))['packed']['lm']['spanish'] == 'spanish'
 assert os.path.exists(os.path.join(d, 'spanish', 'files', 'DATA.CVM', 'a.bin'))
@@ -80,6 +89,19 @@ assert L.es_state()['on'] is False and L.es_state()['have'] is True
 r = L.es_set('es'); assert r['ok']; wait()
 assert L.es_state()['on'] is True and len(calls) == 1
 assert L.es_set('xx')['ok'] is False
+
+# a patched disc whose game program is not the one this tool knows: the Spanish text still works, without the game program part
+mods.clear(); c = L.load_cfg(); c['packed']['lm'] = {}; L.save_cfg(c)
+shutil.rmtree(os.path.join(d, 'spanishprog'))
+def odd_pnach(a, b):
+    raise T.ToolError('the changes in the game program are not the ones this tool knows (5 words)')
+T.program_pnach = odd_pnach
+r = L.es_set('es'); wait()
+assert 'could not be made' in L.lm_work['msg'] and 'not the ones this tool knows' in L.lm_work['msg'], L.lm_work['msg']
+assert [m['id'] for m in mods] == ['spanish'] and not os.path.exists(os.path.join(d, 'spanishprog', 'esp_program.pnach'))
+sp = next(r for r in L.packed_registry() if r['id'] == 'spanishprog')
+assert L.packed_active(sp) is False
+assert L.es_core_missing() is True                  # an upgrade is offered the next time SET UP ESSENTIAL MODS is pressed
 
 # a disc that is not the patched copy: a plain message, nothing added
 mods.clear(); L.es_state = L.es_state
