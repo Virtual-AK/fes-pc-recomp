@@ -2390,6 +2390,47 @@ def win_open(url, app=False, prefer=None, size=None):
     return None
 
 
+STEAM_GAMES = {   # the two official ways to play, for About > Play Your Way
+    "p3p": {"id": 1809700, "name": "Persona 3 Portable"},
+    "p3r": {"id": 2161700, "name": "Persona 3 Reload"},
+}
+STEAM_CACHE = {"t": 0.0, "ttl": 0, "d": None}
+
+
+def steam_store_url(app_id):
+    return "https://store.steampowered.com/app/%d/" % int(app_id)
+
+
+def steam_prices(force=False):
+    """The current price of each game from Steam's public store (US dollars). Kept for 30 minutes; a failed check is retried after 2."""
+    now = time.time()
+    if not force and STEAM_CACHE["d"] is not None and now - STEAM_CACHE["t"] < STEAM_CACHE["ttl"]:
+        return STEAM_CACHE["d"]
+    out, all_ok = {}, True
+    for key, g in STEAM_GAMES.items():
+        e = {"name": g["name"], "ok": False, "final": "", "initial": "", "pct": 0, "sale": False}
+        try:
+            url = "https://store.steampowered.com/api/appdetails?appids=%d&cc=us&filters=price_overview" % g["id"]
+            req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0", "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=12) as r:
+                j = json.loads(r.read().decode("utf-8", "replace"))
+            node = j.get(str(g["id"])) if isinstance(j, dict) else None
+            if isinstance(node, dict) and node.get("success"):
+                e["ok"] = True
+                d = node.get("data")
+                po = d.get("price_overview") if isinstance(d, dict) else None
+                if isinstance(po, dict):
+                    pct = int(po.get("discount_percent") or 0)
+                    e.update(final=str(po.get("final_formatted") or ""), initial=str(po.get("initial_formatted") or po.get("final_formatted") or ""),
+                             pct=pct, sale=pct > 0)
+        except Exception:
+            pass
+        all_ok = all_ok and e["ok"]
+        out[key] = e
+    STEAM_CACHE.update(t=now, ttl=1800 if all_ok else 120, d=out)
+    return out
+
+
 GUIDE_SITES = {   # where the Guides screen may send you: a search on each site, nothing is copied into the launcher
     "wiki": "https://megamitensei.fandom.com/wiki/Special:Search?query=",
     "faqs": "https://gamefaqs.gamespot.com/search?game=",
@@ -4326,6 +4367,16 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/shots/clear":
             n = shots_clear()
             return self.send(200, {"ok": True, "n": n, "msg": "Deleted %d screenshot%s." % (n, "" if n == 1 else "s")})
+        if self.path == "/api/steam/prices":
+            return self.send(200, {"ok": True, "games": steam_prices(bool(data.get("force")))})
+        if self.path == "/api/steam/open":
+            g = STEAM_GAMES.get(str(data.get("game") or ""))
+            if not g:
+                return self.send(200, {"ok": False, "msg": "That is not one of the games on this page."})
+            how = win_open(steam_store_url(g["id"]), prefer=load_cfg().get("browser", "msedge"))
+            if how:
+                return self.send(200, {"ok": True, "msg": "Opened the Steam page for %s in your browser." % g["name"]})
+            return self.send(200, {"ok": False, "msg": "Could not open the browser. The page is store.steampowered.com/app/%d" % g["id"]})
         if self.path == "/api/bugreport":
             mailto, gmail = bug_mail_urls()
             kind = data.get("kind")
