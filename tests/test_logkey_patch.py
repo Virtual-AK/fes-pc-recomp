@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory() as d:
 with tempfile.TemporaryDirectory() as d:
     make(d, FILES)
     r = run(d)
-    assert 'patched (7 edits)' in r.stdout, r.stdout + r.stderr
+    assert 'patched (8 edits)' in r.stdout, r.stdout + r.stderr
     w = open(os.path.join(d, 'host/window.cpp')).read()
     c = open(os.path.join(d, 'runtime/src/system.cpp')).read()
     assert 'SDL_SCANCODE_TAB' in w and 'log_draw();' in w and 'kLogFont[95][16]' in w and w.count('0x') > 95 * 16
@@ -40,5 +40,10 @@ with tempfile.TemporaryDirectory() as d:
     r = run(d)
     assert 'patched (2 edits)' in r.stdout, r.stdout + r.stderr
     assert open(sc).read() == s0 and open(wc).read() == w0
+    assert 'already patched' in run(d).stdout
+    # a tree patched before the extra speaker names (Igor, Elizabeth, Kenji, Ms. Toriumi) gets only those names
+    assert 'case 45: return "Ms. Toriumi";' in w0
+    open(wc, 'w').write(w0.replace('    case 16: return "Igor";\n    case 17: return "Elizabeth";\n    case 23: return "Kenji Tomochika";\n    case 45: return "Ms. Toriumi";\n', ''))
+    assert 'patched (1 edits)' in run(d).stdout and open(wc).read() == w0
     assert 'already patched' in run(d).stdout
 print('ok   Log key patch: needs the dialogue log patch, applies once, is idempotent, completes a half-applied tree')

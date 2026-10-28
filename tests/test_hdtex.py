@@ -26,7 +26,7 @@ for r in rows:
     assert r[8] in ("0", "1")
     pid, _, rel = r[9].partition(":"); assert rel.endswith(".dds") and "\\" not in rel, r
     packs.add(pid)
-assert packs <= {"hq_portraits", "p3hd_enhanced_persona_artwork"}, packs
+assert packs <= {"hq_portraits", "p3hd_enhanced_persona_artwork", "widescreen"}, packs
 
 # ---- the patch file is the one made from the sources (run tools/hdtex/make_patch.py after changing them)
 hd = os.path.join(tools, "hdtex")

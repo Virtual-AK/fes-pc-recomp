@@ -119,4 +119,4 @@ for need in ("function langPanel()", "function applyLang()", "'ul:'", "/api/uila
     assert need in html, need
 assert "'VOICE LANGUAGE'" in html and html.count("lang:es") >= 1
 assert '"ui_lang"' in open(L.__file__, encoding='utf-8').read() and '/api/uilang' in open(L.__file__, encoding='utf-8').read()
-assert "const ORD={help:[0,1,2,4,3],log:[2,3,0,1],about:[0,2,3,1],mods:[0,1,2,3,5,4,6],settings:[9,3,8,1,0,2,7,5,4,6,10]}" in html
+assert "const ORD={help:[0,1,2,4,3],log:[2,3,0,1],about:[0,2,3,4,1],mods:[0,1,2,3,5,4,6],settings:[9,3,8,1,0,2,7,5,4,6,10]}" in html
