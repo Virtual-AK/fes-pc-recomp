@@ -1,0 +1,15 @@
+"""Builds tools/ps2run_hdtex_patch.py (one file for the user to run) from hdtex.hpp, bc7_tables.inc and glue_gpu.inc, plus the shader edit."""
+import os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+def rd(n): return open(os.path.join(here, n), newline='').read().replace('\r\n', '\n')
+hpp = rd('hdtex.hpp').replace('#include "bc7_tables.inc"\n', rd('bc7_tables.inc'))
+glue = rd('glue_gpu.inc')
+glue1 = rd('glue_v1.inc')
+glue2 = rd('glue_v2.inc')
+glue3 = rd('glue_v3.inc')
+glue4 = rd('glue_v4.inc')
+tmpl = rd('patch_template.py')
+out = tmpl.replace('@@HPP@@', repr(hpp)).replace('@@GLUE@@', repr(glue)).replace('@@GLUE_V1@@', repr(glue1)).replace('@@GLUE_V2@@', repr(glue2)).replace('@@GLUE_V3@@', repr(glue3)).replace('@@GLUE_V4@@', repr(glue4))
+dest = os.path.join(here, '..', 'ps2run_hdtex_patch.py')
+open(dest, 'w', newline='\n').write(out)
+print('wrote', os.path.normpath(dest), len(out))

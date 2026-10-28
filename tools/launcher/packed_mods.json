@@ -285,9 +285,10 @@
   "skip_addrs": [
    "007cad1c"
   ],
-  "name": "Widescreen FMV fix",
+  "name": "Widescreen FMV fix (off by default: crops the top and bottom of movies such as the FES opening)",
   "by": "nemesis2000, devina, CeruleansBlue, Arapapa",
-  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen."
+  "desc": "Part of the community widescreen patch. No switch of its own: it follows Settings > Widescreen.",
+  "default_off": true
  },
  {
   "id": "ws10",

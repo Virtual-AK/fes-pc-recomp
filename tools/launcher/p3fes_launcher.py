@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.54"
+LAUNCHER_VERSION = "0.56"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -332,14 +332,34 @@ def lm_rebuild(iso, loc):
     if not merged:
         if os.path.exists(ovl):
             os.remove(ovl)
-        try:
-            os.remove(os.path.join(lm_dir(), "active.pokes"))
-        except OSError:
-            pass
+        for gone in ("active.pokes", "active.movies"):
+            try:
+                os.remove(os.path.join(lm_dir(), gone))
+            except OSError:
+                pass
         return 0
     M.write_overlay(list(merged.values()), os.path.getsize(iso), ovl, iso)
+    lm_work["unfit"] = list(getattr(M, "UNFIT", []))      # moved files that found no room below the 4 GB limit of their CVM: they keep the disc's own copy
     lm_write_pokes(M, iso, loc, os.path.join(lm_dir(), "active.pokes"))
+    lm_write_movies(M, os.path.join(lm_dir(), "active.movies"))
     return len(merged)
+
+
+def lm_write_movies(M, path):
+    """Movies a file mod replaced and moved: NAME OLD_FIRST_SECTOR NEW_FIRST_SECTOR NEW_COUNT, one per line, so the subtitle list follows them."""
+    rows = []
+    for m in getattr(M, "MOVES", []):
+        key = str(m.get("key", "")).upper()
+        if key.endswith(".SFD") and "base" in m:
+            rows.append("%s %d %d %d" % (os.path.basename(key)[:-4], m["base"] + m["old_lba"], m["base"] + m["new_lba"], (m["new_size"] + 2047) // 2048))
+    try:
+        if rows:
+            with open(path, "w") as f:
+                f.write("\n".join(rows) + "\n")
+        elif os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
 
 
 def lm_write_pokes(M, iso, loc, path):
@@ -347,16 +367,23 @@ def lm_write_pokes(M, iso, loc, path):
     text = ""
     try:
         moves = list(getattr(M, "MOVES", []))
+        ent = (loc[0] if loc else {}).get("/SLUS_216.21")
+        program = b""
+        if ent and (moves or hasattr(M, "letterbox_pokes")):
+            with open(iso, "rb") as f:
+                f.seek(ent[0])
+                program = f.read(ent[1])
+        pokes, notes = [], []
         if moves and hasattr(M, "table_pokes"):
-            ent = (loc[0] if loc else {}).get("/SLUS_216.21")
-            program = b""
-            if ent:
-                with open(iso, "rb") as f:
-                    f.seek(ent[0])
-                    program = f.read(ent[1])
             pokes, notes = M.table_pokes(program, moves)
-            text = ",".join("%08X=%08X" % (a, v) for a, v in pokes)
-            lm_work["pokes"] = notes
+        if program and hasattr(M, "letterbox_pokes"):      # Simply Better FMVs: the seven cutscenes without black bars need the movie table changed
+            for m in lm_load():
+                if m.get("enabled") and LM_ID.match(m.get("id", "")):
+                    lp, ln = M.letterbox_pokes(program, os.path.join(lm_dir(), m["id"], "files"))
+                    pokes += lp
+                    notes += ln
+        text = ",".join("%08X=%08X" % (a, v) for a, v in pokes)
+        lm_work["pokes"] = notes
     except Exception:
         text = ""
     try:
@@ -1369,16 +1396,166 @@ def subs_env(env, names):
     try:
         iso = find_iso()
         mv = os.path.join(p, "movies.txt")
-        if iso and (not os.path.exists(mv) or os.path.getmtime(mv) < os.path.getmtime(iso)):
-            sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
-            import p3fes_subs
-            p3fes_subs.write_movies(iso, p)
+        sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        import p3fes_subs
+        moved, mtext = p3fes_subs.read_moved(os.path.join(lm_dir(), "active.movies"))   # movies a file mod replaced sit somewhere else on the disc now
+        sig = os.path.join(p, "movies.sig")
+        try:
+            old_sig = open(sig).read()
+        except OSError:
+            old_sig = ""
+        if iso and (not os.path.exists(mv) or os.path.getmtime(mv) < os.path.getmtime(iso) or old_sig != mtext):
+            p3fes_subs.write_movies(iso, p, moved)
+            with open(sig, "w") as f:
+                f.write(mtext)
         w = to_win(p)
         if w:
             env["PS2_SUBS"] = w
             names.append("PS2_SUBS")
     except Exception as e:
         return " (Subtitles: %s)" % str(e)[:80]
+    return ""
+
+
+def hd_dir():
+    """HD texture packs: one folder per GameBanana mod in the p3fes folder (hdmods/<mod folder>/...), see docs/hd-textures.md."""
+    d = os.path.join(os.path.dirname(saves_dir()), "hdmods")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
+    return d
+
+
+def hd_map_path():
+    return os.path.join(os.path.dirname(saves_dir()), "hdtex.map")
+
+
+def hd_tool():
+    sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+    import p3fes_hdtex
+    return p3fes_hdtex
+
+
+def _hd_sig():
+    """Cheap fingerprint of what the HD pictures depend on: the table and the pack folders (a few stat calls, not one per picture)."""
+    parts = []
+    try:
+        t = hd_tool().find_table(os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        parts.append((t, os.stat(t).st_mtime_ns if t else 0))
+        d = hd_dir()
+        parts.append(os.stat(d).st_mtime_ns)
+        for n in sorted(os.listdir(d)):
+            p = os.path.join(d, n)
+            if os.path.isdir(p):
+                parts.append((n, os.stat(p).st_mtime_ns))
+    except Exception:
+        pass
+    return repr(parts)
+
+
+def hd_scan():
+    """(pictures found, {pack: pictures the table knows but the folder lacks}, table path or None)."""
+    try:
+        t = hd_tool()
+        table = t.find_table(os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        if not table:
+            return 0, {}, None
+        n, miss = t.build_map(table, hd_dir())
+        return n, miss, table
+    except Exception:
+        return 0, {}, None
+
+
+def hd_state_now():
+    n, miss, table = hd_scan()
+    exe = None
+    try:
+        exe = active_win_exe()
+    except Exception:
+        pass
+    built = bool(exe) and exe_supports(exe, "PS2_HDTEX")
+    return {"on": bool(load_cfg().get("hd_textures")), "pictures": n, "missing": sum(miss.values()), "table": bool(table), "built": built, "have_exe": bool(exe),
+            "dir": to_win(hd_dir()) or hd_dir()}
+
+
+_hd_cache = {"sig": None, "state": None, "busy": False}
+
+
+def hd_state():
+    """The Display page's numbers. Counting pictures and asking the PC window what it supports takes a moment (a slow disk, a 60 MB program),
+    so it is done on a side thread; until it has run the page shows no numbers, and the launcher never waits for it."""
+    c = _hd_cache
+    sig = _hd_sig()
+    if c["state"] is not None and c["sig"] == sig:
+        return dict(c["state"], on=bool(load_cfg().get("hd_textures")))
+    if not c["busy"]:
+        c["busy"] = True
+
+        def work():
+            try:
+                st = hd_state_now()
+                c["state"], c["sig"] = st, sig
+            except Exception:
+                pass
+            finally:
+                c["busy"] = False
+        threading.Thread(target=work, daemon=True).start()
+    if c["state"] is not None:
+        return dict(c["state"], on=bool(load_cfg().get("hd_textures")))
+    return {"on": bool(load_cfg().get("hd_textures")), "pending": True, "pictures": 0, "missing": 0, "table": True, "built": True, "have_exe": True, "dir": ""}
+
+
+def hd_set(on):
+    c = load_cfg()
+    c["hd_textures"] = bool(on)
+    save_cfg(c)
+    st = hd_state_now()
+    _hd_cache["state"], _hd_cache["sig"] = st, _hd_sig()
+    if not on:
+        return {"ok": True, "msg": "HD textures are off."}
+    if not st["table"]:
+        return {"ok": True, "msg": "HD textures are on, but the list of pictures (hdtex-table-ntscu.tsv) is missing next to the launcher."}
+    if not st["pictures"]:
+        return {"ok": True, "msg": "HD textures are on. No pictures found yet: put the mod folders in " + st["dir"] + "."}
+    return {"ok": True, "msg": "HD textures are on: %d pictures found. They show the next time the PC window starts." % st["pictures"]}
+
+
+def hd_env(env, names):
+    """Play: tell the PC window where the picture map is, rebuilding it only when the table or the pack folders changed since last time.
+    Returns "" or a short note."""
+    if not load_cfg().get("hd_textures"):
+        return ""
+    try:
+        t = hd_tool()
+        table = t.find_table(os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        if not table:
+            return " (HD textures: the picture list is missing.)"
+        out = hd_map_path()
+        sigf = out + ".sig"
+        sig = _hd_sig()
+        try:
+            same = os.path.isfile(out) and open(sigf).read() == sig
+        except OSError:
+            same = False
+        if same:
+            n = sum(1 for ln in open(out, encoding="utf-8") if ln.strip() and not ln.startswith("#"))
+        else:
+            root = to_win(hd_dir())
+            if not root:
+                return " (HD textures: could not find the Windows path of the pictures.)"
+            n, _ = t.build_map(table, hd_dir(), out, root)
+            with open(sigf, "w") as f:
+                f.write(sig)
+        if not n:
+            return " (HD textures: no pictures found in %s.)" % (to_win(hd_dir()) or hd_dir())
+        w = to_win(out)
+        if w:
+            env["PS2_HDTEX"] = w
+            names.append("PS2_HDTEX")
+            return " HD textures: %d pictures." % n
+    except Exception as e:
+        return " (HD textures: %s)" % str(e)[:80]
     return ""
 
 
@@ -2141,7 +2318,7 @@ def get_state():
     disc = check_disc(iso) if iso else None
     out = {"dir": DIR, "mode": cfg.get("mode", "browser"), "disc": disc, "disc_path": iso,
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
-           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "ui_lang": "es" if cfg.get("ui_lang") == "es" else "en", "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "skip_launcher": bool(cfg.get("skip_launcher")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
+           "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "ui_lang": "es" if cfg.get("ui_lang") == "es" else "en", "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "skip_launcher": bool(cfg.get("skip_launcher")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "hdtex": hd_state(), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
            "key_defaults": KEY_DEFAULTS, "pad": read_pad(), "pad_defaults": PAD_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
            "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
@@ -3313,6 +3490,7 @@ def play_windows(exe, resume=None, mod=False):
             env["PS2_SPEEDRUN"] = sr
             names.append("PS2_SPEEDRUN")
     subs_env(env, names)   # Settings > Subtitles: the folder of .srt files for the movies (ps2run_subs_patch.py)
+    hd_note = hd_env(env, names)   # Settings > Display > HD textures (ps2run_hdtex_patch.py)
     try:   # research switches: lines like PS2_LOG_DISC=1 in ~/.p3fes-window-env (only PS2_ names are passed on)
         with open(os.path.expanduser("~/.p3fes-window-env")) as f:
             for ln in f:
@@ -3361,6 +3539,7 @@ def play_windows(exe, resume=None, mod=False):
             mods = " File mods are on."
         else:
             mods = " Your file mods are not applied: this build of the PC window is older than file mod support (see docs/mod-folder-plan.md)."
+    mods += hd_note
     if resume:
         state = os.path.join(asdir, resume)
         if not PC_AS_RE.match(resume) or not os.path.isfile(state):
@@ -4190,6 +4369,8 @@ class H(BaseHTTPRequestHandler):
             c["widescreen"] = bool(data.get("on"))
             save_cfg(c)
             return self.send(200, {"ok": True})
+        if self.path == "/api/hdtex":
+            return self.send(200, hd_set(bool(data.get("on"))))
         if self.path == "/api/scale" and data.get("scale") in ("1", "2", "3"):
             c = load_cfg()
             c["scale"] = data["scale"]
