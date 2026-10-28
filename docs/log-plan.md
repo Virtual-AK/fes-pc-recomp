@@ -61,7 +61,7 @@ disc read with its frame number into `~/.p3fes-window.log`. Play one voiced and 
 * Voiced = page has a clip number AND a speaker (narration pages carry a clip number but are unvoiced; checked in a real log).
 * The launcher starts the PC window with `PS2_DIALOG_LOG=C:\p3fes\saves\dialog_log.tsv` (a line in `~/.p3fes-window-env` wins) and has a LOG screen
   on Home that reads it every 2 seconds: speaker name, text, speaker icon (crossed = no voice), a heading per play session, CLEAR LOG.
-* Speaker numbers known: 3 Yukari, 5 Mitsuru, 6 Junpei, 8 Akihiko, 12 Shuji. Others show as "Speaker N" until a log shows who they are.
+* Speaker numbers known: 3 Yukari, 5 Mitsuru, 6 Junpei, 8 Akihiko, 12 Shuji, 16 Igor, 17 Elizabeth, 23 Kenji, 45 Ms. Toriumi (from a real log, 28 Oct). Seen but not named: 47 (weapon shop), 49 (drugstore). Others show as "Speaker N" until a log shows who they are.
 * Still open: voice replay (needs the voice file format).
 
 ## Voice replay (20 Oct)
