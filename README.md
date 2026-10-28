@@ -109,6 +109,9 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_storewatch_patch.py` | Research tool: `PS2_STORE_WATCH=0xADDR,...` logs each write of a different value to a watched word, with the call chain. |
 | `ps2run_wakelog_patch.py` | Research tool: `PS2_WAKE_TRACE=N` logs game threads released after waiting N frames or more. |
 | `ps2run_poke_patch.py` | Memory pokes at start-up (`PS2_POKE=ADDR=VALUE,...`) in the PC window; the launcher uses it for file mods that need a bigger file than the disc slot. |
+| `ps2run_texlog_patch.py` | Probe for the HD texture work: `PS2_TEXLOG=file` makes the PC window log a hash of every image the game uploads (hashes and sizes only). `p3fes_texhash.py check` compares the log with the disc textures. |
+| `ps2run_hdtex_patch.py` | HD textures for the PC window (`PS2_HDTEX=<map>`): recognises each picture the game uploads by a hash of its pixels and draws an HD picture from a GameBanana mod instead. See `docs/hd-textures.md`. |
+| `p3fes_hdtex.py` | Builds the map file for the HD textures from the shipped hash list (`tools/hdtex/hdtex-table-ntscu.tsv`) and your `hdmods` folder; the launcher does this on Play (Settings > Display > HD TEXTURES). |
 | `ps2web_cardsync_patch.py`, `ps2web_autosavesync_patch.py` | Browser build: share the memory card and the autosaves with the launcher (and so the PC window). |
 | `ps2web_serveovl_patch.py` | Browser build: the game's server lays a mod overlay (`.ovl`) on top of the disc image while serving it, so a mod needs no copy of the disc. |
 | `p3fes_ramgrep.py` | Finds a known phrase in a memory dump whatever the text encoding is (research for the dialogue Log). See `docs/log-plan.md`. |

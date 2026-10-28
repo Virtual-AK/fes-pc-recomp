@@ -66,7 +66,7 @@ Standard CRI AFS: "AFS\0", an entry count, a table of (offset, size) pairs, and 
 Standard CRI ADX, encoding 3 (four-bit ADPCM with two fixed predictor coefficients). Music is stereo at 48 kHz or 24 kHz; voices are mostly 24 kHz. Decoding is checked sample-for-sample against ffmpeg.
 
 ## .SFD video (partly known)
-MPEG-2 program streams from CRI Sofdec, 29.97 fps, at 640x368 or 640x448 (one at 512x448). They should play in ffmpeg or VLC. Replacing or upscaling them is a later task.
+MPEG-2 program streams from CRI Sofdec, 29.97 fps, at 640x368 or 640x448 (one at 512x448). They should play in ffmpeg or VLC. Layout (checked on `GAME_START.SFD`): 2048-byte sectors, each one an MPEG-1 style pack (12-byte header; the clock goes up 201 ticks a sector, mux rate 917,500 bytes/s). Four header sectors come first (system header, padding, two private-stream-2 sectors holding the CRI "SofdecStream" description: the names of the video and audio parts and the picture size as three bytes in the sequence header's 12-bit packing, `28 01 c0` = 640x448), then video sectors (stream e0, 2018 bytes of MPEG-2 each, with PTS and DTS in the sector where a picture starts and 0xFF stuffing elsewhere; I frame then 11 P frames, no B frames) mixed in time with audio sectors (stream c0, ADX), and a last sector with the end code. `tools/p3fes_sfd.py` reads this (`info`) and writes a movie with a new picture and the original sound (`remux`); a picture larger than 640x448 freezes the game, see [hd-cutscenes.md](hd-cutscenes.md).
 
 ## Models (.RMD)
 
