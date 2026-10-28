@@ -113,11 +113,11 @@ touch(os.path.join(L.packed_dir(), 'widescreen', 'ws10_480p.pnach'))   # ws1 mus
 assert [os.path.basename(f) for f in L.packed_pnach('ws5')] == ['ws5_slink.pnach'] and [os.path.basename(f) for f in L.packed_pnach('widescreen')] == ['ws1_core.pnach'] and [os.path.basename(f) for f in L.packed_pnach('ws10')] == ['ws10_480p.pnach']
 open(os.path.join(d, 'games', L.MOD_NAME, 'variants.txt'), 'w').write(''.join('M %s %d\n' % (r['id'], r['bit']) for r in parts))
 c['widescreen'] = True; L.save_cfg(c)
-assert L.packed_mask() == 0x3FFF80 & ~(1 << 13) & ~(1 << 14) & ~(1 << 9) & ~(1 << 19)   # ws7, ws8, ws3a, ws3c are off by default
+assert L.packed_mask() == 0x3FFF80 & ~(1 << 13) & ~(1 << 14) & ~(1 << 9) & ~(1 << 19) & ~(1 << 15)   # ws7, ws8, ws3a, ws3c, ws9 are off by default
 home = os.environ.get('HOME'); os.environ['HOME'] = d
 open(os.path.join(d, '.p3fes-window-env'), 'w').write('P3F_WS_OFF=ws2, ws5\n')
-assert L.ws_parts_off() == {'ws2', 'ws5'} and L.packed_mask() == 0x3FFF80 & ~(1 << 13) & ~(1 << 14) & ~(1 << 9) & ~(1 << 19) & ~(1 << 8) & ~(1 << 11)
+assert L.ws_parts_off() == {'ws2', 'ws5'} and L.packed_mask() == 0x3FFF80 & ~(1 << 13) & ~(1 << 14) & ~(1 << 9) & ~(1 << 19) & ~(1 << 15) & ~(1 << 8) & ~(1 << 11)
 open(os.path.join(d, '.p3fes-window-env'), 'w').write('P3F_WS_ON=ws7\n')
-assert L.ws_parts_on() == {'ws7'} and L.packed_mask() == 0x3FFF80 & ~(1 << 14) & ~(1 << 9) & ~(1 << 19)
+assert L.ws_parts_on() == {'ws7'} and L.packed_mask() == 0x3FFF80 & ~(1 << 14) & ~(1 << 9) & ~(1 << 19) & ~(1 << 15)
 os.environ['HOME'] = home
 print('ok   widescreen menus mod follows the setting')

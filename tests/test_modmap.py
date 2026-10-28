@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as d:
     r = subprocess.run([sys.executable, tool, "apply", iso, mod, "-o", out], capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
     a, b = open(iso, "rb").read(), open(out, "rb").read()
-    assert len(a) < len(b) and a != b and b"HELLO-MODDED-012" in b and b"HELLO-WORLD-0123" in a
+    assert a != b and b"HELLO-MODDED-012" in b and b"HELLO-WORLD-0123" in a   # the rebuilt container is a few bytes bigger but still inside its own sector, so it can stay where it was
     # the rebuilt container: both entries readable at the new place, b.bin has its new size
     sys.path.insert(0, os.path.join(here, "..", "tools"))
     import p3fes_unpack as U
@@ -139,7 +139,7 @@ with tempfile.TemporaryDirectory() as d:
     r = subprocess.run([sys.executable, tool, "apply", iso, os.path.join(d, "mod"), "-o", out], capture_output=True, text=True)
     assert r.returncode == 0 and r.stdout.count("grows") == 2, r.stdout + r.stderr
     b = open(out, "rb").read()
-    at = b.find(b"SPR0", len(open(iso, "rb").read()) - 100) - 8      # the new copy of the sprite file, after the old image end
+    at = b.rfind(b"SPR0") - 8      # the new copy of the sprite file (small, so it may stay inside its old sector, or sit after the old image end)
     assert at > 0
     new = b[at:at + 64 + 320]
     assert struct.unpack_from("<I", new, 0x24)[0] == 64 and struct.unpack_from("<I", new, 0x2C)[0] == 64 + 160
