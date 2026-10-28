@@ -306,6 +306,8 @@ SCAN_NEW = """    // ps2run_logkey_patch.py: the message-window record is not al
 
 SCAN_UP_OLD = "    if (recs.empty() ? g_frames % 30 == 0 : g_frames % 900 == 0) {\n"
 SCAN_UP_NEW = "    if (g_frames % 60 == 0) {\n"
+SPK_OLD = '    case 12: return "Shuji Ikutsuki";\n    default: return nullptr;'
+SPK_NEW = '    case 12: return "Shuji Ikutsuki";\n    case 16: return "Igor";\n    case 17: return "Elizabeth";\n    case 23: return "Kenji Tomochika";\n    case 45: return "Ms. Toriumi";\n    default: return nullptr;'
 CLOSE_OLD = "        if (e.type == SDL_KEYDOWN && !e.key.repeat && e.key.keysym.scancode == SDL_SCANCODE_ESCAPE && g_log_win) log_close();\n"
 CLOSE_NEW = CLOSE_OLD + """        // with the log box open there are two windows, and SDL then does not send SDL_QUIT when the game window is closed
         if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE && g_window && e.window.windowID == SDL_GetWindowID(g_window)) ps2::halt("window closed");
@@ -320,7 +322,8 @@ EDITS = [('runtime/include/ps2/system.hpp', [(HPP_OLD, HPP_NEW, 'dialog_recent(s
                                      (SCAN_UP_OLD, SCAN_UP_NEW, 'if (g_frames % 60 == 0) {', True)]),
          ('host/window.cpp', [(WIN_FN_OLD, WIN_FN_NEW, '// ---- Log key (ps2run_logkey_patch.py)', False),
                               (WIN_EV_OLD, WIN_EV_NEW, 'SDL_SCANCODE_TAB) {   // ps2run_logkey_patch.py', False),
-                              (CLOSE_OLD, CLOSE_NEW, 'e.window.windowID == SDL_GetWindowID(g_window)) ps2::halt', False)])]
+                              (CLOSE_OLD, CLOSE_NEW, 'e.window.windowID == SDL_GetWindowID(g_window)) ps2::halt', False),
+                              (SPK_OLD, SPK_NEW, 'case 45: return "Ms. Toriumi";', True)])]
 
 
 def fail(msg):
