@@ -540,6 +540,91 @@ def free_tail(iso):
         return None
 
 
+def pnach_data_pokes(program, text):
+    """Data writes of a PCSX2 .pnach (patch=1,EE,ADDR,word|short|byte|extended,VALUE) as whole-word pokes for the PC window (PS2_POKE).
+    The window can only write words, so each touched word is read from the program image (which holds the starting values of the data),
+    changed, and written back. `extended` takes its size from the top digit of the address (0 byte, 1 half word, 2 word).
+    Returns ([(address, word)], [messages]). Lines that write outside the program image are listed in the messages and skipped."""
+    segs = []
+    if program[:4] == b"\x7fELF":
+        phoff, phsz, phn = struct.unpack_from("<I", program, 28)[0], struct.unpack_from("<H", program, 42)[0], struct.unpack_from("<H", program, 44)[0]
+        for k in range(phn):
+            t, off, va, _pa, fs, _ms = struct.unpack_from("<6I", program, phoff + k * phsz)
+            if t == 1:
+                segs.append((off, fs, va))
+    words, notes = {}, []
+    for line in text.splitlines():
+        line = line.split("//")[0].strip()
+        m = re.match(r"patch=\d+,EE,([0-9A-Fa-f]{1,8}),(word|short|byte|extended),([0-9A-Fa-f]+)$", line)
+        if not m:
+            continue
+        addr, kind, val = int(m.group(1), 16), m.group(2), int(m.group(3), 16)
+        if kind == "extended":
+            size = (1, 2, 4)[min(addr >> 28, 2)]
+            addr &= 0x0FFFFFFF
+        else:
+            size = {"byte": 1, "short": 2, "word": 4}[kind]
+        for i in range(size):
+            a = addr + i
+            w = a & ~3
+            if w not in words:
+                off = next((o + w - v for o, fs, v in segs if v <= w and w + 4 <= v + fs), None)
+                if off is None:
+                    notes.append("address %08X is not inside the program image, line skipped" % addr)
+                    break
+                words[w] = bytearray(program[off:off + 4])
+            words[w][a - w] = (val >> (8 * i)) & 0xFF
+    return [(a, struct.unpack("<I", bytes(b))[0]) for a, b in sorted(words.items())], notes
+
+
+def letterbox_pokes(program, mod_folder):
+    """Simply Better FMVs removes the black bars from seven cutscenes, so those movies are 640x368 instead of 640x448 and the game must be told:
+    its LetterBoxBe-Gone cheat changes a flag and the expected height in the game's movie table (data, no code). Applies the data writes of every
+    cheats/*letterbox*.pnach of the mod folder."""
+    out, notes = [], []
+    for dp, _d, names in os.walk(mod_folder):
+        if os.path.basename(dp).lower() != "cheats":
+            continue
+        for n in sorted(names):
+            if n.lower().endswith(".pnach") and "letterbox" in n.lower():
+                with open(os.path.join(dp, n), errors="replace") as f:
+                    pk, nt = pnach_data_pokes(program, f.read())
+                out += pk
+                notes += nt
+    return out, notes
+
+LIMIT_SECTORS = (1 << 21) - 1     # a file inside a CVM must end before this sector of the CVM (4 GB): tested 27 Oct 2026, a movie placed beyond it
+                                  # (CVM sector 2,145,346) made the PC window stall right after start-up, while files up to sector 1,88x,xxx worked
+UNFIT = []                        # keys of moved files that could not be placed (filled by entries_for); they keep their place on the disc
+
+
+def pack_extents(extents, needs):
+    """Places files into free `extents` ([(first sector, end sector)]). needs: [(key, sectors, limit_end)]: no file may end after its own limit_end
+    (None = no limit). Smallest file first, best fit, each extent filled from its start, so when the space runs short the biggest files are
+    the ones left out. Returns ({key: first sector}, [keys that did not fit])."""
+    free = []
+    for a, b in sorted(extents):
+        if b > a:
+            if free and free[-1][1] >= a:       # next to each other: one extent
+                free[-1][1] = max(free[-1][1], b)
+            else:
+                free.append([a, b])
+    placed, out = {}, []
+    for key, n, lim in sorted(needs, key=lambda k: (k[1], str(k[0]))):
+        best = None
+        for e in free:
+            room = (e[1] if lim is None else min(e[1], lim)) - e[0]
+            if room >= n and (best is None or room < best[0]):
+                best = (room, e)
+        if best is None:
+            out.append(key)
+            continue
+        e = best[1]
+        placed[key] = e[0]
+        e[0] += n
+    return placed, out
+
+
 MOVES = []      # filled by entries_for: one dict per moved file (old and new start sector and size), see table_pokes
 
 
@@ -573,7 +658,29 @@ def table_pokes(program, moves):
     return pokes, notes
 
 
-def entries_for(items, iso_size, iso=None):
+def plan_moves(todo, free, end):
+    """Where each moved file goes. Moved files go into the room their own old copies leave (a movie replaced by a bigger one frees its old
+    place, and the old places of all the movies lie side by side), then into the unused end of the volume, then past the end of the image.
+    Nothing may end beyond LIMIT_SECTORS of its CVM (see above), so what does not fit stays where it was.
+    todo: items with "move" (and "data" or "path"), free: (first byte, end byte) of the unused tail or None, end: first byte past the image.
+    Returns {id(item): first sector (of the whole disc)}; items missing from it did not fit."""
+    S = U.SECTOR
+    ext = []
+    needs = []
+    for i in todo:
+        if i.get("move"):
+            if i.get("offset") is not None and i.get("orig"):
+                ext.append((i["offset"] // S, (i["offset"] + i["orig"] + S - 1) // S))
+            n = len(i["data"]) if "data" in i else os.path.getsize(i["path"])
+            needs.append((id(i), (n + S - 1) // S, i["rec"][1] // S + LIMIT_SECTORS))
+    if free:
+        ext.append((free[0] // S, free[1] // S))
+    ext.append((end // S, end // S + (1 << 24)))
+    placed, _no = pack_extents(ext, needs)
+    return placed
+
+
+def entries_for(items, iso_size, iso=None, reuse=True):
     """List of (absolute offset, bytes) to write. Moved files are appended after the end of the image
     (sector aligned) and their directory records are pointed at the new place. Containers that hold a file that grew are
     rebuilt from the original plus all edits to them (all mods together), and moved the same way."""
@@ -592,6 +699,8 @@ def entries_for(items, iso_size, iso=None):
     for c in sorted(rebuilt):
         g = groups[c]
         todo.append({"move": True, "rec": g[0]["tgt"]["rec"], "data": rebuild_for(iso, g), "offset": g[0]["tgt"]["co"], "orig": g[0]["tgt"]["cs"], "key": c})
+    UNFIT[:] = []
+    place = plan_moves(todo, free, end) if reuse and iso else None
     for i in todo:
         data = i["data"] if "data" in i else open(i["path"], "rb").read()
         if i.get("convert"):
@@ -601,7 +710,12 @@ def entries_for(items, iso_size, iso=None):
         if i.get("move"):
             rec_off, base = i["rec"]
             need = (len(data) + U.SECTOR - 1) // U.SECTOR * U.SECTOR
-            if free and free[0] + need <= free[1]:
+            if place is not None:
+                if id(i) not in place:
+                    UNFIT.append(i.get("key", ""))
+                    continue
+                at = place[id(i)] * U.SECTOR
+            elif free and free[0] + need <= free[1]:
                 at = free[0]
                 free[0] += need
             else:
@@ -610,7 +724,7 @@ def entries_for(items, iso_size, iso=None):
             lba = (at - base) // U.SECTOR
             reach[base] = max(reach.get(base, 0), lba + need // U.SECTOR)
             if i.get("offset") is not None and i.get("orig") is not None:
-                MOVES.append({"key": i.get("key", ""), "old_lba": (i["offset"] - base) // U.SECTOR, "old_size": i["orig"], "new_lba": lba, "new_size": len(data)})
+                MOVES.append({"key": i.get("key", ""), "base": base // U.SECTOR, "old_lba": (i["offset"] - base) // U.SECTOR, "old_size": i["orig"], "new_lba": lba, "new_size": len(data)})
             out.append((at, data + b"\0" * ((-len(data)) % U.SECTOR)))
             out.append((rec_off + 2, struct.pack("<I", lba) + struct.pack(">I", lba) + struct.pack("<I", len(data)) + struct.pack(">I", len(data))))
         else:
@@ -652,7 +766,7 @@ def movetest(a):
             if p in recs and recs[p][1] and 0 < s < 256 * 1024:
                 f.seek(o)
                 items.append({"move": True, "rec": recs[p], "data": f.read(s)})
-    ents, end = entries_for(items, os.path.getsize(a.iso), a.iso)
+    ents, end = entries_for(items, os.path.getsize(a.iso), a.iso, reuse=False)
     if a.out.lower().endswith(".ovl"):
         with open(a.out, "wb") as f:
             f.write(MAGIC + struct.pack("<I", len(ents)))

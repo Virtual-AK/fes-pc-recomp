@@ -132,6 +132,8 @@ ps2web_gamebeat_patch.py
 ps2recomp_modswitch_patch.py
 ps2port_modswitch_patch.py
 ps2run_poke_patch.py
+ps2run_texlog_patch.py
+ps2run_hdtex_patch.py
 "
 # Patches are not all safe to run twice once later patches have changed their text, so remember which ones were applied.
 # A project folder patched by an older installer (no list yet) is put back to the original source first.

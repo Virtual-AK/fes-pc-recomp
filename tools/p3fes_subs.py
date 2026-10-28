@@ -49,13 +49,36 @@ def movies(iso):
     return out
 
 
-def write_movies(iso, folder):
+def write_movies(iso, folder, moved=None):
+    """moved: {(NAME, old first sector): (new first sector, new sector count)} for movies a file mod replaced and moved (mods\\active.movies).
+    Their old place now holds other data, so the list gets the new place instead."""
     os.makedirs(folder, exist_ok=True)
     lst = movies(iso)
+    moved = moved or {}
     with open(os.path.join(folder, "movies.txt"), "w") as f:      # two movies can share a name (the sound copy of P3CT003): both lines stay
-        for name, first, count in sorted(lst, key=lambda r: r[1]):
+        rows = []
+        for name, first, count in lst:
+            if (name, first) in moved:
+                first, count = moved[(name, first)]
+            rows.append((name, first, count))
+        for name, first, count in sorted(rows, key=lambda r: r[1]):
             f.write("%s %d %d\n" % (name, first, count))
     return len(lst)
+
+
+def read_moved(path):
+    """Reads mods\\active.movies (lines: NAME OLD_FIRST_SECTOR NEW_FIRST_SECTOR NEW_COUNT) as the `moved` dict of write_movies, plus the text itself."""
+    try:
+        with open(path) as f:
+            text = f.read()
+    except OSError:
+        return {}, ""
+    out = {}
+    for line in text.splitlines():
+        w = line.split()
+        if len(w) == 4 and all(x.isdigit() for x in w[1:]):
+            out[(w[0], int(w[1]))] = (int(w[2]), int(w[3]))
+    return out, text
 
 
 TIME = re.compile(r"(\d+):(\d\d):(\d\d)[,.](\d{1,3})\s*-->\s*(\d+):(\d\d):(\d\d)[,.](\d{1,3})")
