@@ -77,3 +77,10 @@ pk, notes = M.pnach_data_pokes(bytes(prog), "patch=1,EE,00100020,extended,06 //f
 assert dict(pk) == {0x00100020: 6, 0x00100030: 0x170, 0x00100040: 0x11223344, 0x00100050: 0xBEEF}, pk
 assert len(notes) == 1 and "not inside" in notes[0], notes
 print("ok sfd: remux keeps the sound, the video and the clock rules; pnach data pokes merge into words")
+
+# a header that spells the video name in lower case (Simply Better FMVs) is found too
+low = make_original().replace(b"X.M2V", b"x.m2v")
+lo = os.path.join(d, "lo.sfd"); open(lo, "wb").write(low)
+F.remux(lo, m2v, os.path.join(d, "lo2.sfd"), "640x448")
+assert b"\x28\x01\xc0" in F.parse(open(os.path.join(d, "lo2.sfd"), "rb").read())[0][1]
+print("ok lower-case video name in the movie header")
