@@ -227,3 +227,4 @@ An independent matching-decompilation project for this game exists at https://gi
 The tools and documentation are released under the MIT license (see LICENSE).
 
 - [Playtest plan](docs/playtest-plan.md): what works, what is broken, and everything left to test.
+- [Playtest report 1](docs/playtest-report-1.md): a fresh save played from the first day to 9 July (28 October to 1 November 2026): what held up, what broke, what is next.
