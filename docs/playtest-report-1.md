@@ -28,7 +28,7 @@ From a new game to 9 July, past the first proper boss (around 10 May) and the Hi
 
 ## Problems found
 
-Each one is listed with what was seen, how often, what we suspect, and the next step. A suspicion is not a finding; none of these has been tested yet.
+Each one is listed with what was seen, how often, what we suspect, and the next step. A suspicion is not a finding. Only problem 7 has been tested and fixed so far.
 
 | # | What was seen | How often | What we suspect | Next step |
 | --- | --- | --- | --- | --- |
@@ -38,7 +38,11 @@ Each one is listed with what was seen, how often, what we suspect, and the next 
 | 4 | **A character is stuck, with its walk animation visible when it should be off screen.** First seen right after the Hierophant and Lovers bosses on 9 July. | Once in this playtest; the same family of fault as the opening (see below) | The scene timing in the game's own code, not the HD pictures | Needs the clip; compare with [known-issues.md](known-issues.md) |
 | 5 | **Frame rate dips or halts.** | From time to time | The maintainer suspects autosave. Not confirmed | Play an hour with autosave off and see if it stops |
 | 6 | **One of Junpei's portraits is not HD.** | One found so far | A picture with no match in the HD table | Find it from a screenshot and add it, as with the 13 extra portraits |
-| 7 | **More to find** when the recordings are reviewed again. | Unknown | | Frames pulled from the recordings, in clips under 400 MB |
+| 7 | **The shower scene (P3CT008) had white bars** above and below the picture instead of the game's dark blue. Seen only with Simply Better FMVs on; with the pack off the bars were normal. | Every time that scene plays | The pack's bar-free version plus the LetterBoxBe-Gone size change. The exact reason is not known | **Fixed on 2 November 2026** by [p3fes_movie_bars.py](../tools/p3fes_movie_bars.py): the movie is padded back to 448 with dark blue bars and keeps its quality (see [hd-cutscenes.md](hd-cutscenes.md)). Not yet built into the launcher |
+| 8 | **Some 3D Personas do not look fully clear**: Orpheus at the start of the game (9 April, Dark Hour) and Lucia when Fuuka joins (7 July). | Two cases noticed | Not known. They may be the effect itself or something we draw wrongly | Compare with the same scenes in the original game |
+| 9 | **The battle background goes fully black** for a moment while the party's HUD and the boss stay on screen (seen in the Lovers fight). It also happens with Simply Better FMVs off, so it is not the movie pack. | Seen, no count | A battle background that is not drawn for a frame or two | Pull frames from the recordings, then look at how the runner draws the battle scene |
+| 10 | **The battle menu looks less clear when playing on a keyboard.** The boxed key letter replaces the triangle in prompts such as RUSH. | One tester, keyboard only | Not known: it may be the prompt style and not the menu itself | Ask which part looks less clear; compare with a controller |
+| 11 | **More to find** when the recordings are reviewed again. | Unknown | | Frames pulled from the recordings, in clips under 400 MB |
 
 Problem 4 matches the open fault in [known-issues.md](known-issues.md), where characters stall in place or appear too early in the opening. That one is in the game code and not in any mod; this report suggests it also happens later in the game.
 
