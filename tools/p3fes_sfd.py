@@ -117,6 +117,8 @@ def remux(orig, m2v, out, size=None):
         hit = 0
         for hs in header:
             m = hs.find(b".M2V")
+            if m < 0:
+                m = hs.find(b".m2v")                # Simply Better FMVs writes the video name in lower case
             i = hs.find(old, m) if m >= 0 else -1
             if i >= 0:
                 hs[i:i + 3] = new
