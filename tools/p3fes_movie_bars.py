@@ -9,6 +9,8 @@ and its LetterBoxBe-Gone cheat tells the game the pictures are 368 high. In P3CT
 then comes out white. Tested in the PC window (2 November 2026): this tool's 640x448 version of P3CT008, with the two P3CT008 lines
 (flag 06 at 005D4D00, height 70 at 005D4D10) taken out of the LetterBoxBe-Gone cheat, plays in full quality with the dark blue bars.
 
+The launcher now does all of this by itself (it makes the padded P3CT008 when Simply Better FMVs is on, lays it over the mod and leaves the two
+cheat lines out; see lm_bars_layer in p3fes_launcher.py). By hand, for reference:
 Steps for P3CT008 (Mods > File mods, Simply Better FMVs):
   1. Rename mods\\sbfmv-eng\\files\\DATA\\SFD\\P3CT008.SFD to P3CT008.SFD.off (the backup).
   2. python3 p3fes_movie_bars.py P3CT008.SFD.off P3CT008.SFD     (run from that folder)
@@ -48,6 +50,28 @@ def probe_height(src):
     raise SystemExit("Error: could not read the picture size of %s" % src)
 
 
+def pad_movie(src, out, height=448, color="0E1C27", bitrate=6400):
+    """Write src (a bar-free .SFD) to out with dark bars added to `height` lines. Returns (width, height, bar pixels). Raises ValueError when the
+    picture is already that high, RuntimeError when ffmpeg is missing."""
+    try:
+        w, h = probe_height(src)
+    except SystemExit as e:
+        raise RuntimeError(str(e))
+    if h >= height:
+        raise ValueError("the picture is already %d high, nothing to add" % h)
+    top = (height - h) // 2
+    with tempfile.TemporaryDirectory() as d:
+        m2v = os.path.join(d, "v.m2v")
+        cmd = [ffmpeg_exe(), "-y", "-v", "error", "-i", src,
+               "-vf", "pad=%d:%d:0:%d:color=0x%s,format=yuv420p" % (w, height, top, color),
+               "-c:v", "mpeg2video", "-g", "12", "-bf", "0", "-b:v", "%dk" % bitrate, "-minrate", "%dk" % bitrate,
+               "-maxrate", "%dk" % bitrate, "-bufsize", "3000k", "-mbd", "rd", "-flags", "+cgop", "-sc_threshold", "1000000000",
+               "-aspect", "4:3", "-r", "30000/1001", "-f", "mpeg2video", m2v]
+        subprocess.run(cmd, check=True)
+        F.remux(src, m2v, out, "%dx%d" % (w, height))
+    return w, height, top
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
@@ -56,20 +80,11 @@ def main():
     ap.add_argument("--color", default="0E1C27")
     ap.add_argument("--bitrate", type=int, default=6400, help="video kbit/s; video plus audio must stay under about 7300")
     a = ap.parse_args()
-    w, h = probe_height(a.src)
-    if h >= a.height:
-        sys.exit("Error: the picture is already %d high, nothing to add" % h)
-    top = (a.height - h) // 2
-    with tempfile.TemporaryDirectory() as d:
-        m2v = os.path.join(d, "v.m2v")
-        cmd = [ffmpeg_exe(), "-y", "-v", "error", "-i", a.src,
-               "-vf", "pad=%d:%d:0:%d:color=0x%s,format=yuv420p" % (w, a.height, top, a.color),
-               "-c:v", "mpeg2video", "-g", "12", "-bf", "0", "-b:v", "%dk" % a.bitrate, "-minrate", "%dk" % a.bitrate,
-               "-maxrate", "%dk" % a.bitrate, "-bufsize", "3000k", "-mbd", "rd", "-flags", "+cgop", "-sc_threshold", "1000000000",
-               "-aspect", "4:3", "-r", "30000/1001", "-f", "mpeg2video", m2v]
-        subprocess.run(cmd, check=True)
-        F.remux(a.src, m2v, a.out, "%dx%d" % (w, a.height))
-    print("wrote %s (%dx%d, bars %d pixels top and bottom)" % (a.out, w, a.height, top))
+    try:
+        w, h, top = pad_movie(a.src, a.out, a.height, a.color, a.bitrate)
+    except ValueError as e:
+        sys.exit("Error: %s" % e)
+    print("wrote %s (%dx%d, bars %d pixels top and bottom)" % (a.out, w, h, top))
 
 
 if __name__ == "__main__":

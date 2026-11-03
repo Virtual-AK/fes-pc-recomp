@@ -20,9 +20,11 @@ def find_table(here=None):
     return None
 
 
-def build_map(table, mods, out=None, win_root=None):
+def build_map(table, mods, out=None, win_root=None, overlay=None):
     """Resolve the table against the pack folders under `mods`. Returns (rows_found, {packid: rows_missing}).
-    With `out`, writes the map file the game reads; `win_root` is the Windows spelling of `mods` (one conversion, not one per picture)."""
+    With `out`, writes the map file the game reads; `win_root` is the Windows spelling of `mods` (one conversion, not one per picture).
+    `overlay` is a folder of generated pictures laid out <pack id>/<path inside the pack> (the button prompts in HD): used before the pack's own file;
+    with `win_root` an overlay picture is written as a path relative to `mods` (../prompts/hd/..., Windows resolves the ..)."""
     folders = []
     for d in sorted(os.listdir(mods)):
         p = os.path.join(mods, d)
@@ -45,7 +47,11 @@ def build_map(table, mods, out=None, win_root=None):
         if pid not in cache:
             cache[pid] = packdirs(pid)
         hit = None
-        for d in cache[pid]:
+        if overlay:
+            c = os.path.join(overlay, pid, *rel.split("/"))
+            if os.path.isfile(c):
+                hit = os.path.abspath(c)
+        for d in ([] if hit else cache[pid]):
             c = os.path.join(d, *rel.split("/"))
             if os.path.isfile(c):
                 hit = os.path.abspath(c)
@@ -54,7 +60,8 @@ def build_map(table, mods, out=None, win_root=None):
             missing[pid] += 1
             continue
         if win_root:
-            hit = win_root.replace("\\", "/").rstrip("/") + "/" + os.path.relpath(hit, os.path.abspath(mods)).replace(os.sep, "/")
+            base = os.path.abspath(mods)
+            hit = win_root.replace("\\", "/").rstrip("/") + "/" + os.path.relpath(hit, base).replace(os.sep, "/")
         f[9] = hit
         found_rows.append("\t".join(f))
     if out:

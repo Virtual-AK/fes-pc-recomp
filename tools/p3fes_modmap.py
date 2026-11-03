@@ -577,10 +577,22 @@ def pnach_data_pokes(program, text):
     return [(a, struct.unpack("<I", bytes(b))[0]) for a, b in sorted(words.items())], notes
 
 
-def letterbox_pokes(program, mod_folder):
+def _pnach_addr_in(line, addrs):
+    """True when a patch=1,EE,ADDR,... line writes to one of addrs (word aligned)."""
+    f = line.split("//")[0].strip().split(",")
+    if len(f) >= 4 and f[0].replace(" ", "").lower().startswith("patch="):
+        try:
+            return (int(f[2].strip(), 16) & 0x01FFFFFF) & ~3 in addrs
+        except ValueError:
+            return False
+    return False
+
+
+def letterbox_pokes(program, mod_folder, skip=()):
     """Simply Better FMVs removes the black bars from seven cutscenes, so those movies are 640x368 instead of 640x448 and the game must be told:
     its LetterBoxBe-Gone cheat changes a flag and the expected height in the game's movie table (data, no code). Applies the data writes of every
-    cheats/*letterbox*.pnach of the mod folder."""
+    cheats/*letterbox*.pnach of the mod folder. skip = addresses whose patch lines are left out (a movie the launcher gave the disc's bars itself)."""
+    skip = {int(a) & ~3 for a in skip}
     out, notes = [], []
     for dp, _d, names in os.walk(mod_folder):
         if os.path.basename(dp).lower() != "cheats":
@@ -588,7 +600,10 @@ def letterbox_pokes(program, mod_folder):
         for n in sorted(names):
             if n.lower().endswith(".pnach") and "letterbox" in n.lower():
                 with open(os.path.join(dp, n), errors="replace") as f:
-                    pk, nt = pnach_data_pokes(program, f.read())
+                    text = f.read()
+                if skip:
+                    text = "\n".join(ln for ln in text.splitlines() if not _pnach_addr_in(ln, skip))
+                pk, nt = pnach_data_pokes(program, text)
                 out += pk
                 notes += nt
     return out, notes

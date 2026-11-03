@@ -404,10 +404,12 @@ def scan(root, report=None, template_root=None):
     return found
 
 
-def build(root, out, style="keyboard", keys=None, pad=None, hits=None, report=None, preview=None, font=False):
+def build(root, out, style="keyboard", keys=None, pad=None, hits=None, report=None, preview=None, font=False, skip=()):
     """Redraw the icons found in root as `style` prompts and write the changed archives under out/files. hits = a result of scan() to skip the search.
+    skip = sheets left as the game has them: (sprite file name, picture number), see p3fes_hdprompts.py (the HD pictures carry the button there).
     Returns (hits, report lines, archives written)."""
     report = [] if report is None else report
+    skip = {(str(n).lower(), int(k)) for n, k in skip}
     labels = prompt_labels(style, keys, pad)
     if hits is None:
         hits = scan(root)
@@ -420,7 +422,7 @@ def build(root, out, style="keyboard", keys=None, pad=None, hits=None, report=No
         new, n = bytearray(spr), 0
         texs = textures(spr)
         for k, hl in per:
-            if k >= len(texs):
+            if k >= len(texs) or (os.path.basename(rel).lower(), k) in skip:
                 continue
             tex, drawn = texs[k], 0
             for name, box, score in hl:
