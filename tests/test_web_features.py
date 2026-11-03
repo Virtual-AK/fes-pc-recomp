@@ -33,7 +33,7 @@ print("ok   browser widescreen and speedrun patches apply once, are idempotent a
 import p3fes_launcher as L
 assert L.web_params({}) == ""
 q = L.web_params({"widescreen": True, "vol_music": 40, "speedrun": True, "speedrun_zero_web": True})
-assert "PS2_ASPECT=16%3A9" in q and "PS2_PATCH=007cad1c%3D3fe38e38%2F3faaaaab" in q and "PS2_VOL_MUSIC=40" in q and "PS2_VOL_MASTER" not in q
+assert "PS2_ASPECT=16%3A9" in q and "PS2_PATCH=007cad1c%3D3fd9999a%2F3faaaaab" in q and "PS2_VOL_MUSIC=40" in q and "PS2_VOL_MASTER" not in q
 assert "speedrun=1" in q and "srzero=1" in q
 assert "srzero" not in L.web_params({"speedrun": True})
 print("ok   launcher passes widescreen, volumes and speedrun to the browser game only when set")

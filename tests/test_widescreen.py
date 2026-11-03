@@ -34,7 +34,7 @@ try:
     e = {}
     assert not L.widescreen_env(e) and not e
     L.load_cfg = lambda: {"widescreen": True}
-    assert L.widescreen_env(e) and e["PS2_ASPECT"] == "16:9" and e["PS2_PATCH"] == "007cad1c=3fe38e38/3faaaaab"
+    assert L.widescreen_env(e) and e["PS2_ASPECT"] == "16:9" and e["PS2_PATCH"] == "007cad1c=3fd9999a/3faaaaab"
 finally:
     L.load_cfg = old
 print("ok   widescreen patch applies once, is idempotent and refuses unknown source; launcher sets it only when on")
