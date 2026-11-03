@@ -2,7 +2,7 @@
 
 The PC window (`ps2run.exe`, runs at 60 fps on a real graphics driver) is built on your own computer from your own disc. Nothing of the game is downloaded or shared: the translated game code is made from your disc by the Ubuntu install, and the programs recorded in step 3 are pieces of that same code.
 
-**Status:** tested on one PC only (Windows 10 22H2, RTX 3060 Ti). The one-step script below has been checked for its Ubuntu half and its file handling, but not yet run start to finish on a clean PC. The first friend to try it is the test: send me the screen if it stops.
+**Status:** run start to finish on a clean PC on 3 November 2026 (the build ended with BUILD OK and the PC window ran at 60 fps), after the first run found a path bug (a folder path ending in a backslash) that is fixed in 0.57. The PC window itself was first tested on Windows 10 22H2 with an RTX 3060 Ti. This is now part 4 of [install.md](install.md), which covers the whole path from Ubuntu to the launcher in order; this page keeps the details and the optional smooth-play step.
 
 ## What you need first
 - Windows 10 or 11 with Ubuntu (WSL) and `p3fes_install.sh` finished once. See [install.md](install.md). The long build step in it makes the game code the PC window needs.
