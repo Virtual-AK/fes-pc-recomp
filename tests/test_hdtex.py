@@ -32,7 +32,7 @@ assert packs <= {"hq_portraits", "p3hd_enhanced_persona_artwork", "widescreen"},
 hd = os.path.join(tools, "hdtex")
 def rd(n): return open(os.path.join(hd, n), newline="").read().replace("\r\n", "\n")
 hpp = rd("hdtex.hpp").replace('#include "bc7_tables.inc"\n', rd("bc7_tables.inc"))
-built = rd("patch_template.py").replace("@@HPP@@", repr(hpp)).replace("@@GLUE@@", repr(rd("glue_gpu.inc"))).replace("@@GLUE_V1@@", repr(rd("glue_v1.inc"))).replace("@@GLUE_V2@@", repr(rd("glue_v2.inc"))).replace("@@GLUE_V3@@", repr(rd("glue_v3.inc"))).replace("@@GLUE_V4@@", repr(rd("glue_v4.inc")))
+built = rd("patch_template.py").replace("@@HPP@@", repr(hpp)).replace("@@GLUE@@", repr(rd("glue_gpu.inc"))).replace("@@GLUE_V1@@", repr(rd("glue_v1.inc"))).replace("@@GLUE_V2@@", repr(rd("glue_v2.inc"))).replace("@@GLUE_V3@@", repr(rd("glue_v3.inc"))).replace("@@GLUE_V4@@", repr(rd("glue_v4.inc"))).replace("@@GLUE_V5@@", repr(rd("glue_v5.inc")))
 assert built == open(os.path.join(tools, "ps2run_hdtex_patch.py"), newline="").read().replace("\r\n", "\n"), "ps2run_hdtex_patch.py is out of date: run python3 tools/hdtex/make_patch.py"
 
 # ---- the map builder, on a made-up mods folder
