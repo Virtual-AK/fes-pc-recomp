@@ -1738,24 +1738,46 @@ def packed_link(mid, text):
     return {"ok": True, "msg": "Link saved." if text else "Link removed."}
 
 
-def gb_download_file(f, dest, limit):
-    """Download one file listed on a GameBanana page (only from gamebanana.com). Returns an error text, or None."""
+def gb_err_text(e, url):
+    """What to show when a GameBanana request failed: says which address, so a 404 can be told apart (page info or file)."""
+    if isinstance(e, urllib.error.HTTPError):
+        shown = str(getattr(e, "url", "") or url)   # after a redirect this is the address that really said no
+        return "GameBanana answered HTTP %d for %s" % (e.code, shown[:90])
+    return "%s (%s)" % (str(e)[:80], str(url)[:70])
+
+
+def gb_download_file(f, dest, limit, referer=""):
+    """Download one file listed on a GameBanana page (only from gamebanana.com). Returns an error text, or None.
+    referer: the mod's page, sent like a browser does when you press its download button (some files are only handed out that way)."""
     url = str(f.get("_sDownloadUrl", ""))
     if not gb_host_ok(url):
         return "GameBanana gave an address that is not on gamebanana.com, so it was not used."
-    req = urllib.request.Request(url, headers={"User-Agent": "p3fes-launcher/1.0"})
-    got = 0
-    with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as out:
-        if not gb_host_ok(r.geturl()):
-            return "The download moved to an address that is not on gamebanana.com, so it was stopped."
-        while True:
-            b = r.read(1 << 20)
-            if not b:
-                break
-            got += len(b)
-            if got > limit:
-                return "A download is larger than allowed, so it was stopped."
-            out.write(b)
+    # some of GameBanana's file servers answer 404 to a client that does not look like a browser (the mod page and file list are fine):
+    # the first try says who we are, and only if that is refused with 404 or 403 the same download is asked again the way a browser asks
+    agents = ["p3fes-launcher/1.0", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"]
+    for k, agent in enumerate(agents):
+        hdr = {"User-Agent": agent}
+        if referer and gb_host_ok(referer):
+            hdr["Referer"] = referer
+        req = urllib.request.Request(url, headers=hdr)
+        got = 0
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as out:
+                if not gb_host_ok(r.geturl()):
+                    return "The download moved to an address that is not on gamebanana.com, so it was stopped."
+                while True:
+                    b = r.read(1 << 20)
+                    if not b:
+                        break
+                    got += len(b)
+                    if got > limit:
+                        return "A download is larger than allowed, so it was stopped."
+                    out.write(b)
+        except urllib.error.HTTPError as e:
+            if k + 1 < len(agents) and e.code in (403, 404):
+                continue
+            raise
+        break
     return None
 
 
@@ -1803,13 +1825,15 @@ def packed_pick_archive(reg, ar):
 
 def packed_get_work(mid, gbid):
     tmp = os.path.join(packed_dir(), "_dl")
+    cur = [""]   # the address being asked, for the error text
     try:
         reg = next((r for r in packed_registry() if r["id"] == mid), None)
         if not reg:
             lm_work["msg"] = "Unknown mod."
             return
         lm_work["msg"] = "Asking GameBanana for the files…"
-        info = gb_get("%s/Mod/%d/ProfilePage" % (GB_API, gbid))
+        cur[0] = "%s/Mod/%d/ProfilePage" % (GB_API, gbid)
+        info = gb_get(cur[0])
         files = [f for f in (info.get("_aFiles") or []) if f.get("_sDownloadUrl")]
         shutil.rmtree(tmp, ignore_errors=True)
         os.makedirs(tmp)
@@ -1826,7 +1850,8 @@ def packed_get_work(mid, gbid):
                 name = re.sub(r"[^A-Za-z0-9 ._-]+", "", str(f.get("_sFile", "file"))) or "file"
                 dest = os.path.join(tmp, "%d_%s" % (k, name))
                 lm_work["msg"] = "Downloading %s…" % name[:50]
-                err = gb_download_file(f, dest, 200 * 1024 ** 2)
+                cur[0] = str(f.get("_sDownloadUrl", ""))
+                err = gb_download_file(f, dest, 200 * 1024 ** 2, "https://gamebanana.com/mods/%d" % gbid)
                 if err:
                     lm_work["msg"] = err
                     return
@@ -1865,14 +1890,15 @@ def packed_get_work(mid, gbid):
         name = re.sub(r"[^A-Za-z0-9 ._-]+", "", str(f.get("_sFile", "mod"))) or "mod.zip"
         dest = os.path.join(tmp, name)
         lm_work["msg"] = "Downloading %s…" % name[:50]
-        err = gb_download_file(f, dest, 2 * 1024 ** 3)
+        cur[0] = str(f.get("_sDownloadUrl", ""))
+        err = gb_download_file(f, dest, 2 * 1024 ** 3, "https://gamebanana.com/mods/%d" % gbid)
         if err:
             lm_work["msg"] = err
             return
         if packed_add_files(mid, reg, dest):
             lm_work["msg"] = "%s downloaded. Turn it on with its ON button." % reg["name"]
     except Exception as e:
-        lm_work["msg"] = "Could not download that mod: %s" % str(e)[:100]
+        lm_work["msg"] = "Could not download that mod: %s" % gb_err_text(e, cur[0])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         lm_work["busy"] = False
