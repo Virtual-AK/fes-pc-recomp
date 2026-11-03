@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.56"
+LAUNCHER_VERSION = "0.57"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -308,6 +308,9 @@ def lm_locate(iso):
     return lm_cache["loc"]
 
 
+lm_bars_state = {"skip": []}   # cheat words left out because the launcher padded that movie itself (set by lm_rebuild, used by lm_write_pokes)
+
+
 def lm_rebuild(iso, loc):
     """Merge the enabled mods (the one higher in the list wins where two change the same thing) into active.ovl, or remove it when none are enabled."""
     M = lm_modmap()
@@ -329,6 +332,22 @@ def lm_rebuild(iso, loc):
                 if it["ok"]:
                     merged.pop(it["key"], None)
                     merged[it["key"]] = it
+    bars_dir, bars = None, {}
+    if merged:
+        try:
+            folders = [os.path.join(lm_dir(), m["id"], "files") for m in ordered if m.get("enabled") and LM_ID.match(m.get("id", "")) and m.get("id") not in ES_LAYERS]
+            bars_dir, bars = lm_bars_layer(folders)
+            if bars_dir:
+                for it in M.plan(iso, os.path.join(bars_dir, "files"), loc=loc):
+                    if it["ok"]:
+                        merged.pop(it["key"], None)
+                        merged[it["key"]] = it
+                    else:
+                        bars = {}
+        except Exception as e:
+            lm_work["bars"] = "The dark bars were not added: %s" % str(e)[:100]
+            bars = {}
+    lm_bars_state["skip"] = sorted(a for v in bars.values() for a in v)
     if not merged:
         if os.path.exists(ovl):
             os.remove(ovl)
@@ -343,6 +362,81 @@ def lm_rebuild(iso, loc):
     lm_write_pokes(M, iso, loc, os.path.join(lm_dir(), "active.pokes"))
     lm_write_movies(M, os.path.join(lm_dir(), "active.movies"))
     return len(merged)
+
+
+LM_BARS = {"P3CT008": (0x005D4D00, 0x005D4D10)}   # bar-free movies that get the disc's dark bars back, and the two words of the LetterBoxBe-Gone cheat that concern each
+LM_BARS_VERSION = 1
+
+
+def lm_bars_ffmpeg_ok():
+    """ffmpeg for the bars: the Ubuntu one, or the small pip package that carries its own."""
+    import shutil
+    if shutil.which("ffmpeg"):
+        return True
+    try:
+        import imageio_ffmpeg   # noqa: F401
+        return True
+    except ImportError:
+        pass
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--break-system-packages", "-q", "imageio-ffmpeg"], capture_output=True, text=True, timeout=900)
+        import imageio_ffmpeg   # noqa: F401,F811
+        return True
+    except Exception:
+        return False
+
+
+def lm_bars_layer(folders):
+    """Simply Better FMVs shows the shower scene (P3CT008) without the disc's dark bars (640x368 instead of 640x448) and its LetterBoxBe-Gone cheat then
+    tells the game the movie is 368 high, which leaves white strips above and below the picture. This makes a 640x448 copy with the dark bars
+    (tools/p3fes_movie_bars.py) next to the saves, in mods/_bars, once per movie file. Returns (folder holding the copies or None, {movie: the cheat's
+    addresses to leave out}). A movie that cannot be padded (no ffmpeg, already 448 high) is left as the pack made it."""
+    layer = os.path.join(lm_dir(), "_bars")
+    made = {}
+    for name, addrs in LM_BARS.items():
+        src = None
+        for fo in folders:
+            for dp, _d, fns in os.walk(fo):
+                for fn in fns:
+                    if fn.upper() == name + ".SFD" and os.path.basename(dp).upper() == "SFD":
+                        src = os.path.join(dp, fn)
+                        break
+                if src:
+                    break
+            if src:
+                break
+        if not src:
+            continue
+        out = os.path.join(layer, "files", "DATA", "SFD", name + ".SFD")
+        sigf = os.path.join(layer, name + ".sig")
+        st = os.stat(src)
+        sig = json.dumps({"v": LM_BARS_VERSION, "size": st.st_size, "mtime": st.st_mtime_ns, "src": src})
+        try:
+            same = os.path.isfile(out) and open(sigf).read() == sig
+        except OSError:
+            same = False
+        if not same:
+            try:
+                if not lm_bars_ffmpeg_ok():
+                    lm_work["bars"] = "The dark bars for %s were not added: ffmpeg is missing and could not be installed." % name
+                    continue
+                sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+                import p3fes_movie_bars
+                os.makedirs(os.path.dirname(out), exist_ok=True)
+                tmp = out + ".tmp"
+                p3fes_movie_bars.pad_movie(src, tmp)
+                os.replace(tmp, out)
+                with open(sigf, "w") as f:
+                    f.write(sig)
+            except Exception as e:
+                try:
+                    os.remove(out + ".tmp")
+                except OSError:
+                    pass
+                lm_work["bars"] = "The dark bars for %s were not added: %s" % (name, str(e)[:100])
+                continue
+        made[name] = addrs
+    return (layer if made else None), made
 
 
 def lm_write_movies(M, path):
@@ -379,7 +473,7 @@ def lm_write_pokes(M, iso, loc, path):
         if program and hasattr(M, "letterbox_pokes"):      # Simply Better FMVs: the seven cutscenes without black bars need the movie table changed
             for m in lm_load():
                 if m.get("enabled") and LM_ID.match(m.get("id", "")):
-                    lp, ln = M.letterbox_pokes(program, os.path.join(lm_dir(), m["id"], "files"))
+                    lp, ln = M.letterbox_pokes(program, os.path.join(lm_dir(), m["id"], "files"), lm_bars_state["skip"])
                     pokes += lp
                     notes += ln
         text = ",".join("%08X=%08X" % (a, v) for a, v in pokes)
@@ -1133,7 +1227,7 @@ def es_set(lang):
 PR_ID = "prompts"   # a hidden file mod: the game's own button pictures redrawn as keyboard keys or Xbox / Switch buttons (tools/p3fes_prompts.py)
 PR_SRC = ["/DATA.CVM/CAMP", "/DATA.CVM/FACILITY", "/BTL.CVM/BATTLE/PANEL", "/BTL.CVM/BATTLE/SHUFFLE", "/BTL.CVM/SND_BENC"]
 PR_STYLES = ("auto", "keyboard", "xbox", "switch", "playstation")
-PR_TOOL_VERSION = 2       # raise when p3fes_prompts.py draws something differently, so every prompt mod is rebuilt
+PR_TOOL_VERSION = 3       # raise when p3fes_prompts.py draws something differently, so every prompt mod is rebuilt
 pr_pad = {"fam": "", "t": 0.0}   # the controller family the launcher page last saw (xbox, nintendo, ps, other, or "" for none)
 pr_lock = threading.RLock()
 
@@ -1160,10 +1254,59 @@ def pr_resolve(setting=None):
     return {"xbox": "xbox", "nintendo": "switch", "ps": "playstation", "other": "xbox"}.get(fam, "keyboard")
 
 
+def pr_hd_dir():
+    """Button pictures drawn for the HD battle menu (tools/p3fes_hdprompts.py): <pack id>/<path in the pack>, used before the pack's own pictures."""
+    return os.path.join(pr_dir(), "hd")
+
+
+_pil_tried = {"done": False}
+
+
+def pr_pillow_ok():
+    """Pillow draws the HD button pictures. Installs it for this user (once per launcher start) when the Ubuntu Python lacks it."""
+    try:
+        import PIL, PIL.Image   # noqa: F401
+        return True
+    except ImportError:
+        pass
+    if _pil_tried["done"]:
+        return False
+    _pil_tried["done"] = True
+    for extra in ([], ["--ignore-installed"]):
+        try:
+            r = subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--break-system-packages", "-q", "pillow"] + extra, capture_output=True, text=True, timeout=600)
+            if r.returncode == 0:
+                break
+        except Exception:
+            break
+    try:
+        import PIL, PIL.Image   # noqa: F401,F811
+        return True
+    except ImportError:
+        return False
+
+
+def pr_hd_have():
+    """Which battle sheets the HD pack has (so their button goes into the HD pictures), when HD textures are on. Else {}."""
+    try:
+        if not load_cfg().get("hd_textures"):
+            return {}
+        table = hd_tool().find_table(os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+        if not table or not pr_pillow_ok():
+            return {}
+        import numpy   # noqa: F401
+        import p3fes_hdprompts
+        return p3fes_hdprompts.available(table, hd_dir())
+    except Exception:
+        return {}
+
+
 def pr_signature(style):
     """What the built pictures depend on: the style, the keys / buttons that show, and the drawing code."""
     k, p = read_keys(), read_pad()
     use = {"style": style, "v": PR_TOOL_VERSION}
+    if style != "playstation" and pr_hd_have():
+        use["hd"] = 1
     if style == "keyboard":
         use["keys"] = [k[a] for a in ("cross", "circle", "square", "triangle", "l1", "r1")]
     elif style in ("xbox", "switch"):
@@ -1248,6 +1391,7 @@ def pr_apply(style, say=lambda t: None):
         sig = pr_signature(style)
         built = pr_built()
         if style == "playstation":
+            shutil.rmtree(pr_hd_dir(), ignore_errors=True)
             if packed_lm(PR_ID):
                 pr_set_mod(False)
                 shutil.rmtree(os.path.join(lm_dir(), PR_ID), ignore_errors=True)
@@ -1274,7 +1418,21 @@ def pr_apply(style, say=lambda t: None):
             say("Finding every button picture in the game (a few minutes, only the first time)…")
         out = os.path.join(pr_dir(), "out")
         shutil.rmtree(out, ignore_errors=True)
-        hits, report, n_arch = P.build(os.path.join(pr_dir(), "src"), out, style, read_keys(), read_pad(), hits)
+        skip = ()
+        shutil.rmtree(pr_hd_dir(), ignore_errors=True)
+        if pr_hd_have():          # the battle menu's button goes into the HD pictures; the game's own sheets stay, so the HD pictures keep matching them
+            try:
+                import p3fes_hdprompts
+                table = hd_tool().find_table(os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+                skip = tuple(p3fes_hdprompts.build(table, hd_dir(), pr_hd_dir(), style, read_keys(), read_pad()))
+            except Exception as e:
+                shutil.rmtree(pr_hd_dir(), ignore_errors=True)
+                skip = ()
+                try:
+                    open(os.path.join(pr_dir(), "hd_error.txt"), "w").write(repr(e))
+                except OSError:
+                    pass
+        hits, report, n_arch = P.build(os.path.join(pr_dir(), "src"), out, style, read_keys(), read_pad(), hits, skip=skip)
         json.dump({"version": P.HITS_VERSION, "hits": hits}, open(hits_file, "w"))
         if not n_arch:
             return "No button pictures were found in your disc."
@@ -1445,6 +1603,10 @@ def _hd_sig():
         parts.append((t, os.stat(t).st_mtime_ns if t else 0))
         d = hd_dir()
         parts.append(os.stat(d).st_mtime_ns)
+        try:
+            parts.append(("hdprompts", os.stat(pr_hd_dir()).st_mtime_ns))
+        except OSError:
+            pass
         for n in sorted(os.listdir(d)):
             p = os.path.join(d, n)
             if os.path.isdir(p):
@@ -1544,7 +1706,7 @@ def hd_env(env, names):
             root = to_win(hd_dir())
             if not root:
                 return " (HD textures: could not find the Windows path of the pictures.)"
-            n, _ = t.build_map(table, hd_dir(), out, root)
+            n, _ = t.build_map(table, hd_dir(), out, root, overlay=pr_hd_dir() if os.path.isdir(pr_hd_dir()) else None)
             with open(sigf, "w") as f:
                 f.write(sig)
         if not n:
@@ -3032,7 +3194,7 @@ def store_card(data):
     os.replace(tmp, p)
 
 
-WS_PATCH = "007cad1c=3fe38e38/3faaaaab"   # the game's X field of view (a data value, 4:3 -> 16:9); see docs/widescreen.md
+WS_PATCH = "007cad1c=3fd9999a/3faaaaab"   # the game's X field of view (a data value; 1.70, a bit under true 16:9 = 1.7778 / 3fe38e38, so Akihiko can walk off screen in the 7 July scene); see docs/widescreen.md
 
 
 def widescreen_env(env):

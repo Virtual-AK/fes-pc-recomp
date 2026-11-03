@@ -27,6 +27,7 @@ GLUE_V1 = @@GLUE_V1@@
 GLUE_V2 = @@GLUE_V2@@
 GLUE_V3 = @@GLUE_V3@@
 GLUE_V4 = @@GLUE_V4@@
+GLUE_V5 = @@GLUE_V5@@
 
 WGSL_HD = '''const HD_BASE: u32 = 4194304u;   // ps2run_hdtex_patch.py: HD pictures live in `decoded` from here on (kDecodedWords in gpu.cpp)
 
@@ -123,6 +124,7 @@ UPGRADE_V1 = [(_V1_GLOBALS, _V2_GLOBALS), (_V1_MARK, _V2_MARK), (GLUE_V1, GLUE)]
 UPGRADE_V2 = [(GLUE_V2, GLUE)]
 UPGRADE_V3 = [(GLUE_V3, GLUE)]
 UPGRADE_V4 = [(GLUE_V4, GLUE)]
+UPGRADE_V5 = [(GLUE_V5, GLUE)]
 
 
 gpu = read(GPU)
@@ -132,11 +134,11 @@ crlf_wgsl = '\r\n' in wgsl
 gpu = gpu.replace('\r\n', '\n')
 wgsl = wgsl.replace('\r\n', '\n')
 if TAG in gpu and TAG in wgsl:
-    if 'hd_refreshing' in gpu:
+    if 'g_hd_seen' in gpu:
         print("already patched")
         raise SystemExit
     # an earlier version of this patch is in: bring it up to date in place
-    steps = UPGRADE_V4 if 'wait_budget_ms' in gpu else UPGRADE_V3 if 'g_hd_want' in gpu else UPGRADE_V2 if 'g_hd_last' in gpu else UPGRADE_V1
+    steps = UPGRADE_V5 if 'hd_refreshing' in gpu else UPGRADE_V4 if 'wait_budget_ms' in gpu else UPGRADE_V3 if 'g_hd_want' in gpu else UPGRADE_V2 if 'g_hd_last' in gpu else UPGRADE_V1
     for old, _ in steps:
         if gpu.count(old) != 1:
             print("PATCH NOT UPGRADED: " + GPU + " has an older HD texture patch that was changed by hand")
@@ -147,7 +149,7 @@ if TAG in gpu and TAG in wgsl:
     write(GPU, gpu, crlf_gpu)
     with open(root + '/' + HPP, 'w', newline='') as f:
         f.write(HDTEX_HPP)
-    print("upgraded the HD texture patch (keeps pictures during re-uploads, %d edits + hdtex.hpp)" % len(steps))
+    print("upgraded the HD texture patch (a picture seen once is dropped as soon as something is written over it; the log names each picture once; %d edits + hdtex.hpp)" % len(steps))
     raise SystemExit
 for old, _ in GPU_EDITS:
     if gpu.count(old) != 1:

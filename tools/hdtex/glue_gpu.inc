@@ -17,9 +17,13 @@ struct HdResident {
     int entry = -1;
     std::uint32_t tpsm = 0, tw = 0, th = 0;
     std::uint64_t stamp = 0;
+    std::uint32_t again = 0;   // how many times in a row this same picture was re-sent to this same place (0: seen once)
     Range range;
 };
 std::unordered_map<std::uint32_t, HdResident> g_hd_res;   // by the texture's base block
+std::unordered_map<std::uint32_t, std::pair<int, std::uint32_t>> g_hd_seen;   // by base block: the picture last sent there and how many times in a row
+std::unordered_map<int, bool> g_hd_logd, g_hd_logw, g_hd_logu;   // pictures already named in the log (dropped / waited for / used)
+std::uint32_t g_hd_used = 0;
 std::uint32_t g_hd_loaded = 0, g_hd_dropped = 0, g_hd_waited = 0;
 std::vector<std::uint8_t> g_hd_want;                       // entries the game has drawn (or is about to draw) with, as opposed to preloads
 std::unordered_map<std::uint64_t, std::uint32_t> g_hd_hot;   // how often each known picture was uploaded: the preload list for next time
@@ -70,6 +74,7 @@ void hd_note_write(const Range &r) {
 
 void hd_forget_all() {
     g_hd_res.clear();
+    g_hd_seen.clear();
     g_hd_key_ready = false;
 }
 
@@ -144,10 +149,16 @@ void hd_image_done(const Image &im) {
     g_hd_key_ready = false;
     const int e = g_hd.find(g_hd_key);
     const std::uint32_t rows = im.rrw ? im.total / im.rrw : 0;
-    if (e < 0 || !rows) return;
+    if (e < 0 || !rows) {
+        g_hd_seen.erase(im.dbp);   // something else was sent here: whatever was re-sent before is not coming back
+        return;
+    }
     const hdtex::Entry &en = g_hd.at(e);
     HdResident r;
     r.entry = e;
+    const auto seen = g_hd_seen.find(im.dbp);
+    r.again = (seen != g_hd_seen.end() && seen->second.first == e) ? seen->second.second + 1 : 0;
+    g_hd_seen[im.dbp] = std::make_pair(e, r.again);
     r.tpsm = en.tpsm;
     r.tw = hd_log2(en.w);
     r.th = hd_log2(en.h);
@@ -236,8 +247,11 @@ void hd_apply(std::uint32_t) {
         HdResident &r = it->second;
         if (w[14] != r.tpsm || (w[15] & 0xFFu) != r.tw || (w[15] >> 8) != r.th) continue;
         if (((w[7] >> 24) & 3u) >= 2u || ((w[7] >> 26) & 3u) >= 2u) continue;   // region clamp/repeat: leave to the original
-        if (hd_stamp(r.range) != r.stamp && !hd_refreshing(r.range)) {   // the memory was written again since the upload
-            if (++g_hd_dropped <= 60) {   // say who wrote it (a page shared with something else would explain a picture that flickers back to the original)
+        // A picture is kept while the game re-sends it only if it has been re-sent to this place before (a menu that is drawn again and again). A picture seen
+        // once (a title strip, a one-off menu) that something else is now written over is dropped at once, or a 3D model whose texture is uploaded over the
+        // same memory would show the old HD picture for the frames of every upload.
+        if (hd_stamp(r.range) != r.stamp && !(r.again > 0 && hd_refreshing(r.range))) {   // the memory was written again since the upload
+            if (g_hd_logd.emplace(r.entry, true).second && ++g_hd_dropped <= 200) {   // say who wrote it (a page shared with something else would explain a picture that flickers back to the original)
                 std::uint32_t pg = static_cast<std::uint32_t>(r.range.lo >> 13) & 511u;
                 for (std::uint64_t at = r.range.lo; at < r.range.hi; at += 8192) {
                     const std::uint32_t q = (at >> 13) & 511u;
@@ -262,11 +276,13 @@ void hd_apply(std::uint32_t) {
             }
             const int took = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count());
             wait_budget_ms -= took;
-            if (++g_hd_waited <= 60)
+            if (g_hd_logw.emplace(r.entry, true).second && ++g_hd_waited <= 200)
                 std::fprintf(stderr, "[hdtex] %s %s (%d ms)\n", sl == g_hd_slot_of.end() ? "drawn before it was ready:" : "waited for", g_hd.at(r.entry).path.c_str(), took);
             if (sl == g_hd_slot_of.end()) continue;
         }
         g_hd_want[static_cast<std::size_t>(r.entry)] = 1;
+        if (g_hd_logu.emplace(r.entry, true).second && ++g_hd_used <= 400)
+            std::fprintf(stderr, "[hdtex] used %s (texture at block %x, %s)\n", g_hd.at(r.entry).path.c_str(), w[12], r.again ? "re-sent" : "sent once");
         w[24] = kHdBase + static_cast<std::uint32_t>(sl->second) * g_hd_slot_words;
         g_hd_slots[static_cast<std::size_t>(sl->second)].used = g_serial;
     }
