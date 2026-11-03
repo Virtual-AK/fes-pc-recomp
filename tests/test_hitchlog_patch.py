@@ -1,0 +1,17 @@
+import os, subprocess, sys, tempfile
+here = os.path.dirname(os.path.abspath(__file__))
+patch = os.path.join(here, "..", "tools", "ps2run_hitchlog_patch.py")
+d = tempfile.mkdtemp()
+os.makedirs(os.path.join(d, "host")); os.makedirs(os.path.join(d, "runtime/src"))
+w = os.path.join(d, "host/window.cpp"); s = os.path.join(d, "runtime/src/system.cpp")
+open(w, "w").write("#include <cstdio>\nvoid on_vblank() {\n    show_speed();\n    poll();\n    present();   // turbo draws every frame: skipping frames could leave the game waiting forever\n    pace();\n}\n")
+open(s, "w").write("void run() {\n        if (g_state_request) {\n            g_state_request = false;\n            save_state(g_options.save_state_path);\n#ifndef __EMSCRIPTEN__\n            as_finish();\n#endif\n        }\n}\n")
+r = lambda: subprocess.run([sys.executable, patch, d], capture_output=True, text=True).stdout
+assert "patched (3 edits)" in r()
+assert "already patched" in r()
+assert "PS2_HITCHLOG" in open(w).read() + open(s).read() and "[hitch]" in open(w).read() and "[state]" in open(s).read()
+open(s, "w").write("void run() {}\n")
+assert "NOT APPLIED" in r() or "only partly" in r()
+open(s, "w").write("void run() {}\n"); open(w, "w").write("void other() {}\n")
+assert "NOT APPLIED" in r()
+print("ok hitchlog patch")

@@ -5,7 +5,8 @@ d = tempfile.mkdtemp()
 os.makedirs(d + '/host')
 src = ('void poll_port(int port) {\n  x;\n    rumble(port);\n    static std::uint64_t last[2] = {};\n}\n'
        'void poll() {\n        if (e.type == SDL_CONTROLLERDEVICEADDED) open_pad(e.cdevice.which);\n}\n'
-       'bool open_window() {\n    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");\n}\n')
+       'void log_open() {\n    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");\n    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");\n    if (g_log_tex) {}\n}\n'   # added by ps2run_logkey_patch.py, applied earlier by the installer
+       'bool open_window() {\n    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");\n    SDL_AudioSpec want{}, have{};\n}\n')
 open(d + '/host/window.cpp', 'w').write(src)
 def run():
     return subprocess.run([sys.executable, tool, d], capture_output=True, text=True).stdout.strip()
@@ -13,6 +14,9 @@ assert run().startswith('patched (4'), 'first'
 assert run() == 'already patched'
 out = open(d + '/host/window.cpp').read()
 assert 'SDL_MaximizeWindow' in out and 'mouse_look_apply(rx, pressed)' in out and 'SDL_SetRelativeMouseMode(SDL_TRUE)' in out
+# only the copy of the line that sits before the audio set-up gets the maximize call (the log-key copy must stay untouched)
+assert out.count('SDL_MaximizeWindow') == 1 and out.count('"linear"') == 2
+assert out.index('SDL_MaximizeWindow') > out.index('bool open_window')
 open(d + '/host/window.cpp', 'w').write('nothing')
 assert 'PATCH NOT APPLIED' in run()
 if shutil.which('g++'):
