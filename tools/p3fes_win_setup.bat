@@ -54,9 +54,9 @@ echo wgpu-native ready
 echo.
 echo == [3/4] Preparing the build folder from your Ubuntu install
 set HERE=
-for /f "delims=" %%i in ('wsl.exe wslpath -a "%~dp0"') do set HERE=%%i
+for /f "delims=" %%i in ('wsl.exe wslpath -a "%~dp0."') do set HERE=%%i
 if not defined HERE echo STOPPED: Ubuntu (WSL) did not answer. Install it first, see docs/install.md. & goto fail
-wsl.exe bash "%HERE%p3fes_win_prepare.sh"
+wsl.exe bash "%HERE%/p3fes_win_prepare.sh"
 if errorlevel 1 goto fail
 copy /y "%~dp0build_win.bat" "%ROOT%\build_win.bat" >nul
 copy /y "%~dp0p3fes_win_record.bat" "%ROOT%\p3fes_win_record.bat" >nul
