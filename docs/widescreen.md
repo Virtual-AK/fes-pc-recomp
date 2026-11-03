@@ -5,7 +5,7 @@ Settings → Widescreen → ON. Works in the PC window and the browser game. The
 ## What it does
 * **Display**: the picture is shown at 16:9 instead of 4:3 (`PS2_ASPECT=16:9`). The game still draws a 4:3-shaped image.
 * **3D view**: one data value in the game's memory (the x field of view, `007cad1c`, 4:3 → 16:9) is rewritten every frame
-  (`PS2_PATCH=007cad1c=3fe38e38/3faaaaab`). It is only written when the game holds the expected 4:3 value there.
+  (`PS2_PATCH=007cad1c=3fd9999a/3faaaaab`). It is only written when the game holds the expected 4:3 value there.
   The runner logs `[widescreen] ...` lines to `~/.p3fes-window.log`: look there to see whether it was applied.
 
 ## Menus, portraits and the HUD (community patch, not tested in every screen yet)

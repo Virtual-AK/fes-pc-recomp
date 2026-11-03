@@ -52,6 +52,13 @@ tools/ps2run_wakelog_patch.py: PS2_WAKE_TRACE=30 logs every thread wait of 30+ f
 ### What ends the wait (22 October 2026, wake log)
 PS2_WAKE_TRACE=30 with the store watch: the keyframe gap (frames 2669 -> 2893) is not ended by any thread wake-up. The only long waits released around it are thread 9 (sleep, woken by game thread 1 at ra 0x0010C744 at frames 2649 and 3075), i.e. game code waking game code. So the game's main thread simply keeps running and its own timeline decides to move Kenji 224 frames after placing him. Next: find the counter the timeline compares (tools/p3fes_counters.py: three F7 dumps, two during the wait at least 100 frames apart and one after).
 
+## Akihiko stays at the left edge after the 7 July bosses (footage checked 2 November 2026)
+- **Where:** the Dark Hour scene after the Hierophant and Lovers bosses (HUD shows 7/7), when Mitsuru and Akihiko walk off to the left.
+- **What the clip shows (an older build, widescreen on):** both walk left and out of view. Mitsuru is gone, but a sliver of Akihiko (his legs and one foot, still in the walking pose) stays at the very left edge of the picture, at the same spot for the rest of the scene (checked at 22 s, 30 s and later), while the others talk and leave. The picture is full 16:9 here, so the sliver is at the widened edge, well outside the original 4:3 area.
+- **Reading:** same family as the opening stalls above: a script step waits for a character to be off screen. With the wider view he is not counted as off screen, or he is held at the edge, so he keeps playing the walk animation. Not confirmed.
+- **Tests so far (2 November 2026, current build):** stuck with widescreen on; stuck with only `ws10` off; stuck with every code part except `ws11` off (never turn `ws11` off: Fuuka stalls in the Morning scene). **Fine in 4:3.** So the wide view itself is the cause, not any one patch part.
+- **Confirmed (3 November 2026):** with `PS2_PATCH=007cad1c=3fd9999a/3faaaaab` (x field of view 1.70 instead of 1.7778) Akihiko walks off and the scene finishes. So the cause is the full-width 16:9 view: his walk-off point is inside it. Now the launcher default (`WS_PATCH` = 3fd9999a); true 16:9 is 3fe38e38. Cost: about 4% less visible at the sides and a slight sideways stretch. Proper fix would be the game's real off-screen test (not found).
+
 ## Which widescreen part cures the stalls (found 23 October 2026)
 Bisected in the PC window with `P3F_WS_OFF` and `PS2_POKE` lines in `~/.p3fes-window-env`, no rebuilds, watching the school gate scene (4/21):
 - All parts off: stalls. Only `ws1` off: gone. `ws2, ws3b, ws4, ws6, ws9` off: gone. `ws10, ws11` off: stalls. Only `ws10` off: gone. So the cure is **`ws11_zoom`**.
