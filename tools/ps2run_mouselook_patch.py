@@ -46,7 +46,8 @@ EV_NEW = r'''        // mouse look (ps2run_mouselook_patch.py)
         if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_ESCAPE && SDL_GetRelativeMouseMode()) SDL_SetRelativeMouseMode(SDL_FALSE);
         if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_LOST && SDL_GetRelativeMouseMode()) SDL_SetRelativeMouseMode(SDL_FALSE);
 ''' + EV_OLD
-MAX_OLD = '    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");\n'
+# the line is followed by the audio set-up so that it is unique: ps2run_logkey_patch.py (applied earlier by the installer) adds a second copy of it
+MAX_OLD = '    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");\n    SDL_AudioSpec want{}, have{};\n'
 MAX_NEW = '    if (!fullscreen && !std::getenv("PS2_NO_MAXIMIZE")) SDL_MaximizeWindow(g_window);   // ps2run_mouselook_patch.py\n' + MAX_OLD
 EDITS = [(FN_OLD, FN_NEW), (CALL_OLD, CALL_NEW), (EV_OLD, EV_NEW), (MAX_OLD, MAX_NEW)]
 
