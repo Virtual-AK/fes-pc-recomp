@@ -7,6 +7,7 @@ rem   2. downloads SDL2 and wgpu-native (open-source libraries, from their GitHu
 rem   3. prepares C:\p3fes\winbuild from your Ubuntu install (p3fes_win_prepare.sh)
 rem   4. builds ps2run.exe (about 5 to 10 minutes)
 setlocal EnableExtensions
+title Persona 3 FES PC window setup
 set ROOT=C:\p3fes\winbuild
 set PF86=%ProgramFiles(x86)%
 set VSW=%PF86%\Microsoft Visual Studio\Installer\vswhere.exe
@@ -73,7 +74,7 @@ if errorlevel 1 goto fail
 
 echo.
 echo Done: %ROOT%\build\ps2run.exe
-echo Open the launcher (launch.bat) and press Play: it starts this window when ps2run.exe exists.
+echo Open (or go back to) the launcher and press Play: it starts this window when ps2run.exe exists.
 echo.
 echo For smooth play in every scene, record and compile the missing VU1 programs, see docs/windows-friends-setup.md.
 echo In short: run %ROOT%\p3fes_win_record.bat and play through different scenes, then

@@ -134,6 +134,7 @@ ps2port_modswitch_patch.py
 ps2run_poke_patch.py
 ps2run_texlog_patch.py
 ps2run_hdtex_patch.py
+ps2run_hdtex_staleres_patch.py
 ps2run_colfix_patch.py
 "
 # Patches are not all safe to run twice once later patches have changed their text, so remember which ones were applied.
@@ -145,7 +146,7 @@ if [ "$PATCHES_ONLY" != 1 ] && [ "$NEW_ONLY" != 1 ] && [ ! -f "$APPLIED" ] && [ 
 fi
 # --new-patches on a folder that has no list of applied patches (made by an older installer): only the patches in LATE are tried; each of them
 # checks its own source and says "already patched", so running it twice is safe. Nothing is written to the list in that case.
-LATE="ps2run_logkey_patch.py ps2run_subs_patch.py"
+LATE="ps2run_logkey_patch.py ps2run_subs_patch.py ps2run_hdtex_staleres_patch.py"
 LISTLESS=0
 if [ "$NEW_ONLY" = 1 ] && [ ! -f "$APPLIED" ]; then LISTLESS=1; fi
 for f in $PATCHES; do
