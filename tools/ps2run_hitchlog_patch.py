@@ -112,7 +112,7 @@ SYS_NEW = ('            g_state_request = false;\n'
 
 FILES = {
     WIN: [
-        ('#include <cstdio>\n', '#include <chrono>  // ' + TAG + '\n#include <ctime>\n#include <cstdio>\n'),
+        ('#include <deque>\n', '#include <deque>\n#include <chrono>  // ' + TAG + '\n#include <ctime>\n'),   # after <deque>, so ps2run_windows_patch.py still finds its include block
         (WIN_OLD_FN, WIN_CODE),
     ],
     SYS: [(SYS_OLD, SYS_NEW)],
