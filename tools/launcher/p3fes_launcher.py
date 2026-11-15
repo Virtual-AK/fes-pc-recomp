@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.57"
+LAUNCHER_VERSION = "0.60"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -1992,7 +1992,8 @@ def auto_last():
 # Patches that may be added by an update and are safe on a project folder made by an older installer (no list of applied patches):
 # patch name -> (source file, text that is only there once it is applied). The installer's LATE list names the same patches.
 LATE_TOOL_PATCHES = {"ps2run_logkey_patch.py": ("host/window.cpp", "SDL_WINDOWEVENT_CLOSE && g_window"),
-                     "ps2run_subs_patch.py": ("host/window.cpp", "subs_draw(g_window)")}
+                     "ps2run_subs_patch.py": ("host/window.cpp", "subs_draw(g_window)"),
+                     "ps2run_hdtex_staleres_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "hd_refreshing(r.range, it->first)")}
 
 
 def tool_patches_pending():
@@ -2508,7 +2509,7 @@ def get_state():
            "has_web": os.path.exists(web), "has_exe": os.path.exists(exe), "has_winexe": bool(win_exe()), "built": None,
            "pieces": 0, "pieces_total": PIECES, "browser": cfg.get("browser", "msedge"), "scale": cfg.get("scale", "3"), "theme": theme_now(cfg), "ui_lang": "es" if cfg.get("ui_lang") == "es" else "en", "journey": bool(cfg.get("journey")), "widescreen": bool(cfg.get("widescreen")), "ws_menus": ws_menus_status(), "skip_launcher": bool(cfg.get("skip_launcher")), "close_on_play": cfg.get("close_on_play", True) is not False, "update_repo": cfg.get("update_repo", "") or DEFAULT_UPDATE_REPO, "speedrun": bool(cfg.get("speedrun")), "hdtex": hd_state(), "vol_master": vol_get(cfg, "vol_master"), "vol_fx": vol_get(cfg, "vol_fx"), "vol_music": vol_get(cfg, "vol_music"), "vol_voice": vol_get(cfg, "vol_voice"), "vol_launcher": vol_get({"v": cfg.get("vol_launcher", 70)}, "v"), "keys": read_keys(),
            "key_defaults": KEY_DEFAULTS, "pad": read_pad(), "pad_defaults": PAD_DEFAULTS, "card": card_info(), "autosaves": as_state(), "pc_autosaves": pc_as_state(), "card_sync": web_has_card_sync(), "version": LAUNCHER_VERSION, "dir_found": os.path.isdir(DIR), "game_running": port_open(GAME_PORT), "playing": playing_now(), "music_hold": music_hold(), "midnight_date": load_cfg().get("midnight_play", ""),
-           "installing": installer_running(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
+           "installing": installer_running(), "win_setup": win_setup_state(), "mods": mods_state(), "tools_done": os.path.exists(os.path.join(DIR, ".tools-ok")) or os.path.exists(web), "log": build_log()}
     if out["has_web"]:
         out["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(web)))
     if disc:
@@ -2576,6 +2577,16 @@ def win_open(url, app=False, prefer=None, size=None):
         except Exception:
             pass
     return None
+
+
+P4_URL = "https://github.com/Virtual-AK/p4-pc-recomp"   # the Persona 4 project, opened by the TV on the home screen
+
+
+def open_p4_page():
+    how = win_open(P4_URL, prefer=load_cfg().get("browser", "msedge"))
+    if how:
+        return {"ok": True, "msg": "Opened the Persona 4 project page in your browser."}
+    return {"ok": False, "msg": "Could not open the browser. The page is " + P4_URL}
 
 
 STEAM_GAMES = {   # the two official ways to play, for About > Play Your Way
@@ -2975,6 +2986,60 @@ def choose_pnach():
     c["mod_check"] = res
     save_cfg(c)
     return {"ok": True, "msg": res["verdict"]}
+
+
+WIN_SETUP_TITLE = "Persona 3 FES PC window setup"
+_winsetup_cache = {"t": 0.0, "run": False}
+
+
+def win_setup_script():
+    """tools/p3fes_win_setup.bat next to the launcher folder, or None."""
+    b = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "p3fes_win_setup.bat"))
+    return b if os.path.isfile(b) else None
+
+
+def win_setup_running():
+    """True while the PC window setup console is open (found by its window title; looked up at most every 4 seconds)."""
+    now = time.time()
+    if now - _winsetup_cache["t"] < 4:
+        return _winsetup_cache["run"]
+    run = False
+    if WINCWD:
+        try:
+            out = subprocess.run(["tasklist.exe", "/v", "/fo", "csv", "/nh", "/fi", "WINDOWTITLE eq " + WIN_SETUP_TITLE + "*"],
+                                 capture_output=True, text=True, timeout=8, cwd=WINCWD).stdout
+            run = WIN_SETUP_TITLE in out
+        except Exception:
+            run = False
+    _winsetup_cache.update(t=now, run=run)
+    return run
+
+
+def win_setup_state():
+    return {"ok": bool(WINCWD and win_setup_script()), "running": win_setup_running() if WINCWD else False}
+
+
+def start_win_setup():
+    """Opens p3fes_win_setup.bat (Visual Studio Build Tools, SDL2, wgpu, then ps2run.exe) in its own console window."""
+    if win_exe():
+        return {"ok": False, "msg": "The PC window is already built."}
+    if not os.path.exists(os.path.join(DIR, "build", "web-" + NAME, "ps2web.html")):
+        return {"ok": False, "msg": "Finish the game build first (Get the tools, then Build the game)."}
+    if win_setup_running():
+        return {"ok": False, "msg": "The PC window setup is already running in its own window."}
+    bat = win_setup_script()
+    if not bat or not WINCWD:
+        return {"ok": False, "msg": "p3fes_win_setup.bat was not found in the tools folder next to the launcher."}
+    wb = to_win(bat)
+    if not wb:
+        return {"ok": False, "msg": "Could not work out the Windows path of p3fes_win_setup.bat."}
+    try:
+        subprocess.Popen(["cmd.exe", "/c", "start", WIN_SETUP_TITLE, wb], cwd=WINCWD,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        return {"ok": False, "msg": "Could not open the setup window: %s" % e}
+    _winsetup_cache.update(t=time.time(), run=True)
+    return {"ok": True, "msg": "The PC window setup is running in its own window. Windows will ask for permission once: say yes."}
 
 
 def start_setup():
@@ -4557,6 +4622,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": True, "n": n, "msg": "Deleted %d screenshot%s." % (n, "" if n == 1 else "s")})
         if self.path == "/api/steam/prices":
             return self.send(200, {"ok": True, "games": steam_prices(bool(data.get("force")))})
+        if self.path == "/api/p4/open":
+            return self.send(200, open_p4_page())
         if self.path == "/api/steam/open":
             g = STEAM_GAMES.get(str(data.get("game") or ""))
             if not g:
@@ -4681,6 +4748,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": ok, "msg": msg})
         if self.path == "/api/setup/start":
             return self.send(200, start_setup())
+        if self.path == "/api/setup/winstart":
+            return self.send(200, start_win_setup())
         if self.path == "/api/update/check":
             return self.send(200, update_check())
         if self.path == "/api/update/install":
