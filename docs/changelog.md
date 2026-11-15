@@ -1,7 +1,22 @@
 # Update log
 Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
 
+## 0.60 · 15 Nov 2026 · HD flicker fix
+
+- **FIXED**  HD textures: the one-frame pink or bright flash of the floor and background that came back every few seconds (beach start, jungle path, night beach with Yukari) is gone. An HD portrait that the game sends again and again to a rotating place in memory was kept alive while any other upload overlapped it, so a different picture that really sat at the old portrait's first block (a 512x512 scene overlay) was drawn with the old HD portrait for one frame. The exemption now only applies to a re-send that starts at the same block. New tools/ps2run_hdtex_staleres_patch.py (added to the installer). Found by recording the game's own draw and upload order and matching the glitch frame by frame. Needs the PC window built again: Set Up Essential Mods does it.
+- **FIXED**  Set Up Essential Mods now applies new tool patches on a project folder made by an older installer (one with no list of applied patches): the HD fix above is on the launcher's and installer's late-safe list. Before, such a folder only got the log-key and subtitle patches, so the new fix never reached the Essential Mods build. ps2run_hdtex_staleres_patch.py also finishes a half-patched file instead of reporting it as already patched.
+- **IMPROVED**  ps2run_hitchlog_patch.py (the frame-time logger, a research tool) now adds its includes after the deque include, so the Windows patch for the PC window still fits a tree that has the logger. Not needed to play.
+
+## 0.59 · 3 Nov 2026 · Persona 4 on the TV
+
+- **NEW**  The TV on the home screen now says WORK IN PROGRESS and opens the Persona 4 PC port project page (github.com/Virtual-AK/p4-pc-recomp) in your browser when you click it. The midnight teaser stays.
+
+## 0.58 · 3 Nov 2026 · PC window from the launcher
+
+- **NEW**  The launcher now builds the Windows PC window for you. Setup has a fifth step BUILD THE PC WINDOW (also Settings > Display): the button opens `p3fes_win_setup.bat` in its own window and the launcher notices when `ps2run.exe` appears. `p3fes_win_setup.bat` sets its window title for this.
+
 ## 0.57 · 3 Nov 2026 · Fixes
+
 - **IMPROVED**  `docs/install.md` is now one path in order from Ubuntu to the launcher: it creates `C:\p3fes`, finds the script with `find` (the folder name depends on the zip), builds the game, then builds the native 60 fps PC window with `p3fes_win_setup.bat` as part 4 instead of a separate guide, then starts the launcher, with a table of the problems the clean-PC test found.
 - **NEW**  Essential Mods: the screen now says what to do when a download fails (get the file from the mod's GameBanana page in your browser; a patch mod: FOLDER and its .pnach files, a file mod: FILE MODS). Found on a fresh PC where one mod's file server refused the launcher.
 - **FIXED**  Essential Mods: a download that GameBanana's file server refused with "HTTP 404" although the mod page and the file list were fine (Share Party Experience on a fresh PC) is now asked again the way a browser asks, with the mod's page as the referer. A real error now names the address that said no.

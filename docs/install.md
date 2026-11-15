@@ -38,6 +38,8 @@ If your disc is somewhere else, add its path at the end of the command.
 ## 4. Build the native Windows PC window (60 fps)
 Without this part the launcher can only start a slower copy of the PC window that runs through Ubuntu (about 15 frames per second). The browser version is not affected.
 
+**Easiest:** in the launcher, open Setup (Home shows it when the PC window is chosen but not built) or Settings > Display, and press **BUILD THE PC WINDOW**. It opens the same script below in its own window and the step ticks off when it finishes. Or do it by hand:
+
 1. In Windows, open the `tools` folder of the repository (the same folder that holds `p3fes_install.sh`) and double-click **`p3fes_win_setup.bat`**. Or, in a Command Prompt, `cd` into that folder and run `p3fes_win_setup.bat` so the window stays open if something goes wrong.
 2. It runs four steps, printed as `== [1/4]` to `== [4/4]`, and skips any that are already done:
    1. Installs Visual Studio Build Tools with clang and CMake. **Windows asks for permission: say yes.** About 3 GB, 10 to 20 minutes the first time.

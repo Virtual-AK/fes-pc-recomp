@@ -37,7 +37,7 @@ The browser game now copies each autosave to `saves\autosaves\<build>` (and tell
 
 ## Setup from the launcher
 
-On a computer with no game yet, Home shows SET UP. It opens the Setup screen with four steps: FIND YOUR DISC (a normal Windows file window, only a USA, unchanged disc is accepted), GET THE TOOLS and BUILD THE GAME (START SETUP runs `p3fes_install.sh` in its own window, where it may ask for the Ubuntu password once; the launcher shows the piece count and the last files compiled), then PLAY. If setup stops, CONTINUE SETUP picks up where it left off. Still needed before this works: Windows 10/11 with Ubuntu installed in WSL (see docs/install.md).
+On a computer with no game yet, Home shows SET UP. It opens the Setup screen with five steps: FIND YOUR DISC (a normal Windows file window, only a USA, unchanged disc is accepted), GET THE TOOLS and BUILD THE GAME (START SETUP runs `p3fes_install.sh` in its own window, where it may ask for the Ubuntu password once; the launcher shows the piece count and the last files compiled), BUILD THE PC WINDOW (one button opens `p3fes_win_setup.bat` in its own window; Windows asks for permission once; the step ticks off when `ps2run.exe` exists; the same button is under Settings > Display), then PLAY. If setup stops, CONTINUE SETUP picks up where it left off. Still needed before this works: Windows 10/11 with Ubuntu installed in WSL (see docs/install.md).
 
 ## Mods screen
 

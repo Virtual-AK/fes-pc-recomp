@@ -19,7 +19,7 @@ Follow the steps below. Write down roughly what time each step started and finis
 | Step | You should see | If not, send |
 |---|---|---|
 | Double-click `launch.bat` | A blue launcher window titled LAUNCHER, with SET UP as the first item | A screenshot of whatever opened |
-| Press SET UP | The SETUP screen with four steps: FIND YOUR DISC, GET THE TOOLS, BUILD THE GAME, PLAY | A screenshot |
+| Press SET UP | The SETUP screen with five steps: FIND YOUR DISC, GET THE TOOLS, BUILD THE GAME, BUILD THE PC WINDOW, PLAY | A screenshot |
 | Choose disc | A Windows file window (it may be behind the launcher). After choosing your USA disc, the first step says DONE. A wrong or changed disc is refused with a reason | The message shown and a screenshot |
 | Get the tools: START SETUP | A second black window opens and asks for your Ubuntu password once (typing shows nothing, which is normal) | Tell me if it asked more than once, or if no window appeared |
 | Build the game | The launcher shows a counter (about 337 pieces) that goes up, and the last file names. The black window sits quiet for long stretches | A screenshot of both windows |
