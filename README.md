@@ -112,6 +112,13 @@ All tools need only Python 3.8 or later (no extra packages). Test them without a
 | `ps2run_texlog_patch.py` | Probe for the HD texture work: `PS2_TEXLOG=file` makes the PC window log a hash of every image the game uploads (hashes and sizes only). `p3fes_texhash.py check` compares the log with the disc textures. |
 | `ps2run_hdtex_patch.py` | HD textures for the PC window (`PS2_HDTEX=<map>`): recognises each picture the game uploads by a hash of its pixels and draws an HD picture from a GameBanana mod instead. See `docs/hd-textures.md`. |
 | `ps2run_hdtex_staleres_patch.py` | Follows `ps2run_hdtex_patch.py`: stops an old HD portrait from being drawn onto a different picture (the one-frame pink or bright flash of floors and backgrounds). Needs the PC window built again. |
+| `ps2run_hdtex_fastdecode_patch.py` | Faster decoding of the HD pictures (same result, about 3x quicker; a first-time picture no longer stalls the game for 65 ms). |
+| `ps2run_fillwindow_patch.py` | Widescreen fills the window: a 16:9 picture is stretched to a window within 15% of its shape, so no thin side bars. |
+| `ps2gpu_atlusfix_patch.py` | The ATLUS boot logo: two leftover strokes in the logo picture (under the A and the U) are read as the black beside them. Only that picture (1024 wide 4-bit texture at block 0x2F60) is touched. |
+| `ps2gpu_flipfix_tight_patch.py` | Text box corners: the flipped-tile shift (ps2gpu_flipfix_patch.py) now only applies within 0.2% of 1:1 instead of 5%, so the text box strips are no longer shifted a texel (pale line, misaligned bottom-right corner). |
+| `ps2run_pctext_patch.py` | The memory card messages say "your PC" instead of "PlayStation 2" / "PS2". |
+| `ps2run_hdtex_stalepic_patch.py` | Forgets a remembered HD title picture when a different picture arrives at its place in video memory, so the title moon no longer flashes green over the rug and props after a load. |
+| `ps2run_hdtex_noteorder_patch.py` | Notes a write to video memory after the draws waiting on it are flushed, so a portrait stays HD while a small sprite is sent over the same memory. |
 | `p3fes_hdtex.py` | Builds the map file for the HD textures from the shipped hash list (`tools/hdtex/hdtex-table-ntscu.tsv`) and your `hdmods` folder; the launcher does this on Play (Settings > Display > HD TEXTURES). |
 | `ps2web_cardsync_patch.py`, `ps2web_autosavesync_patch.py` | Browser build: share the memory card and the autosaves with the launcher (and so the PC window). |
 | `ps2web_serveovl_patch.py` | Browser build: the game's server lays a mod overlay (`.ovl`) on top of the disc image while serving it, so a mod needs no copy of the disc. |
