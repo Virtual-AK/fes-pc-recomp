@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.60"
+LAUNCHER_VERSION = "0.65"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -1993,7 +1993,14 @@ def auto_last():
 # patch name -> (source file, text that is only there once it is applied). The installer's LATE list names the same patches.
 LATE_TOOL_PATCHES = {"ps2run_logkey_patch.py": ("host/window.cpp", "SDL_WINDOWEVENT_CLOSE && g_window"),
                      "ps2run_subs_patch.py": ("host/window.cpp", "subs_draw(g_window)"),
-                     "ps2run_hdtex_staleres_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "hd_refreshing(r.range, it->first)")}
+                     "ps2run_hdtex_staleres_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "hd_refreshing(r.range, it->first)"),
+                     "ps2run_hdtex_fastdecode_patch.py": ("runtime/src/gs/gpu/hdtex.hpp", "decode_dds_fast"),
+                     "ps2run_hdtex_noteorder_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "after queue_pre (ps2run_hdtex_noteorder_patch.py)"),
+                     "ps2run_hdtex_stalepic_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "ps2run_hdtex_stalepic_patch.py"),
+                     "ps2run_fillwindow_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "ps2run_fillwindow_patch.py"),
+                     "ps2run_pctext_patch.py": ("runtime/src/system.cpp", "ps2run_pctext_patch.py"),
+                     "ps2gpu_flipfix_tight_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "abs(abs(gv) - 1.0) < 0.002"),
+                     "ps2gpu_atlusfix_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "atlus_fix")}
 
 
 def tool_patches_pending():
@@ -2022,14 +2029,14 @@ def tool_patches_pending():
     return [x for x in body if x not in have]
 
 
-def tools_newer_than(path):
+def tools_newer_than(path, extra=()):
     """A tool patch changed the project source after this file was made, so it has to be made again. Looks at the list of applied patches
     and at the runner's own source files (an older install has no list, but the patched source still carries its date)."""
     try:
         mine = os.path.getmtime(path)
     except OSError:
         return False
-    for rel in (".p3fes_applied", "host/window.cpp", "runtime/src/system.cpp", "host/subs.inc"):
+    for rel in (".p3fes_applied", "host/window.cpp", "runtime/src/system.cpp", "host/subs.inc") + tuple(extra):
         try:
             if mine < os.path.getmtime(os.path.join(DIR, rel)):
                 return True
@@ -3392,11 +3399,15 @@ def direct_on():
     return packed_on("directcmd")
 
 
+# Sources that only the PC window is built from (the game itself does not change when they are patched): a patch to them means the window must be built again
+WIN_ONLY_SOURCES = ("runtime/src/gs/gpu/gpu.cpp", "runtime/src/gs/gpu/hdtex.hpp", "runtime/src/gs/gpu/gs.wgsl")
+
+
 def win_mod_stale():
     """The PC window's mod build was made before the newest BUILD of the essential mods (or before the newest tool patch), so it would not have what was added since."""
     exe = win_mod_exe()
     try:
-        return bool(exe) and (os.path.getmtime(exe) < os.path.getmtime(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tools_newer_than(exe))
+        return bool(exe) and (os.path.getmtime(exe) < os.path.getmtime(os.path.join(DIR, "games", MOD_NAME, "variants.txt")) or tools_newer_than(exe, WIN_ONLY_SOURCES))
     except OSError:
         return False
 
