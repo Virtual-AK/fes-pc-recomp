@@ -19,7 +19,7 @@ WINCWD = "/mnt/c" if os.path.isdir("/mnt/c") else None   # cmd.exe wants a Windo
 CARD_BYTES = 8650752
 CARD_MAGIC = b"Sony PS2 Memory Card Format "
 CFG = os.path.expanduser("~/.p3fes-launcher.json")
-LAUNCHER_VERSION = "0.65"
+LAUNCHER_VERSION = "0.66"
 WANT_ID = "SLUS_216.21"          # SLUS-21621, Persona 3 FES (USA)
 PIECES = 337                     # pieces in a full browser build (estimate for the progress bar)
 state_lock = threading.Lock()
@@ -2000,7 +2000,9 @@ LATE_TOOL_PATCHES = {"ps2run_logkey_patch.py": ("host/window.cpp", "SDL_WINDOWEV
                      "ps2run_fillwindow_patch.py": ("runtime/src/gs/gpu/gpu.cpp", "ps2run_fillwindow_patch.py"),
                      "ps2run_pctext_patch.py": ("runtime/src/system.cpp", "ps2run_pctext_patch.py"),
                      "ps2gpu_flipfix_tight_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "abs(abs(gv) - 1.0) < 0.002"),
-                     "ps2gpu_atlusfix_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "atlus_fix")}
+                     "ps2gpu_atlusfix_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "atlus_fix"),
+                     "ps2gpu_atlusfix2_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "s.tbp != 0x2F40u"),
+                     "ps2gpu_moonfix_patch.py": ("runtime/src/gs/gpu/gs.wgsl", "moon_shift")}
 
 
 def tool_patches_pending():

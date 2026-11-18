@@ -48,12 +48,15 @@ html,body{margin:0;height:100%;background:#020a1c;overflow:hidden}
 :root[data-theme=twelve] .curve{background:radial-gradient(circle at 70% 30%,#14614A 0,#0A3A2D 45%,#031610 100%)!important}
 :root[data-theme=twelve] .ticks{display:none}
 .badge{position:absolute;left:372px;top:109px;z-index:5;font-size:12px;font-weight:800;letter-spacing:.3em;color:#23284F;background:linear-gradient(90deg,#FFE9A8,#FFD36B);padding:4px 14px;border-radius:0 12px 12px 0;box-shadow:0 0 18px rgba(255,214,120,.7)}
-#c::before{content:'';position:absolute;left:0;top:0;width:1280px;height:800px;background-image:radial-gradient(1.6px 1.6px at 12% 18%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 27% 62%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 41% 9%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 58% 44%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 73% 80%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 88% 14%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 94% 58%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 66% 22%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 35% 88%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 7% 74%,#fff 50%,transparent 51%);opacity:0;pointer-events:none}
+#c::before{content:'';position:absolute;left:0;top:0;width:100%;height:800px;background-image:radial-gradient(1.6px 1.6px at 12% 18%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 27% 62%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 41% 9%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 58% 44%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 73% 80%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 88% 14%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 94% 58%,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 66% 22%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 35% 88%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 7% 74%,#fff 50%,transparent 51%);opacity:0;pointer-events:none}
 :root[data-theme=horizon] #c::before{opacity:.5}
 :root[data-theme=eclipse] #c::before{opacity:.5}
 #fit{position:absolute;left:50%;top:50%;width:1280px;height:800px;transform-origin:0 0}
 #c{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--ground);color:var(--fg,#fff);font-family:'Lexend','Segoe UI',sans-serif;user-select:none}
 #c *{box-sizing:border-box}
+/* wide_fill: on a window wider than 16:10 the stage grows to the window; the content stays centred (--dx) and the stripe runs out to the left edge */
+#c>*{margin-left:var(--dx,0px)}
+#c>.stripe{margin-left:0;width:calc(84px + var(--dx,0px))}
 .a{position:absolute}
 .ring{left:900px;top:-150px;width:620px;height:620px;border-radius:50%;border:2px solid var(--ring)}
 .ticks{left:960px;top:-90px;width:500px;height:500px;border-radius:50%;background:repeating-conic-gradient(var(--ring2) 0 .8deg,transparent .8deg 15deg);-webkit-mask:radial-gradient(circle,transparent 0,transparent 234px,#000 235px,#000 250px,transparent 251px);mask:radial-gradient(circle,transparent 0,transparent 234px,#000 235px,#000 250px,transparent 251px)}
@@ -110,7 +113,7 @@ const ITEMS=['PLAY','RESUME','MODS','SETTINGS','SAVES','EXTRA','HELP','ABOUT'];
 const GOLD='linear-gradient(90deg,#FF9A3C,#FFD08A)',RED='linear-gradient(90deg,#FF6B78,#FFB3BA)',VIO='linear-gradient(90deg,#7A5CFF,#C9B8FF)';
 let S=null,sel=0,note='',noteT=0,busy=false,hv=-1;
 
-function fit(){const k=Math.min(innerWidth/1280,innerHeight/800);$('#fit').style.transform='scale('+k+') translate(-50%,-50%)';}
+function fit(){const k=Math.min(innerWidth/1280,innerHeight/800),W=Math.max(1280,innerWidth/k),c=document.getElementById('c');$('#fit').style.width=W+'px';c.style.width=W+'px';c.style.setProperty('--dx',((W-1280)/2)+'px');$('#fit').style.transform='scale('+k+') translate(-50%,-50%)';}
 addEventListener('resize',fit);fit();
 // the window is maximized from outside right after it opens, and the page can stay half painted (dark screen, one stray block): fit again and force a repaint after every size change and a few times at start
 function repaint(){try{fit();const f=$('#fit');if(!f)return;f.style.display='none';void f.offsetHeight;f.style.display='';document.body.style.opacity='0.999';requestAnimationFrame(()=>{document.body.style.opacity='';});}catch(e){}}
@@ -234,6 +237,12 @@ async function gbLoad(refresh){gload=true;gmsg='';render();try{G=await api('/api
 let screen='home',astab='',msel=0,capture=null,reportText='',pend='';
 function hdNote(){const h=S&&S.hdtex;if(!h||h.pending)return h&&h.pending?'Checking the HD pictures…':'';if(!h.have_exe)return 'Needs the Windows PC window (built with tools\\p3fes_win_mod.bat).';if(!h.built)return 'The PC window is not built with HD texture support yet: run tools\\p3fes_install.sh --new-patches, then build_win.bat game and p3fes_win_mod.bat.';if(!h.table)return 'The picture list (hdtex-table-ntscu.tsv) is missing next to the launcher.';if(!h.pictures)return 'No pictures found yet. Put the mod folders in '+h.dir+' (each mod keeps its own folder).';return h.pictures+' HD pictures found in '+h.dir+(h.missing?'; '+h.missing+' more are listed but not in your folders.':'.')+' Takes effect the next time the PC window starts.';}
 const CHANGES=[
+ {v:'0.66',d:'17 Nov 2026',t:'Calendar moons, Aigis portrait, ATLUS after Return',i:[
+  'FIXED  Calendar transition: the waning moon icons (the mirrored ones, e.g. 16 to 22 July) were about 2.5 original pixels left of their dates and weekdays; the waxing ones lined up. The moon picture is now moved back by 2.5 texels when it runs backwards (ps2gpu_moonfix_patch.py). Works in the PC window and the browser (rebuild both).',
+  'FIXED  The ATLUS logo fix also covers the logo after Back to Title in the System Menu. The game copies the logo picture to a different place in video memory (it changes from run to run) but reads it the same way, so the same two stray strokes (under the A and under the U) come back; the fix now covers that copy too and leaves the Sofdec / ADX splash alone (ps2gpu_atlusfix2_patch.py, needs the 0.65 patch). Works in the PC window and the browser (rebuild both).',
+  'NEW  The launcher fills the whole window: on a wide window (16:9) the dark bars at the left and right are gone, the background and the orange stripe run out to the edges and the menu stays centred.',
+  'FIXED  HD textures: Aigis\'s portrait on 29 July is now HD (one new picture-list row; no rebuild, just press Play).',
+ ]},
  {v:'0.65',d:'16 Nov 2026',t:'ATLUS logo',i:[
   'FIXED  The ATLUS boot logo no longer has the stray dark lines hanging below the A and the U. They were two leftover strokes in the logo picture the game ships with (one pixel column under the A, two under the U), so they showed at every resolution; they are now read as the black beside them, for that picture only. Works in the PC window and the browser (rebuild both).',
  ]},
