@@ -1,6 +1,13 @@
 # Update log
 Newest first. The launcher shows the same list under Extra > Update log (the source is `CHANGES` in `tools/launcher/ui/index.html`; keep the two in step).
 
+## 0.66 · 17 Nov 2026 · Calendar moons, Aigis portrait, ATLUS after Return
+
+- **FIXED**  Calendar transition: the waning moon icons (the mirrored ones, e.g. 16 to 22 July) were about 2.5 original pixels left of their dates and weekdays; the waxing ones lined up. The moon picture is now moved back by 2.5 texels when it runs backwards (ps2gpu_moonfix_patch.py). Works in the PC window and the browser (rebuild both).
+- **FIXED**  HD textures: Aigis's portrait on 29 July is now HD (one new picture-list row; no rebuild, just press Play).
+- **FIXED**  The ATLUS logo fix also covers the logo after Back to Title in the System Menu. The game copies the logo picture to a different place in video memory (it changes from run to run) but reads it the same way as at boot, so the same two stray strokes (under the A and under the U) come back; the fix now covers that copy too and leaves the Sofdec / ADX splash alone (ps2gpu_atlusfix2_patch.py, needs the 0.65 patch). Works in the PC window and the browser (rebuild both).
+- **NEW**  The launcher fills the whole window: on a wide window (16:9) the dark bars at the left and right are gone; the menu stays centred.
+
 ## 0.65 · 16 Nov 2026 · ATLUS logo
 
 - **FIXED**  The ATLUS boot logo no longer has the stray dark lines hanging below the A and the U. They were two leftover strokes in the logo picture the game ships with (one pixel column under the A, two under the U), so they showed at every resolution; they are now read as the black beside them, for that picture only. Works in the PC window and the browser (rebuild both).
